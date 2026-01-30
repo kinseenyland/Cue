@@ -6,27 +6,34 @@
 //
 
 import SwiftUI
-import SwiftData
+import FirebaseCore
+import FirebaseAuth
 
 @main
 struct CueApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Item.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }
-    }()
+    init() {
+        FirebaseApp.configure()
+        ensureSignedIn()
+    }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
         }
-        .modelContainer(sharedModelContainer)
+    }
+
+    private func ensureSignedIn() {
+        if Auth.auth().currentUser == nil {
+            Auth.auth().signInAnonymously { result, error in
+                if let error {
+                    print("❌ Anonymous sign-in failed:", error.localizedDescription)
+                } else {
+                    print("✅ Signed in anonymously as:", result?.user.uid ?? "nil")
+                }
+            }
+        } else {
+            print("✅ Already signed in as:", Auth.auth().currentUser?.uid ?? "nil")
+        }
     }
 }
