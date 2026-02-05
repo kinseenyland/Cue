@@ -1,0 +1,20 @@
+//
+//  Enums.swift
+//  Cue
+//
+//  Created by Kinsee Nyland on 2/5/26.
+//
+
+import Foundation
+
+enum WorkoutType: String, CaseIterable, Codable {
+    case pilates, yoga, cycle
+}
+
+enum Difficulty: String, CaseIterable, Codable {
+    case easy, medium, hard
+}
+
+enum GoalType: String, CaseIterable, Codable {
+    case timed, reps
+}
