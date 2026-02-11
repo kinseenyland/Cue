@@ -22,7 +22,7 @@ final class AuthViewModel: ObservableObject {
     private var handle: AuthStateDidChangeListenerHandle?
 
     private let pendingEmailKey = "cue.pendingEmail"
-    private let signInLinkURL = "https://cue.page.link/login"
+    private let signInLinkURL = "https://cue-1-70e22.firebaseapp.com/login"
 
     init() {
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
