@@ -24,44 +24,58 @@ struct ScheduleView: View {
         ScheduleItem(day: "Apr", date: "03", title: "Hot Pilates", time: "8:00 AM"),
         ScheduleItem(day: "Apr", date: "05", title: "Strength + Core", time: "10:00 AM")
     ]
+    @State private var isShowingAlert = false
+    @State private var alertMessage = ""
 
     var body: some View {
         NavigationStack {
             List(items) { item in
-                HStack(spacing: 12) {
-                    VStack {
-                        Text(item.day)
-                            .font(.caption)
+                Button {
+                    alertMessage = "\(item.title) at \(item.time)"
+                    isShowingAlert = true
+                } label: {
+                    HStack(spacing: 12) {
+                        VStack {
+                            Text(item.day)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(item.date)
+                                .font(.headline)
+                        }
+                        .frame(width: 44)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(item.title)
+                                .font(.headline)
+                            Text(item.time)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
                             .foregroundStyle(.secondary)
-                        Text(item.date)
-                            .font(.headline)
                     }
-                    .frame(width: 44)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.title)
-                            .font(.headline)
-                        Text(item.time)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .foregroundStyle(.secondary)
+                    .padding(.vertical, 6)
                 }
-                .padding(.vertical, 6)
             }
             .listStyle(.plain)
             .navigationTitle("Schedule")
             .toolbar {
                 Button {
+                    alertMessage = "Add class coming soon."
+                    isShowingAlert = true
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .foregroundStyle(.orange)
                 }
             }
+        }
+        .alert("Cue", isPresented: $isShowingAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
         }
     }
 }

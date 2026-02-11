@@ -7,6 +7,7 @@
 
 import Foundation
 import FirebaseFirestore
+import FirebaseAuth
 import Observation
 
 @Observable
@@ -93,27 +94,40 @@ class CueViewModel {
             print(error)
         }
     }
+
+    func addPlan(from draft: WorkoutPlanDraft) async {
+        statusMessage = "Saving plan..."
+        errorMessage = nil
+
+        let ownerId = Auth.auth().currentUser?.uid ?? "debug-user"
+        let plan = WorkoutPlan(
+            ownerId: ownerId,
+            title: draft.title,
+            type: draft.type,
+            difficulty: draft.difficulty,
+            isPublic: false,
+            movements: []
+        )
+
+        let data: [String: Any] = [
+            "ownerId": plan.ownerId,
+            "title": plan.title,
+            "type": plan.type.rawValue,
+            "difficulty": plan.difficulty.rawValue,
+            "durationMinutes": draft.durationMinutes,
+            "movements": draft.movements,
+            "createdAt": plan.createdAt,
+            "updatedAt": plan.updatedAt,
+            "isPublic": plan.isPublic
+        ]
+
+        do {
+            try await db.collection("plans").document(plan.id).setData(data, merge: true)
+            statusMessage = "✅ Plan saved to Firebase!"
+        } catch {
+            errorMessage = "❌ Save failed: \(error.localizedDescription)"
+            statusMessage = nil
+            print(error)
+        }
+    }
 }
-
-
-
-//@Observable
-//class CueViewModel {
-//    
-//    // MARK: - Properties
-//    
-//    private var modelContext: ModelContext
-//    
-//    // MARK: Initialization
-//    init(_ modelContext: ModelContext) {
-//        self.modelContext = modelContext
-//        //fetchData()
-//    }
-//    
-//    // MARK: - Model Access
-//    
-//    //private(set) var 
-//    
-//    // MARK: - User Intents
-//    
-//}

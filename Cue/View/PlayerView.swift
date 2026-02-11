@@ -8,6 +8,13 @@
 import SwiftUI
 
 struct PlayerView: View {
+    @State private var currentIndex = 0
+    @State private var isPaused = false
+    @State private var isShowingAlert = false
+    @State private var alertMessage = ""
+
+    private let moves = ["Plank", "Weighted Lunge", "Mountain Climbers", "Cool Down"]
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 16) {
@@ -15,14 +22,14 @@ struct PlayerView: View {
                     Text("Hot Pilates Core")
                         .font(.title3).bold()
 
-                    ProgressView(value: 0.6)
+                    ProgressView(value: progressValue)
                         .tint(.orange)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 HStack(spacing: 16) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Plank")
+                        Text(currentMove)
                             .font(.title2).bold()
                         Text("Focus on form and breath.")
                             .foregroundStyle(.secondary)
@@ -55,16 +62,24 @@ struct PlayerView: View {
                     }
 
                     HStack(spacing: 16) {
-                        Button {} label: {
+                        Button {
+                            alertMessage = "Previous track"
+                            isShowingAlert = true
+                        } label: {
                             Image(systemName: "backward.fill")
                         }
 
-                        Button {} label: {
-                            Image(systemName: "play.fill")
+                        Button {
+                            isPaused.toggle()
+                        } label: {
+                            Image(systemName: isPaused ? "play.fill" : "pause.fill")
                         }
                         .font(.title2)
 
-                        Button {} label: {
+                        Button {
+                            alertMessage = "Next track"
+                            isShowingAlert = true
+                        } label: {
                             Image(systemName: "forward.fill")
                         }
 
@@ -82,13 +97,16 @@ struct PlayerView: View {
                 Spacer()
 
                 HStack(spacing: 12) {
-                    Button("Next Move") {}
-                        .frame(maxWidth: .infinity)
-                        .buttonStyle(.bordered)
+                    Button("Next Move") {
+                        advanceMove()
+                    }
+                    .frame(maxWidth: .infinity)
+                    .buttonStyle(.bordered)
 
                     Button {
+                        isPaused.toggle()
                     } label: {
-                        Image(systemName: "pause.circle.fill")
+                        Image(systemName: isPaused ? "play.circle.fill" : "pause.circle.fill")
                             .font(.system(size: 44))
                             .foregroundStyle(.orange)
                     }
@@ -97,6 +115,27 @@ struct PlayerView: View {
             .padding()
             .navigationTitle("Workout + Music")
         }
+        .alert("Cue", isPresented: $isShowingAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
+        }
+    }
+
+    private var currentMove: String {
+        moves[currentIndex]
+    }
+
+    private var progressValue: Double {
+        guard !moves.isEmpty else { return 0 }
+        return Double(currentIndex + 1) / Double(moves.count)
+    }
+
+    private func advanceMove() {
+        guard !moves.isEmpty else { return }
+        currentIndex = (currentIndex + 1) % moves.count
+        alertMessage = "Now playing: \(currentMove)"
+        isShowingAlert = true
     }
 }
 

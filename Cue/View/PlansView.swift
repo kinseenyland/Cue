@@ -8,8 +8,9 @@
 import SwiftUI
 
 struct PlansView: View {
-    @State private var plans: [DraftPlan] = [
-        DraftPlan(
+    @Binding var selectedTab: MainTab
+    @State private var plans: [WorkoutPlanDraft] = [
+        WorkoutPlanDraft(
             title: "Hot Pilates - Core",
             type: .pilates,
             difficulty: .medium,
@@ -18,11 +19,24 @@ struct PlansView: View {
         )
     ]
     @State private var isPresentingForm = false
+    @State private var isShowingAlert = false
+    @State private var alertMessage = ""
+    @State private var vm = CueViewModel()
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    if let status = vm.statusMessage {
+                        Text(status)
+                            .foregroundStyle(.green)
+                    }
+
+                    if let error = vm.errorMessage {
+                        Text(error)
+                            .foregroundStyle(.red)
+                    }
+
                     ZStack(alignment: .bottomLeading) {
                         RoundedRectangle(cornerRadius: 16)
                             .fill(
@@ -45,6 +59,15 @@ struct PlansView: View {
                         .padding(16)
                     }
 
+                    Button {
+                        isPresentingForm = true
+                    } label: {
+                        Label("Create Plan", systemImage: "plus")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
+
                     ForEach(plans) { plan in
                         VStack(alignment: .leading, spacing: 8) {
                             Text(plan.title)
@@ -56,19 +79,27 @@ struct PlansView: View {
 
                         VStack(alignment: .leading, spacing: 8) {
                             ForEach(plan.movements, id: \.self) { movement in
-                                HStack {
-                                    Text(movement)
-                                    Spacer()
-                                    Image(systemName: "chevron.right")
-                                        .foregroundStyle(.secondary)
+                                Button {
+                                    alertMessage = "Open movement: \(movement)"
+                                    isShowingAlert = true
+                                } label: {
+                                    HStack {
+                                        Text(movement)
+                                        Spacer()
+                                        Image(systemName: "chevron.right")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .padding()
+                                    .background(Color(.secondarySystemBackground))
+                                    .cornerRadius(12)
                                 }
-                                .padding()
-                                .background(Color(.secondarySystemBackground))
-                                .cornerRadius(12)
+                                .buttonStyle(.plain)
                             }
                         }
 
-                        Button("Start Workout") {}
+                        Button("Start Workout") {
+                            selectedTab = .workout
+                        }
                             .frame(maxWidth: .infinity)
                             .buttonStyle(.borderedProminent)
                             .tint(.orange)
@@ -79,7 +110,7 @@ struct PlansView: View {
             }
             .navigationTitle("Create + Share Plans")
             .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         isPresentingForm = true
                     } label: {
@@ -87,6 +118,8 @@ struct PlansView: View {
                     }
 
                     Button {
+                        alertMessage = "Share plan coming soon."
+                        isShowingAlert = true
                     } label: {
                         Image(systemName: "square.and.arrow.up")
                     }
@@ -97,12 +130,18 @@ struct PlansView: View {
             NavigationStack {
                 WorkoutPlanFormView { newPlan in
                     plans.insert(newPlan, at: 0)
+                    Task { await vm.addPlan(from: newPlan) }
                 }
             }
+        }
+        .alert("Cue", isPresented: $isShowingAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(alertMessage)
         }
     }
 }
 
 #Preview {
-    PlansView()
+    PlansView(selectedTab: .constant(.plans))
 }

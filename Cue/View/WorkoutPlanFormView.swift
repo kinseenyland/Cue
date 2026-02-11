@@ -7,47 +7,17 @@
 
 import SwiftUI
 
-struct DraftPlan: Identifiable {
-    let id = UUID()
-    var title: String
-    var type: PlanType
-    var difficulty: PlanDifficulty
-    var durationMinutes: Int
-    var movements: [String]
-
-    var summaryLine: String {
-        "Type: \(type.rawValue) • Difficulty: \(difficulty.rawValue) • Time: \(durationMinutes) mins"
-    }
-}
-
-enum PlanType: String, CaseIterable, Identifiable {
-    case pilates = "Pilates"
-    case yoga = "Yoga"
-    case strength = "Strength"
-    case cardio = "Cardio"
-
-    var id: String { rawValue }
-}
-
-enum PlanDifficulty: String, CaseIterable, Identifiable {
-    case beginner = "Beginner"
-    case medium = "Medium"
-    case advanced = "Advanced"
-
-    var id: String { rawValue }
-}
-
 struct WorkoutPlanFormView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var title = ""
-    @State private var type: PlanType = .pilates
-    @State private var difficulty: PlanDifficulty = .medium
+    @State private var type: WorkoutType = .pilates
+    @State private var difficulty: Difficulty = .medium
     @State private var durationMinutes = 45
     @State private var movements: [String] = []
     @State private var newMovement = ""
 
-    let onSave: (DraftPlan) -> Void
+    let onSave: (WorkoutPlanDraft) -> Void
 
     var body: some View {
         Form {
@@ -55,14 +25,14 @@ struct WorkoutPlanFormView: View {
                 TextField("Plan title", text: $title)
 
                 Picker("Type", selection: $type) {
-                    ForEach(PlanType.allCases) { planType in
-                        Text(planType.rawValue).tag(planType)
+                    ForEach(WorkoutType.allCases, id: \.self) { planType in
+                        Text(planType.rawValue.capitalized).tag(planType)
                     }
                 }
 
                 Picker("Difficulty", selection: $difficulty) {
-                    ForEach(PlanDifficulty.allCases) { level in
-                        Text(level.rawValue).tag(level)
+                    ForEach(Difficulty.allCases, id: \.self) { level in
+                        Text(level.rawValue.capitalized).tag(level)
                     }
                 }
 
@@ -113,7 +83,7 @@ struct WorkoutPlanFormView: View {
     }
 
     private func savePlan() {
-        let plan = DraftPlan(
+        let plan = WorkoutPlanDraft(
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             type: type,
             difficulty: difficulty,
