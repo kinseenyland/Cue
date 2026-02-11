@@ -13,7 +13,7 @@ struct WorkoutPlanDraft: Identifiable, Hashable {
     var type: WorkoutType
     var difficulty: Difficulty
     var durationMinutes: Int
-    var movements: [String]
+    var movements: [Movement]
 
     var summaryLine: String {
         "Type: \(type.rawValue.capitalized) • Difficulty: \(difficulty.rawValue.capitalized) • Time: \(durationMinutes) mins"

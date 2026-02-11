@@ -8,26 +8,34 @@
 import Foundation
 import FirebaseFirestore
 import FirebaseAuth
-import Observation
+import SwiftUI
 
-@Observable
-class CueViewModel {
-    var plans: [WorkoutPlan] = []
-    var statusMessage: String? = nil
-    var errorMessage: String? = nil
+@MainActor
+class CueViewModel: ObservableObject {
+    @Published var plans: [WorkoutPlan] = []
+    @Published var statusMessage: String? = nil
+    @Published var errorMessage: String? = nil
 
     private let db = Firestore.firestore()
 
     func fetchPlans() async {
+        guard let ownerId = Auth.auth().currentUser?.uid else {
+            errorMessage = "Sign in required."
+            statusMessage = nil
+            return
+        }
+
         do {
-            let snapshot = try await db.collection("plans").getDocuments()
+            let snapshot = try await db.collection("plans")
+                .whereField("ownerId", isEqualTo: ownerId)
+                .order(by: "updatedAt", descending: true)
+                .getDocuments()
             let docs = snapshot.documents
 
             plans = docs.compactMap { doc in
                 let data = doc.data()
 
                 guard
-                    let ownerId = data["ownerId"] as? String,
                     let title = data["title"] as? String,
                     let typeRaw = data["type"] as? String,
                     let difficultyRaw = data["difficulty"] as? String,
@@ -35,16 +43,25 @@ class CueViewModel {
                     let difficulty = Difficulty(rawValue: difficultyRaw)
                 else { return nil }
 
+                let durationMinutes = data["durationMinutes"] as? Int ?? 45
+                let movementData = data["movements"] as? [[String: Any]] ?? []
+                let movements = movementData.compactMap { movementFromDict($0) }
+                let fallbackNames = data["movements"] as? [String] ?? []
+                let resolvedMovements = movements.isEmpty
+                    ? fallbackNames.map { Movement(name: $0, goalType: .timed, seconds: 30) }
+                    : movements
+
                 return WorkoutPlan(
                     id: doc.documentID,
                     ownerId: ownerId,
                     title: title,
                     type: type,
                     difficulty: difficulty,
+                    durationMinutes: durationMinutes,
                     createdAt: data["createdAt"] as? Double ?? Date().timeIntervalSince1970,
                     updatedAt: data["updatedAt"] as? Double ?? Date().timeIntervalSince1970,
                     isPublic: data["isPublic"] as? Bool ?? false,
-                    movements: []
+                    movements: resolvedMovements
                 )
             }
 
@@ -63,10 +80,11 @@ class CueViewModel {
 
         do {
             let plan = WorkoutPlan(
-                ownerId: "debug-user",
+                ownerId: Auth.auth().currentUser?.uid ?? "debug-user",
                 title: "Hot Pilates - Core",
                 type: .pilates,
                 difficulty: .medium,
+                durationMinutes: 60,
                 isPublic: false,
                 movements: [
                     Movement(name: "Plank", goalType: .timed, seconds: 30),
@@ -79,6 +97,8 @@ class CueViewModel {
                 "title": plan.title,
                 "type": plan.type.rawValue,
                 "difficulty": plan.difficulty.rawValue,
+                "durationMinutes": plan.durationMinutes,
+                "movements": plan.movements.map { movementToDict($0) },
                 "createdAt": plan.createdAt,
                 "updatedAt": plan.updatedAt,
                 "isPublic": plan.isPublic
@@ -95,7 +115,7 @@ class CueViewModel {
         }
     }
 
-    func addPlan(from draft: WorkoutPlanDraft) async {
+    func createPlan(from draft: WorkoutPlanDraft) async {
         statusMessage = "Saving plan..."
         errorMessage = nil
 
@@ -105,8 +125,9 @@ class CueViewModel {
             title: draft.title,
             type: draft.type,
             difficulty: draft.difficulty,
+            durationMinutes: draft.durationMinutes,
             isPublic: false,
-            movements: []
+            movements: draft.movements
         )
 
         let data: [String: Any] = [
@@ -115,7 +136,7 @@ class CueViewModel {
             "type": plan.type.rawValue,
             "difficulty": plan.difficulty.rawValue,
             "durationMinutes": draft.durationMinutes,
-            "movements": draft.movements,
+            "movements": draft.movements.map { movementToDict($0) },
             "createdAt": plan.createdAt,
             "updatedAt": plan.updatedAt,
             "isPublic": plan.isPublic
@@ -124,10 +145,83 @@ class CueViewModel {
         do {
             try await db.collection("plans").document(plan.id).setData(data, merge: true)
             statusMessage = "✅ Plan saved to Firebase!"
+            await fetchPlans()
         } catch {
             errorMessage = "❌ Save failed: \(error.localizedDescription)"
             statusMessage = nil
             print(error)
         }
+    }
+
+    func updatePlan(id: String, from draft: WorkoutPlanDraft) async {
+        statusMessage = "Updating plan..."
+        errorMessage = nil
+
+        let data: [String: Any] = [
+            "title": draft.title,
+            "type": draft.type.rawValue,
+            "difficulty": draft.difficulty.rawValue,
+            "durationMinutes": draft.durationMinutes,
+            "movements": draft.movements.map { movementToDict($0) },
+            "updatedAt": Date().timeIntervalSince1970
+        ]
+
+        do {
+            try await db.collection("plans").document(id).updateData(data)
+            statusMessage = "✅ Plan updated!"
+            await fetchPlans()
+        } catch {
+            errorMessage = "❌ Update failed: \(error.localizedDescription)"
+            statusMessage = nil
+        }
+    }
+
+    func deletePlan(id: String) async {
+        statusMessage = "Deleting plan..."
+        errorMessage = nil
+
+        do {
+            try await db.collection("plans").document(id).delete()
+            statusMessage = "✅ Plan deleted."
+            await fetchPlans()
+        } catch {
+            errorMessage = "❌ Delete failed: \(error.localizedDescription)"
+            statusMessage = nil
+        }
+    }
+
+    private func movementToDict(_ movement: Movement) -> [String: Any] {
+        var data: [String: Any] = [
+            "id": movement.id,
+            "name": movement.name,
+            "goalType": movement.goalType.rawValue
+        ]
+        if let seconds = movement.seconds {
+            data["seconds"] = seconds
+        }
+        if let reps = movement.reps {
+            data["reps"] = reps
+        }
+        if let notes = movement.notes {
+            data["notes"] = notes
+        }
+        return data
+    }
+
+    private func movementFromDict(_ data: [String: Any]) -> Movement? {
+        guard
+            let name = data["name"] as? String,
+            let goalTypeRaw = data["goalType"] as? String,
+            let goalType = GoalType(rawValue: goalTypeRaw)
+        else { return nil }
+
+        return Movement(
+            id: data["id"] as? String ?? UUID().uuidString,
+            name: name,
+            notes: data["notes"] as? String,
+            goalType: goalType,
+            seconds: data["seconds"] as? Int,
+            reps: data["reps"] as? Int
+        )
     }
 }

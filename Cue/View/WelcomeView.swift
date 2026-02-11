@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct WelcomeView: View {
+    @EnvironmentObject var authVM: AuthViewModel
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
@@ -42,10 +44,18 @@ struct WelcomeView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Sign Out") {
+                        authVM.signOut()
+                    }
+                }
+            }
         }
     }
 }
 
 #Preview {
     WelcomeView()
+        .environmentObject(AuthViewModel())
 }

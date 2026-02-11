@@ -7,76 +7,91 @@
 
 import SwiftUI
 
-struct ScheduleItem: Identifiable {
-    let id = UUID()
-    let day: String
-    let date: String
-    let title: String
-    let time: String
-}
-
 struct ScheduleView: View {
-    private let items: [ScheduleItem] = [
-        ScheduleItem(day: "Mar", date: "30", title: "Hot Pilates", time: "8:00 AM"),
-        ScheduleItem(day: "Mar", date: "30", title: "Yoga Flow", time: "6:00 PM"),
-        ScheduleItem(day: "Apr", date: "01", title: "Hot Pilates", time: "8:00 AM"),
-        ScheduleItem(day: "Apr", date: "02", title: "Power Flow", time: "9:30 AM"),
-        ScheduleItem(day: "Apr", date: "03", title: "Hot Pilates", time: "8:00 AM"),
-        ScheduleItem(day: "Apr", date: "05", title: "Strength + Core", time: "10:00 AM")
-    ]
-    @State private var isShowingAlert = false
-    @State private var alertMessage = ""
+    @StateObject private var vm = ScheduleViewModel()
+    @State private var isPresentingCreateForm = false
+    @State private var editingItem: ScheduleItem? = nil
 
     var body: some View {
         NavigationStack {
-            List(items) { item in
-                Button {
-                    alertMessage = "\(item.title) at \(item.time)"
-                    isShowingAlert = true
-                } label: {
-                    HStack(spacing: 12) {
-                        VStack {
-                            Text(item.day)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(item.date)
-                                .font(.headline)
-                        }
-                        .frame(width: 44)
+            List {
+                if let status = vm.statusMessage {
+                    Text(status)
+                        .foregroundStyle(.green)
+                }
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(item.title)
-                                .font(.headline)
-                            Text(item.time)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
+                if let error = vm.errorMessage {
+                    Text(error)
+                        .foregroundStyle(.red)
+                }
 
-                        Spacer()
-
-                        Image(systemName: "chevron.right")
+                ForEach(vm.items) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.title)
+                            .font(.headline)
+                        Text("\(dateText(for: item)) • \(item.durationMinutes) mins")
+                            .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 6)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            Task { await vm.deleteSchedule(id: item.id) }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            editingItem = item
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
                 }
             }
-            .listStyle(.plain)
             .navigationTitle("Schedule")
             .toolbar {
                 Button {
-                    alertMessage = "Add class coming soon."
-                    isShowingAlert = true
+                    isPresentingCreateForm = true
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .foregroundStyle(.orange)
                 }
             }
         }
-        .alert("Cue", isPresented: $isShowingAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(alertMessage)
+        .task {
+            await vm.fetchSchedules()
         }
+        .sheet(isPresented: $isPresentingCreateForm) {
+            NavigationStack {
+                ScheduleFormView { draft in
+                    Task { await vm.createSchedule(from: draft) }
+                }
+            }
+        }
+        .sheet(item: $editingItem) { item in
+            NavigationStack {
+                ScheduleFormView(draft: draft(from: item)) { updated in
+                    Task { await vm.updateSchedule(id: item.id, from: updated) }
+                }
+            }
+        }
+    }
+
+    private func dateText(for item: ScheduleItem) -> String {
+        let date = Date(timeIntervalSince1970: item.startsAt)
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private func draft(from item: ScheduleItem) -> ScheduleDraft {
+        ScheduleDraft(
+            title: item.title,
+            startsAt: Date(timeIntervalSince1970: item.startsAt),
+            durationMinutes: item.durationMinutes,
+            planId: item.planId
+        )
     }
 }
 

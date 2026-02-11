@@ -10,14 +10,33 @@ import SwiftUI
 struct WorkoutPlanFormView: View {
     @Environment(\.dismiss) private var dismiss
 
-    @State private var title = ""
-    @State private var type: WorkoutType = .pilates
-    @State private var difficulty: Difficulty = .medium
-    @State private var durationMinutes = 45
-    @State private var movements: [String] = []
+    @State private var title: String
+    @State private var type: WorkoutType
+    @State private var difficulty: Difficulty
+    @State private var durationMinutes: Int
+    @State private var movements: [Movement]
     @State private var newMovement = ""
+    @State private var newGoalType: GoalType = .timed
+    @State private var newSeconds = 30
+    @State private var newReps = 10
 
     let onSave: (WorkoutPlanDraft) -> Void
+
+    init(draft: WorkoutPlanDraft? = nil, onSave: @escaping (WorkoutPlanDraft) -> Void) {
+        let initial = draft ?? WorkoutPlanDraft(
+            title: "",
+            type: .pilates,
+            difficulty: .medium,
+            durationMinutes: 45,
+            movements: []
+        )
+        _title = State(initialValue: initial.title)
+        _type = State(initialValue: initial.type)
+        _difficulty = State(initialValue: initial.difficulty)
+        _durationMinutes = State(initialValue: initial.durationMinutes)
+        _movements = State(initialValue: initial.movements)
+        self.onSave = onSave
+    }
 
     var body: some View {
         Form {
@@ -48,12 +67,28 @@ struct WorkoutPlanFormView: View {
                     .disabled(newMovement.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
 
+                Picker("Goal", selection: $newGoalType) {
+                    Text("Timed").tag(GoalType.timed)
+                    Text("Reps").tag(GoalType.reps)
+                }
+
+                if newGoalType == .timed {
+                    Stepper("Seconds: \(newSeconds)", value: $newSeconds, in: 10...600, step: 5)
+                } else {
+                    Stepper("Reps: \(newReps)", value: $newReps, in: 1...200, step: 1)
+                }
+
                 if movements.isEmpty {
                     Text("No movements yet.")
                         .foregroundStyle(.secondary)
                 } else {
-                    ForEach(movements, id: \.self) { movement in
-                        Text(movement)
+                    ForEach(movements) { movement in
+                        HStack {
+                            Text(movement.name)
+                            Spacer()
+                            Text(goalText(for: movement))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .onDelete(perform: deleteMovement)
                 }
@@ -74,7 +109,13 @@ struct WorkoutPlanFormView: View {
     private func addMovement() {
         let trimmed = newMovement.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        movements.append(trimmed)
+        let movement = Movement(
+            name: trimmed,
+            goalType: newGoalType,
+            seconds: newGoalType == .timed ? newSeconds : nil,
+            reps: newGoalType == .reps ? newReps : nil
+        )
+        movements.append(movement)
         newMovement = ""
     }
 
@@ -92,6 +133,15 @@ struct WorkoutPlanFormView: View {
         )
         onSave(plan)
         dismiss()
+    }
+
+    private func goalText(for movement: Movement) -> String {
+        switch movement.goalType {
+        case .timed:
+            return "\(movement.seconds ?? 0)s"
+        case .reps:
+            return "\(movement.reps ?? 0) reps"
+        }
     }
 }
 

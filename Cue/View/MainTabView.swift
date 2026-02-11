@@ -15,6 +15,7 @@ enum MainTab: Hashable {
 
 struct MainTabView: View {
     @State private var selection: MainTab = .plans
+    @StateObject private var sessionVM = WorkoutSessionViewModel()
 
     var body: some View {
         TabView(selection: $selection) {
@@ -36,6 +37,7 @@ struct MainTabView: View {
                 }
                 .tag(MainTab.schedule)
         }
+        .environmentObject(sessionVM)
     }
 }
 

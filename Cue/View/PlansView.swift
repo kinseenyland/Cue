@@ -9,110 +9,77 @@ import SwiftUI
 
 struct PlansView: View {
     @Binding var selectedTab: MainTab
-    @State private var plans: [WorkoutPlanDraft] = [
-        WorkoutPlanDraft(
-            title: "Hot Pilates - Core",
-            type: .pilates,
-            difficulty: .medium,
-            durationMinutes: 60,
-            movements: ["Savasana", "Mountain Climbers", "Plank", "Cool Down"]
-        )
-    ]
-    @State private var isPresentingForm = false
+    @State private var isPresentingCreateForm = false
+    @State private var editingPlan: WorkoutPlan? = nil
     @State private var isShowingAlert = false
     @State private var alertMessage = ""
-    @State private var vm = CueViewModel()
+    @StateObject private var vm = CueViewModel()
+    @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    if let status = vm.statusMessage {
-                        Text(status)
-                            .foregroundStyle(.green)
-                    }
+            List {
+                if let status = vm.statusMessage {
+                    Text(status)
+                        .foregroundStyle(.green)
+                }
 
-                    if let error = vm.errorMessage {
-                        Text(error)
-                            .foregroundStyle(.red)
-                    }
+                if let error = vm.errorMessage {
+                    Text(error)
+                        .foregroundStyle(.red)
+                }
 
-                    ZStack(alignment: .bottomLeading) {
-                        RoundedRectangle(cornerRadius: 16)
-                            .fill(
-                                LinearGradient(
-                                    colors: [Color.orange.opacity(0.9), Color.orange.opacity(0.4)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .frame(height: 180)
+                ForEach(vm.plans) { plan in
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(plan.title)
+                            .font(.headline)
+                        Text("Type: \(plan.type.rawValue.capitalized) • Difficulty: \(plan.difficulty.rawValue.capitalized) • Time: \(plan.durationMinutes) mins")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("Build your next class")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                            Text("Share plans in seconds")
-                                .font(.subheadline)
-                                .foregroundStyle(.white.opacity(0.9))
-                        }
-                        .padding(16)
-                    }
-
-                    Button {
-                        isPresentingForm = true
-                    } label: {
-                        Label("Create Plan", systemImage: "plus")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-
-                    ForEach(plans) { plan in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(plan.title)
-                                .font(.title2).bold()
-
-                            Text(plan.summaryLine)
+                        if !plan.movements.isEmpty {
+                            Text(plan.movements.map { $0.name }.joined(separator: ", "))
+                                .font(.footnote)
                                 .foregroundStyle(.secondary)
                         }
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(plan.movements, id: \.self) { movement in
-                                Button {
-                                    alertMessage = "Open movement: \(movement)"
-                                    isShowingAlert = true
-                                } label: {
-                                    HStack {
-                                        Text(movement)
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .foregroundStyle(.secondary)
-                                    }
-                                    .padding()
-                                    .background(Color(.secondarySystemBackground))
-                                    .cornerRadius(12)
-                                }
-                                .buttonStyle(.plain)
-                            }
+                    }
+                    .padding(.vertical, 4)
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            Task { await vm.deletePlan(id: plan.id) }
+                        } label: {
+                            Label("Delete", systemImage: "trash")
                         }
-
+                    }
+                    .swipeActions(edge: .leading) {
+                        Button {
+                            editingPlan = plan
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
+                    .contextMenu {
                         Button("Start Workout") {
+                            sessionVM.load(plan: plan)
                             selectedTab = .workout
                         }
-                            .frame(maxWidth: .infinity)
-                            .buttonStyle(.borderedProminent)
-                            .tint(.orange)
-                            .padding(.top, 8)
+                        Button("Edit") {
+                            editingPlan = plan
+                        }
+                        Button(role: .destructive) {
+                            Task { await vm.deletePlan(id: plan.id) }
+                        } label: {
+                            Text("Delete")
+                        }
                     }
                 }
-                .padding()
             }
             .navigationTitle("Create + Share Plans")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
-                        isPresentingForm = true
+                        isPresentingCreateForm = true
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -126,11 +93,20 @@ struct PlansView: View {
                 }
             }
         }
-        .sheet(isPresented: $isPresentingForm) {
+        .task {
+            await vm.fetchPlans()
+        }
+        .sheet(isPresented: $isPresentingCreateForm) {
             NavigationStack {
                 WorkoutPlanFormView { newPlan in
-                    plans.insert(newPlan, at: 0)
-                    Task { await vm.addPlan(from: newPlan) }
+                    Task { await vm.createPlan(from: newPlan) }
+                }
+            }
+        }
+        .sheet(item: $editingPlan) { plan in
+            NavigationStack {
+                WorkoutPlanFormView(draft: draft(from: plan)) { updated in
+                    Task { await vm.updatePlan(id: plan.id, from: updated) }
                 }
             }
         }
@@ -139,6 +115,16 @@ struct PlansView: View {
         } message: {
             Text(alertMessage)
         }
+    }
+
+    private func draft(from plan: WorkoutPlan) -> WorkoutPlanDraft {
+        WorkoutPlanDraft(
+            title: plan.title,
+            type: plan.type,
+            difficulty: plan.difficulty,
+            durationMinutes: plan.durationMinutes,
+            movements: plan.movements
+        )
     }
 }
 

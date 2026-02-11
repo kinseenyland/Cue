@@ -7,33 +7,22 @@
 
 import SwiftUI
 import FirebaseCore
-import FirebaseAuth
 
 @main
 struct CueApp: App {
+    @StateObject private var authVM = AuthViewModel()
 
     init() {
         FirebaseApp.configure()
-        ensureSignedIn()
     }
 
     var body: some Scene {
         WindowGroup {
-            WelcomeView()
-        }
-    }
-
-    private func ensureSignedIn() {
-        if Auth.auth().currentUser == nil {
-            Auth.auth().signInAnonymously { result, error in
-                if let error {
-                    print("❌ Anonymous sign-in failed:", error.localizedDescription)
-                } else {
-                    print("✅ Signed in anonymously as:", result?.user.uid ?? "nil")
+            RootView()
+                .environmentObject(authVM)
+                .onOpenURL { url in
+                    authVM.handleSignInLink(url)
                 }
-            }
-        } else {
-            print("✅ Already signed in as:", Auth.auth().currentUser?.uid ?? "nil")
         }
     }
 }
