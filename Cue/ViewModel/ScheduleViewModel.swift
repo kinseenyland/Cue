@@ -5,6 +5,7 @@
 //  Created by Kinsee Nyland on 2/10/26.
 //
 
+import Combine
 import FirebaseAuth
 import FirebaseFirestore
 import Foundation
