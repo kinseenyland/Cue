@@ -8,12 +8,16 @@
 import SwiftUI
 
 struct PlansView: View {
-    private let movements = [
-        "Savasana",
-        "Mountain Climbers",
-        "Plank",
-        "Cool Down"
+    @State private var plans: [DraftPlan] = [
+        DraftPlan(
+            title: "Hot Pilates - Core",
+            type: .pilates,
+            difficulty: .medium,
+            durationMinutes: 60,
+            movements: ["Savasana", "Mountain Climbers", "Plank", "Cool Down"]
+        )
     ]
+    @State private var isPresentingForm = false
 
     var body: some View {
         NavigationStack {
@@ -41,41 +45,58 @@ struct PlansView: View {
                         .padding(16)
                     }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Hot Pilates - Core")
-                            .font(.title2).bold()
+                    ForEach(plans) { plan in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(plan.title)
+                                .font(.title2).bold()
 
-                        Text("Type: Pilates • Difficulty: Medium • Time: 60 mins")
-                            .foregroundStyle(.secondary)
-                    }
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(movements, id: \.self) { movement in
-                            HStack {
-                                Text(movement)
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding()
-                            .background(Color(.secondarySystemBackground))
-                            .cornerRadius(12)
+                            Text(plan.summaryLine)
+                                .foregroundStyle(.secondary)
                         }
-                    }
 
-                    Button("Start Workout") {}
-                        .frame(maxWidth: .infinity)
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
-                        .padding(.top, 8)
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(plan.movements, id: \.self) { movement in
+                                HStack {
+                                    Text(movement)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding()
+                                .background(Color(.secondarySystemBackground))
+                                .cornerRadius(12)
+                            }
+                        }
+
+                        Button("Start Workout") {}
+                            .frame(maxWidth: .infinity)
+                            .buttonStyle(.borderedProminent)
+                            .tint(.orange)
+                            .padding(.top, 8)
+                    }
                 }
                 .padding()
             }
             .navigationTitle("Create + Share Plans")
             .toolbar {
-                Button {
-                } label: {
-                    Image(systemName: "square.and.arrow.up")
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        isPresentingForm = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+
+                    Button {
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $isPresentingForm) {
+            NavigationStack {
+                WorkoutPlanFormView { newPlan in
+                    plans.insert(newPlan, at: 0)
                 }
             }
         }
