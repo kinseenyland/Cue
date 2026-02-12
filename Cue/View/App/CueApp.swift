@@ -20,9 +20,6 @@ struct CueApp: App {
         WindowGroup {
             RootView()
                 .environmentObject(authVM)
-                .onOpenURL { url in
-                    authVM.handleSignInLink(url)
-                }
         }
     }
 }

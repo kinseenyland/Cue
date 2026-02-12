@@ -14,15 +14,12 @@ import SwiftUI
 final class AuthViewModel: ObservableObject {
     @Published var user: User? = nil
     @Published var email = ""
+    @Published var password = ""
     @Published var statusMessage: String? = nil
     @Published var errorMessage: String? = nil
-    @Published var isSendingLink = false
-    @Published var isSigningIn = false
+    @Published var isLoading = false
 
     private var handle: AuthStateDidChangeListenerHandle?
-
-    private let pendingEmailKey = "cue.pendingEmail"
-    private let signInLinkURL = "https://cue-1-70e22.firebaseapp.com/login"
 
     init() {
         handle = Auth.auth().addStateDidChangeListener { [weak self] _, user in
@@ -36,54 +33,58 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    func sendSignInLink() {
-        let trimmed = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            errorMessage = "Enter a valid email."
+    func signIn() {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedEmail.isEmpty else {
+            errorMessage = "Enter your email."
+            return
+        }
+        guard !password.isEmpty else {
+            errorMessage = "Enter your password."
             return
         }
 
-        isSendingLink = true
+        isLoading = true
         statusMessage = nil
         errorMessage = nil
 
-        let settings = ActionCodeSettings()
-        settings.url = URL(string: signInLinkURL)
-        settings.handleCodeInApp = true
-        settings.setIOSBundleID(Bundle.main.bundleIdentifier ?? "")
-
-        Auth.auth().sendSignInLink(toEmail: trimmed, actionCodeSettings: settings) { [weak self] error in
+        Auth.auth().signIn(withEmail: trimmedEmail, password: password) { [weak self] _, error in
             guard let self else { return }
-            self.isSendingLink = false
+            self.isLoading = false
             if let error {
-                self.errorMessage = "Send link failed: \(error.localizedDescription)"
+                self.errorMessage = "Sign in failed: \(error.localizedDescription)"
             } else {
-                UserDefaults.standard.set(trimmed, forKey: self.pendingEmailKey)
-                self.statusMessage = "Check your email for the sign-in link."
+                self.statusMessage = "Signed in."
             }
         }
     }
 
-    func handleSignInLink(_ url: URL) {
-        let link = url.absoluteString
-        guard Auth.auth().isSignIn(withEmailLink: link) else { return }
-        guard let pendingEmail = UserDefaults.standard.string(forKey: pendingEmailKey) else {
-            errorMessage = "Open the link on the same device after requesting it."
+    func signUp() {
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedEmail.isEmpty else {
+            errorMessage = "Enter your email."
+            return
+        }
+        guard !password.isEmpty else {
+            errorMessage = "Enter a password."
+            return
+        }
+        guard password.count >= 6 else {
+            errorMessage = "Password must be at least 6 characters."
             return
         }
 
-        isSigningIn = true
+        isLoading = true
         statusMessage = nil
         errorMessage = nil
 
-        Auth.auth().signIn(withEmail: pendingEmail, link: link) { [weak self] _, error in
+        Auth.auth().createUser(withEmail: trimmedEmail, password: password) { [weak self] _, error in
             guard let self else { return }
-            self.isSigningIn = false
+            self.isLoading = false
             if let error {
-                self.errorMessage = "Sign-in failed: \(error.localizedDescription)"
+                self.errorMessage = "Sign up failed: \(error.localizedDescription)"
             } else {
-                self.statusMessage = "Signed in."
-                UserDefaults.standard.removeObject(forKey: self.pendingEmailKey)
+                self.statusMessage = "Account created. Signed in."
             }
         }
     }

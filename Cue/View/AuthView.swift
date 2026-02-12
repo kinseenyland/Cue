@@ -13,15 +13,24 @@ struct AuthView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Sign In") {
+                Section("Account") {
                     TextField("Email", text: $authVM.email)
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
 
-                    Button("Send Sign-In Link") {
-                        authVM.sendSignInLink()
+                    SecureField("Password", text: $authVM.password)
+                }
+
+                Section {
+                    Button("Sign In") {
+                        authVM.signIn()
                     }
-                    .disabled(authVM.isSendingLink)
+                    .disabled(authVM.isLoading)
+
+                    Button("Create Account") {
+                        authVM.signUp()
+                    }
+                    .disabled(authVM.isLoading)
                 }
 
                 if let status = authVM.statusMessage {
