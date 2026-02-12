@@ -29,6 +29,12 @@ struct PlansView: View {
                         .foregroundStyle(.red)
                 }
 
+                Button {
+                    isPresentingCreateForm = true
+                } label: {
+                    Label("Create Plan", systemImage: "plus.circle.fill")
+                }
+
                 ForEach(vm.plans) { plan in
                     VStack(alignment: .leading, spacing: 6) {
                         Text(plan.title)
