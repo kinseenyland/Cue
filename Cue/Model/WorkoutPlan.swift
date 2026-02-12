@@ -13,6 +13,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
     var title: String
     var type: WorkoutType
     var difficulty: Difficulty
+    var durationMinutes: Int
     var createdAt: Double        // store as TimeInterval since 1970
     var updatedAt: Double
     var isPublic: Bool
@@ -24,6 +25,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         title: String,
         type: WorkoutType,
         difficulty: Difficulty,
+        durationMinutes: Int = 45,
         createdAt: Double = Date().timeIntervalSince1970,
         updatedAt: Double = Date().timeIntervalSince1970,
         isPublic: Bool = false,
@@ -34,6 +36,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         self.title = title
         self.type = type
         self.difficulty = difficulty
+        self.durationMinutes = durationMinutes
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isPublic = isPublic

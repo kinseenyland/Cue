@@ -8,7 +8,7 @@
 import Foundation
 
 enum WorkoutType: String, CaseIterable, Codable {
-    case pilates, yoga, cycle
+    case pilates, yoga, cycle, strength, cardio
 }
 
 enum Difficulty: String, CaseIterable, Codable {
