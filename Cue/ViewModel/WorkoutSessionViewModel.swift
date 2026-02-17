@@ -69,4 +69,12 @@ final class WorkoutSessionViewModel: ObservableObject {
             nextMove()
         }
     }
+    
+    func reset() {
+        planTitle = "Workout"
+        movements = []
+        currentIndex = 0
+        isRunning = false
+        remainingSeconds = 30
+    }
 }
