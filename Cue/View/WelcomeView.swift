@@ -16,12 +16,6 @@ struct WelcomeView: View {
                 Spacer()
 
                 VStack(spacing: 12) {
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.system(size: 80))
-                        .foregroundStyle(.white)
-                        .padding(24)
-                        .background(Circle().fill(Color.orange))
-
                     Text("CUE")
                         .font(.system(size: 40, weight: .bold))
 
@@ -30,26 +24,25 @@ struct WelcomeView: View {
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 24)
+
+                    Image(systemName: "figure.strengthtraining.traditional")
+                        .font(.system(size: 80))
+                        .foregroundStyle(.white)
+                        .padding(24)
+                        .background(Circle().fill(Color.orange))
                 }
 
                 Spacer()
 
                 NavigationLink {
-                    MainTabView()
+                    AuthView()
                 } label: {
-                    Text("Get Started")
+                    Text("Sign In")
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 24)
-            }
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Sign Out") {
-                        authVM.signOut()
-                    }
-                }
             }
         }
     }

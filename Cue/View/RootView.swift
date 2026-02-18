@@ -12,9 +12,9 @@ struct RootView: View {
 
     var body: some View {
         if authVM.user == nil {
-            AuthView()
-        } else {
             WelcomeView()
+        } else {
+            MainTabView()
         }
     }
 }

@@ -15,6 +15,7 @@ struct PlansView: View {
     @State private var alertMessage = ""
     @StateObject private var vm = CueViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
+    @EnvironmentObject private var authVM: AuthViewModel
 
     var body: some View {
         NavigationStack {
@@ -81,8 +82,13 @@ struct PlansView: View {
                     }
                 }
             }
-            .navigationTitle("Create + Share Plans")
+            .navigationTitle("Plans")
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Sign Out") {
+                        authVM.signOut()
+                    }
+                }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
                         isPresentingCreateForm = true
@@ -136,4 +142,6 @@ struct PlansView: View {
 
 #Preview {
     PlansView(selectedTab: .constant(.plans))
+        .environmentObject(AuthViewModel())
+        .environmentObject(WorkoutSessionViewModel())
 }
