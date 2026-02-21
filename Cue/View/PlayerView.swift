@@ -110,14 +110,39 @@ struct PlayerView: View {
             .background(Color(.secondarySystemBackground))
             .cornerRadius(16)
 
+            if let onDeck = sessionVM.onDeckMove {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("On deck")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(onDeck.name)
+                        .font(.headline)
+                    Text(onDeck.goalType == .timed ? "\(onDeck.seconds ?? 30)s" : "\(onDeck.reps ?? 0) reps")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding()
+                .background(Color(.tertiarySystemBackground))
+                .cornerRadius(12)
+            }
+
             Spacer()
 
             HStack(spacing: 12) {
+                Button("Previous Move") {
+                    sessionVM.previousMove()
+                }
+                .frame(maxWidth: .infinity)
+                .buttonStyle(.bordered)
+                .disabled(!sessionVM.canGoPrevious)
+
                 Button("Next Move") {
                     sessionVM.nextMove()
                 }
                 .frame(maxWidth: .infinity)
                 .buttonStyle(.bordered)
+                .disabled(!sessionVM.canGoNext)
 
                 Button {
                     sessionVM.toggleRunning()
@@ -127,12 +152,6 @@ struct PlayerView: View {
                         .foregroundStyle(.orange)
                 }
             }
-            
-            Button("Select Different Plan") {
-                sessionVM.reset()
-            }
-            .buttonStyle(.bordered)
-            .foregroundStyle(.secondary)
         }
         .padding()
         .navigationTitle("Workout")

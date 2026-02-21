@@ -24,9 +24,23 @@ final class WorkoutSessionViewModel: ObservableObject {
         return movements[currentIndex]
     }
 
+    var onDeckMove: Movement? {
+        guard canGoNext else { return nil }
+        return movements[currentIndex + 1]
+    }
+
     var progressValue: Double {
         guard !movements.isEmpty else { return 0 }
         return Double(currentIndex + 1) / Double(movements.count)
+    }
+
+    var canGoNext: Bool {
+        guard !movements.isEmpty else { return false }
+        return currentIndex < movements.count - 1
+    }
+
+    var canGoPrevious: Bool {
+        return currentIndex > 0
     }
 
     func load(plan: WorkoutPlan) {
@@ -50,8 +64,19 @@ final class WorkoutSessionViewModel: ObservableObject {
     }
 
     func nextMove() {
-        guard !movements.isEmpty else { return }
-        currentIndex = (currentIndex + 1) % movements.count
+        guard canGoNext else { return }
+        currentIndex += 1
+        let move = movements[currentIndex]
+        if move.goalType == .timed {
+            remainingSeconds = move.seconds ?? defaultMoveSeconds
+        } else {
+            remainingSeconds = 0
+        }
+    }
+
+    func previousMove() {
+        guard canGoPrevious else { return }
+        currentIndex -= 1
         let move = movements[currentIndex]
         if move.goalType == .timed {
             remainingSeconds = move.seconds ?? defaultMoveSeconds
