@@ -16,22 +16,9 @@
 		944F60592F2C51D5005167C3 /* Cue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cue.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		FC44B6162F4536B500ACBA1E /* Exceptions for "Cue" folder in "Cue" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				Info.plist,
-			);
-			target = 944F60582F2C51D5005167C3 /* Cue */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		944F605B2F2C51D5005167C3 /* Cue */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				FC44B6162F4536B500ACBA1E /* Exceptions for "Cue" folder in "Cue" target */,
-			);
 			path = Cue;
 			sourceTree = "<group>";
 		};
