@@ -1,2 +1,4 @@
 Cue/GoogleService-Info.plist
-Cue/GoogleService-Info.plist
+
+# Xcode user state (window layout, etc.) — machine-specific
+*.xcuserstate
