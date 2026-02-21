@@ -9,15 +9,29 @@
 /* Begin PBXBuildFile section */
 		940498B72F34EC9100B01961 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 940498B62F34EC9100B01961 /* FirebaseAuth */; };
 		940498B92F34EC9100B01961 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 940498B82F34EC9100B01961 /* FirebaseFirestore */; };
+		FC44B60E2F4532FB00ACBA1E /* SpotifyiOS in Frameworks */ = {isa = PBXBuildFile; productRef = FC44B60D2F4532FB00ACBA1E /* SpotifyiOS */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		944F60592F2C51D5005167C3 /* Cue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cue.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		FC44B6162F4536B500ACBA1E /* Exceptions for "Cue" folder in "Cue" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 944F60582F2C51D5005167C3 /* Cue */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		944F605B2F2C51D5005167C3 /* Cue */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				FC44B6162F4536B500ACBA1E /* Exceptions for "Cue" folder in "Cue" target */,
+			);
 			path = Cue;
 			sourceTree = "<group>";
 		};
@@ -29,6 +43,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				940498B72F34EC9100B01961 /* FirebaseAuth in Frameworks */,
+				FC44B60E2F4532FB00ACBA1E /* SpotifyiOS in Frameworks */,
 				940498B92F34EC9100B01961 /* FirebaseFirestore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -74,6 +89,7 @@
 			packageProductDependencies = (
 				940498B62F34EC9100B01961 /* FirebaseAuth */,
 				940498B82F34EC9100B01961 /* FirebaseFirestore */,
+				FC44B60D2F4532FB00ACBA1E /* SpotifyiOS */,
 			);
 			productName = Cue;
 			productReference = 944F60592F2C51D5005167C3 /* Cue.app */;
@@ -105,6 +121,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				940498B52F34EC9100B01961 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
+				FC44B60C2F4532FB00ACBA1E /* XCRemoteSwiftPackageReference "ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 944F605A2F2C51D5005167C3 /* Products */;
@@ -263,8 +280,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SV49SAJ2SD;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Cue/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -275,12 +294,14 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = iforgot.Cue;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Cue/Cue-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -294,8 +315,10 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SV49SAJ2SD;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Cue/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -306,12 +329,14 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = "-ObjC";
 				PRODUCT_BUNDLE_IDENTIFIER = iforgot.Cue;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "Cue/Cue-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -350,6 +375,14 @@
 				minimumVersion = 12.9.0;
 			};
 		};
+		FC44B60C2F4532FB00ACBA1E /* XCRemoteSwiftPackageReference "ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/spotify/ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -362,6 +395,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 940498B52F34EC9100B01961 /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
 			productName = FirebaseFirestore;
+		};
+		FC44B60D2F4532FB00ACBA1E /* SpotifyiOS */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FC44B60C2F4532FB00ACBA1E /* XCRemoteSwiftPackageReference "ios-sdk" */;
+			productName = SpotifyiOS;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
