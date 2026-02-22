@@ -20,29 +20,31 @@ struct ScheduleFormView: View {
     @State private var selectedPlan: WorkoutPlan?
     @State private var location: String
     @State private var selectedDate: Date
-    @State private var selectedTimeSlot: Int // minutes from midnight (e.g. 360 = 6:00 AM)
+    @State private var selectedHour: Int    // 1–12
+    @State private var selectedMinute: Int  // 0, 15, 30, 45
+    @State private var selectedPeriod: String // "AM" or "PM"
     @State private var showDeleteConfirmation = false
 
-    private static let timeSlots: [Int] = Array(stride(from: 0, to: 24 * 60, by: 15))
+    private static let hours = Array(1...12)
+    private static let minutes = [0, 15, 30, 45]
+    private static let periods = ["AM", "PM"]
 
-    private static func defaultTimeSlot() -> Int {
-        360 // 6:00 AM
-    }
-
-    private static func timeSlotFromDate(_ date: Date) -> Int {
+    private static func componentsFromDate(_ date: Date) -> (hour: Int, minute: Int, period: String) {
         let cal = Calendar.current
-        let hour = cal.component(.hour, from: date)
-        let minute = cal.component(.minute, from: date)
-        let total = hour * 60 + minute
-        return timeSlots.min(by: { abs($0 - total) < abs($1 - total) }) ?? 360
+        let h24 = cal.component(.hour, from: date)
+        let m = cal.component(.minute, from: date)
+        let snappedMinute = minutes.min(by: { abs($0 - m) < abs($1 - m) }) ?? 0
+        let period = h24 < 12 ? "AM" : "PM"
+        let h12 = h24 == 0 ? 12 : (h24 > 12 ? h24 - 12 : h24)
+        return (h12, snappedMinute, period)
     }
 
-    private static func labelForSlot(_ slot: Int) -> String {
-        let hour = slot / 60
-        let minute = slot % 60
-        let period = hour < 12 ? "AM" : "PM"
-        let displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
-        return String(format: "%d:%02d %@", displayHour, minute, period)
+    private var selectedHour24: Int {
+        if selectedPeriod == "AM" {
+            return selectedHour == 12 ? 0 : selectedHour
+        } else {
+            return selectedHour == 12 ? 12 : selectedHour + 12
+        }
     }
 
     private var filteredPlans: [WorkoutPlan] {
@@ -61,15 +63,20 @@ struct ScheduleFormView: View {
         self.onDelete = onDelete
 
         if let draft {
+            let comps = Self.componentsFromDate(draft.startsAt)
             _selectedPlan = State(initialValue: plans.first { $0.id == draft.planId })
             _location = State(initialValue: draft.location)
             _selectedDate = State(initialValue: draft.startsAt)
-            _selectedTimeSlot = State(initialValue: Self.timeSlotFromDate(draft.startsAt))
+            _selectedHour = State(initialValue: comps.hour)
+            _selectedMinute = State(initialValue: comps.minute)
+            _selectedPeriod = State(initialValue: comps.period)
         } else {
             _selectedPlan = State(initialValue: nil)
             _location = State(initialValue: "")
             _selectedDate = State(initialValue: Date())
-            _selectedTimeSlot = State(initialValue: Self.defaultTimeSlot())
+            _selectedHour = State(initialValue: 6)
+            _selectedMinute = State(initialValue: 0)
+            _selectedPeriod = State(initialValue: "AM")
         }
     }
 
@@ -83,10 +90,6 @@ struct ScheduleFormView: View {
                     .padding(.top, 8)
 
                 planSelectionSection
-
-                if let plan = selectedPlan {
-                    selectedPlanCard(plan)
-                }
 
                 if selectedPlan != nil {
                     scheduleDetailsSection
@@ -227,19 +230,44 @@ struct ScheduleFormView: View {
         VStack(alignment: .leading, spacing: 16) {
             Divider().padding(.horizontal)
 
-            HStack {
-                Text("Time")
-                    .font(.headline)
-                Spacer()
-                Picker("Time", selection: $selectedTimeSlot) {
-                    ForEach(Self.timeSlots, id: \.self) { slot in
-                        Text(Self.labelForSlot(slot)).tag(slot)
+            Text("Time")
+                .font(.headline)
+                .padding(.horizontal)
+
+            HStack(spacing: 0) {
+                Picker("Hour", selection: $selectedHour) {
+                    ForEach(Self.hours, id: \.self) { h in
+                        Text("\(h)").tag(h)
                     }
                 }
-                .pickerStyle(.menu)
-                .tint(.primary)
+                .pickerStyle(.wheel)
+                .frame(width: 70)
+                .clipped()
+
+                Picker("Minute", selection: $selectedMinute) {
+                    ForEach(Self.minutes, id: \.self) { m in
+                        Text(String(format: "%02d", m)).tag(m)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(width: 70)
+                .clipped()
+
+                Picker("Period", selection: $selectedPeriod) {
+                    ForEach(Self.periods, id: \.self) { p in
+                        Text(p).tag(p)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(width: 70)
+                .clipped()
             }
-            .padding(.horizontal)
+            .frame(maxWidth: .infinity)
+            .frame(height: 120)
+
+            Text("Location")
+                .font(.headline)
+                .padding(.horizontal)
 
             RoundedTextField(placeholder: "Location", text: $location)
 
@@ -269,8 +297,8 @@ struct ScheduleFormView: View {
         merged.year = dateComponents.year
         merged.month = dateComponents.month
         merged.day = dateComponents.day
-        merged.hour = selectedTimeSlot / 60
-        merged.minute = selectedTimeSlot % 60
+        merged.hour = selectedHour24
+        merged.minute = selectedMinute
         let combinedDate = calendar.date(from: merged) ?? selectedDate
 
         let draft = ScheduleDraft(
