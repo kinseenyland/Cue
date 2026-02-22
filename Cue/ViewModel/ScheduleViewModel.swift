@@ -40,10 +40,16 @@ final class ScheduleViewModel: ObservableObject {
                     let durationMinutes = data["durationMinutes"] as? Int
                 else { return nil }
 
+                let wt = (data["workoutType"] as? String).flatMap { WorkoutType(rawValue: $0) }
+                let diff = (data["difficulty"] as? String).flatMap { Difficulty(rawValue: $0) }
+
                 return ScheduleItem(
                     id: doc.documentID,
                     ownerId: ownerId,
                     title: title,
+                    location: data["location"] as? String ?? "",
+                    workoutType: wt,
+                    difficulty: diff,
                     startsAt: startsAt,
                     durationMinutes: durationMinutes,
                     planId: data["planId"] as? String
@@ -66,20 +72,26 @@ final class ScheduleViewModel: ObservableObject {
         let schedule = ScheduleItem(
             ownerId: ownerId,
             title: draft.title,
+            location: draft.location,
+            workoutType: draft.workoutType,
+            difficulty: draft.difficulty,
             startsAt: draft.startsAt.timeIntervalSince1970,
             durationMinutes: draft.durationMinutes,
             planId: draft.planId
         )
 
-        let data: [String: Any] = [
+        var data: [String: Any] = [
             "ownerId": schedule.ownerId,
             "title": schedule.title,
+            "location": schedule.location,
             "startsAt": schedule.startsAt,
             "durationMinutes": schedule.durationMinutes,
             "planId": schedule.planId as Any,
             "createdAt": Date().timeIntervalSince1970,
             "updatedAt": Date().timeIntervalSince1970
         ]
+        if let wt = schedule.workoutType { data["workoutType"] = wt.rawValue }
+        if let diff = schedule.difficulty { data["difficulty"] = diff.rawValue }
 
         do {
             try await db.collection("schedules").document(schedule.id).setData(data, merge: true)
@@ -95,13 +107,16 @@ final class ScheduleViewModel: ObservableObject {
         statusMessage = "Updating class..."
         errorMessage = nil
 
-        let data: [String: Any] = [
+        var data: [String: Any] = [
             "title": draft.title,
+            "location": draft.location,
             "startsAt": draft.startsAt.timeIntervalSince1970,
             "durationMinutes": draft.durationMinutes,
             "planId": draft.planId as Any,
             "updatedAt": Date().timeIntervalSince1970
         ]
+        if let wt = draft.workoutType { data["workoutType"] = wt.rawValue }
+        if let diff = draft.difficulty { data["difficulty"] = diff.rawValue }
 
         do {
             try await db.collection("schedules").document(id).updateData(data)

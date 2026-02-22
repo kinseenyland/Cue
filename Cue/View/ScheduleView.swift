@@ -9,89 +9,181 @@ import SwiftUI
 
 struct ScheduleView: View {
     @StateObject private var vm = ScheduleViewModel()
+    @StateObject private var plansVM = CueViewModel()
     @State private var isPresentingCreateForm = false
     @State private var editingItem: ScheduleItem? = nil
 
+    private var groupedByMonth: [(key: String, items: [ScheduleItem])] {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        let grouped = Dictionary(grouping: vm.items) { item -> String in
+            formatter.string(from: item.startDate)
+        }
+        let ordered = vm.items.compactMap { item -> String in
+            formatter.string(from: item.startDate)
+        }
+        var seen = Set<String>()
+        let uniqueOrder = ordered.filter { seen.insert($0).inserted }
+        return uniqueOrder.map { month in
+            (key: month, items: grouped[month] ?? [])
+        }
+    }
+
     var body: some View {
         NavigationStack {
-            List {
-                if let status = vm.statusMessage {
-                    Text(status)
-                        .foregroundStyle(.green)
-                }
-
+            ScrollView {
                 if let error = vm.errorMessage {
                     Text(error)
                         .foregroundStyle(.red)
+                        .font(.footnote)
+                        .padding(.horizontal)
                 }
 
-                ForEach(vm.items) { item in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(item.title)
-                            .font(.headline)
-                        Text("\(dateText(for: item)) • \(item.durationMinutes) mins")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                    .padding(.vertical, 6)
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            Task { await vm.deleteSchedule(id: item.id) }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+                LazyVStack(alignment: .leading, spacing: 24) {
+                    ForEach(groupedByMonth, id: \.key) { month, items in
+                        Section {
+                            VStack(spacing: 12) {
+                                ForEach(items) { item in
+                                    ScheduleCard(item: item)
+                                        .contextMenu {
+                                            Button {
+                                                editingItem = item
+                                            } label: {
+                                                Label("Edit", systemImage: "pencil")
+                                            }
+                                            Button(role: .destructive) {
+                                                Task { await vm.deleteSchedule(id: item.id) }
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                }
+                            }
+                        } header: {
+                            Text(month)
+                                .font(.title3)
+                                .fontWeight(.semibold)
+                                .padding(.horizontal)
                         }
-                    }
-                    .swipeActions(edge: .leading) {
-                        Button {
-                            editingItem = item
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        .tint(.blue)
                     }
                 }
+                .padding(.top, 8)
             }
             .navigationTitle("Schedule")
             .toolbar {
                 Button {
                     isPresentingCreateForm = true
                 } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundStyle(.orange)
+                    Image(systemName: "plus")
+                        .fontWeight(.medium)
                 }
             }
         }
         .task {
             await vm.fetchSchedules()
+            await plansVM.fetchPlans()
         }
         .sheet(isPresented: $isPresentingCreateForm) {
             NavigationStack {
-                ScheduleFormView { draft in
+                ScheduleFormView(plans: plansVM.plans) { draft in
                     Task { await vm.createSchedule(from: draft) }
                 }
             }
         }
         .sheet(item: $editingItem) { item in
             NavigationStack {
-                ScheduleFormView(draft: draft(from: item)) { updated in
+                ScheduleFormView(plans: plansVM.plans, draft: draft(from: item)) { updated in
                     Task { await vm.updateSchedule(id: item.id, from: updated) }
                 }
             }
         }
     }
 
-    private func dateText(for item: ScheduleItem) -> String {
-        let date = Date(timeIntervalSince1970: item.startsAt)
-        return date.formatted(date: .abbreviated, time: .shortened)
-    }
-
     private func draft(from item: ScheduleItem) -> ScheduleDraft {
         ScheduleDraft(
             title: item.title,
+            location: item.location,
+            workoutType: item.workoutType,
+            difficulty: item.difficulty,
             startsAt: Date(timeIntervalSince1970: item.startsAt),
             durationMinutes: item.durationMinutes,
             planId: item.planId
         )
+    }
+}
+
+// MARK: - Schedule Card
+
+private struct ScheduleCard: View {
+    let item: ScheduleItem
+
+    private static let monthFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MMM"
+        return f
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "dd"
+        return f
+    }()
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "h:mma"
+        f.amSymbol = "am"
+        f.pmSymbol = "pm"
+        return f
+    }()
+
+    var body: some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 2) {
+                Text(Self.monthFormatter.string(from: item.startDate).uppercased())
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+                Text(Self.dayFormatter.string(from: item.startDate))
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundStyle(.primary)
+            }
+            .frame(width: 56)
+
+            Divider()
+                .frame(height: 40)
+                .padding(.horizontal, 12)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.title)
+                    .font(.body)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.primary)
+                if !item.location.isEmpty {
+                    Text(item.location)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Text(Self.timeFormatter.string(from: item.startDate))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .padding(.trailing, 4)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
+        .padding(.horizontal)
     }
 }
 
