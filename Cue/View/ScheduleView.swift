@@ -44,19 +44,12 @@ struct ScheduleView: View {
                         Section {
                             VStack(spacing: 12) {
                                 ForEach(items) { item in
-                                    ScheduleCard(item: item)
-                                        .contextMenu {
-                                            Button {
-                                                editingItem = item
-                                            } label: {
-                                                Label("Edit", systemImage: "pencil")
-                                            }
-                                            Button(role: .destructive) {
-                                                Task { await vm.deleteSchedule(id: item.id) }
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
-                                        }
+                                    Button {
+                                        editingItem = item
+                                    } label: {
+                                        ScheduleCard(item: item)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
                             }
                         } header: {
@@ -92,9 +85,16 @@ struct ScheduleView: View {
         }
         .sheet(item: $editingItem) { item in
             NavigationStack {
-                ScheduleFormView(plans: plansVM.plans, draft: draft(from: item)) { updated in
-                    Task { await vm.updateSchedule(id: item.id, from: updated) }
-                }
+                ScheduleFormView(
+                    plans: plansVM.plans,
+                    draft: draft(from: item),
+                    onSave: { updated in
+                        Task { await vm.updateSchedule(id: item.id, from: updated) }
+                    },
+                    onDelete: {
+                        Task { await vm.deleteSchedule(id: item.id) }
+                    }
+                )
             }
         }
     }
@@ -160,12 +160,9 @@ private struct ScheduleCard: View {
                     .font(.body)
                     .fontWeight(.semibold)
                     .foregroundStyle(.primary)
-                if !item.location.isEmpty {
-                    Text(item.location)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                }
-                Text(Self.timeFormatter.string(from: item.startDate))
+                Text(item.location.isEmpty
+                     ? Self.timeFormatter.string(from: item.startDate)
+                     : "\(item.location) · \(Self.timeFormatter.string(from: item.startDate))")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }

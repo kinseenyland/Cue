@@ -12,13 +12,38 @@ struct ScheduleFormView: View {
 
     let plans: [WorkoutPlan]
     let onSave: (ScheduleDraft) -> Void
+    let onDelete: (() -> Void)?
+
+    private var isEditing: Bool { onDelete != nil }
 
     @State private var searchText = ""
     @State private var selectedPlan: WorkoutPlan?
     @State private var location: String
     @State private var selectedDate: Date
-    @State private var selectedTime: Date
-    @State private var durationMinutes: Int
+    @State private var selectedTimeSlot: Int // minutes from midnight (e.g. 360 = 6:00 AM)
+    @State private var showDeleteConfirmation = false
+
+    private static let timeSlots: [Int] = Array(stride(from: 0, to: 24 * 60, by: 15))
+
+    private static func defaultTimeSlot() -> Int {
+        360 // 6:00 AM
+    }
+
+    private static func timeSlotFromDate(_ date: Date) -> Int {
+        let cal = Calendar.current
+        let hour = cal.component(.hour, from: date)
+        let minute = cal.component(.minute, from: date)
+        let total = hour * 60 + minute
+        return timeSlots.min(by: { abs($0 - total) < abs($1 - total) }) ?? 360
+    }
+
+    private static func labelForSlot(_ slot: Int) -> String {
+        let hour = slot / 60
+        let minute = slot % 60
+        let period = hour < 12 ? "AM" : "PM"
+        let displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
+        return String(format: "%d:%02d %@", displayHour, minute, period)
+    }
 
     private var filteredPlans: [WorkoutPlan] {
         if searchText.isEmpty { return plans }
@@ -30,45 +55,57 @@ struct ScheduleFormView: View {
         }
     }
 
-    init(plans: [WorkoutPlan], draft: ScheduleDraft? = nil, onSave: @escaping (ScheduleDraft) -> Void) {
+    init(plans: [WorkoutPlan], draft: ScheduleDraft? = nil, onSave: @escaping (ScheduleDraft) -> Void, onDelete: (() -> Void)? = nil) {
         self.plans = plans
         self.onSave = onSave
+        self.onDelete = onDelete
 
         if let draft {
             _selectedPlan = State(initialValue: plans.first { $0.id == draft.planId })
             _location = State(initialValue: draft.location)
             _selectedDate = State(initialValue: draft.startsAt)
-            _selectedTime = State(initialValue: draft.startsAt)
-            _durationMinutes = State(initialValue: draft.durationMinutes)
+            _selectedTimeSlot = State(initialValue: Self.timeSlotFromDate(draft.startsAt))
         } else {
             _selectedPlan = State(initialValue: nil)
             _location = State(initialValue: "")
             _selectedDate = State(initialValue: Date())
-            _selectedTime = State(initialValue: Date())
-            _durationMinutes = State(initialValue: 60)
+            _selectedTimeSlot = State(initialValue: Self.defaultTimeSlot())
         }
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Add to Schedule")
+                Text(isEditing ? "Edit Schedule" : "Add to Schedule")
                     .font(.title)
                     .fontWeight(.semibold)
                     .padding(.horizontal)
                     .padding(.top, 8)
 
-                // MARK: - Plan Search & Selection
                 planSelectionSection
 
-                // MARK: - Selected Plan Info
                 if let plan = selectedPlan {
                     selectedPlanCard(plan)
                 }
 
-                // MARK: - Calendar
                 if selectedPlan != nil {
                     scheduleDetailsSection
+                }
+
+                if isEditing {
+                    Divider().padding(.horizontal)
+
+                    Button(role: .destructive) {
+                        showDeleteConfirmation = true
+                    } label: {
+                        HStack {
+                            Image(systemName: "trash")
+                            Text("Delete from Schedule")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                    }
+                    .padding(.horizontal)
                 }
             }
             .padding(.bottom, 24)
@@ -81,6 +118,15 @@ struct ScheduleFormView: View {
                 Button("Save") { save() }
                     .disabled(selectedPlan == nil)
             }
+        }
+        .alert("Delete this scheduled class?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                onDelete?()
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This action cannot be undone.")
         }
     }
 
@@ -124,7 +170,6 @@ struct ScheduleFormView: View {
                                     selectedPlan = nil
                                 } else {
                                     selectedPlan = plan
-                                    durationMinutes = plan.durationMinutes
                                 }
                                 searchText = ""
                             }
@@ -176,13 +221,29 @@ struct ScheduleFormView: View {
         .padding(.horizontal)
     }
 
-    // MARK: - Date, Time, Location, Duration
+    // MARK: - Time, Calendar, Location
 
     private var scheduleDetailsSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             Divider().padding(.horizontal)
 
-            Text("Pick a Date")
+            HStack {
+                Text("Time")
+                    .font(.headline)
+                Spacer()
+                Picker("Time", selection: $selectedTimeSlot) {
+                    ForEach(Self.timeSlots, id: \.self) { slot in
+                        Text(Self.labelForSlot(slot)).tag(slot)
+                    }
+                }
+                .pickerStyle(.menu)
+                .tint(.primary)
+            }
+            .padding(.horizontal)
+
+            RoundedTextField(placeholder: "Location", text: $location)
+
+            Text("Date")
                 .font(.headline)
                 .padding(.horizontal)
 
@@ -193,18 +254,6 @@ struct ScheduleFormView: View {
             )
             .datePickerStyle(.graphical)
             .padding(.horizontal)
-
-            DatePicker(
-                "Time",
-                selection: $selectedTime,
-                displayedComponents: .hourAndMinute
-            )
-            .padding(.horizontal)
-
-            RoundedTextField(placeholder: "Location", text: $location)
-
-            Stepper("Duration: \(durationMinutes) mins", value: $durationMinutes, in: 10...180, step: 5)
-                .padding(.horizontal)
         }
     }
 
@@ -216,13 +265,12 @@ struct ScheduleFormView: View {
 
         let calendar = Calendar.current
         let dateComponents = calendar.dateComponents([.year, .month, .day], from: selectedDate)
-        let timeComponents = calendar.dateComponents([.hour, .minute], from: selectedTime)
         var merged = DateComponents()
         merged.year = dateComponents.year
         merged.month = dateComponents.month
         merged.day = dateComponents.day
-        merged.hour = timeComponents.hour
-        merged.minute = timeComponents.minute
+        merged.hour = selectedTimeSlot / 60
+        merged.minute = selectedTimeSlot % 60
         let combinedDate = calendar.date(from: merged) ?? selectedDate
 
         let draft = ScheduleDraft(
@@ -231,7 +279,7 @@ struct ScheduleFormView: View {
             workoutType: plan.type,
             difficulty: plan.difficulty,
             startsAt: combinedDate,
-            durationMinutes: durationMinutes,
+            durationMinutes: plan.durationMinutes,
             planId: plan.id
         )
         onSave(draft)
