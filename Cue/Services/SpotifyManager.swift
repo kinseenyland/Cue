@@ -11,6 +11,8 @@ class SpotifyManager: NSObject, ObservableObject {
     private let keychainService = "com.cue.spotify"
     private let accessTokenKey = "spotify_access_token"
     private let refreshTokenKey = "spotify_refresh_token"
+    private let apiAccessTokenKey = "spotify_api_access_token"
+    private let apiRefreshTokenKey = "spotify_api_refresh_token"
 
     let spotifyClientID = "93c38381b8ff4b7d984fa217cbb3dcd3"
     let spotifyRedirectURL = URL(string: "spotify-ios-quick-start://spotify-login-callback")!
@@ -39,11 +41,36 @@ class SpotifyManager: NSObject, ObservableObject {
         }
     }
 
+    /// Token with playlist scopes (from PKCE). Used for Web API: create playlist, add tracks, /me. App Remote only accepts token from Spotify app.
+    @Published var apiAccessToken: String? {
+        didSet {
+            if let token = apiAccessToken {
+                KeychainHelper.save(key: apiAccessTokenKey, value: token, service: keychainService)
+            } else {
+                KeychainHelper.delete(key: apiAccessTokenKey, service: keychainService)
+            }
+        }
+    }
+    private var apiRefreshToken: String? {
+        didSet {
+            if let token = apiRefreshToken {
+                KeychainHelper.save(key: apiRefreshTokenKey, value: token, service: keychainService)
+            } else {
+                KeychainHelper.delete(key: apiRefreshTokenKey, service: keychainService)
+            }
+        }
+    }
+
     override init() {
         super.init()
         accessToken = KeychainHelper.load(key: accessTokenKey, service: keychainService)
         refreshToken = KeychainHelper.load(key: refreshTokenKey, service: keychainService)
+        apiAccessToken = KeychainHelper.load(key: apiAccessTokenKey, service: keychainService)
+        apiRefreshToken = KeychainHelper.load(key: apiRefreshTokenKey, service: keychainService)
     }
+
+    /// Token to use for Web API (playlists, /me). Prefer API token (has playlist scopes); fallback to main token.
+    var tokenForWebAPI: String? { apiAccessToken ?? accessToken }
     
     var playURI = ""
     
@@ -59,7 +86,7 @@ class SpotifyManager: NSObject, ObservableObject {
         return appRemote
     }()
     
-    /// Connect: on device uses Spotify app (so App Remote works); on simulator uses Web PKCE (search only).
+    /// Connect: on device use Spotify app (playback works); on simulator use Web PKCE. Use grantPlaylistAccess() for playlist creation on device.
     @MainActor
     @discardableResult
     func connect() -> Bool {
@@ -67,17 +94,27 @@ class SpotifyManager: NSObject, ObservableObject {
         print("[Spotify] Simulator: using web PKCE (search only; no playback).")
         return connectWithWebAuth()
         #else
-        // Native flow opens the Spotify app so it gives us a token and accepts App Remote connections.
-        print("[Spotify] Opening Spotify app to connect (required for playback)...")
+        print("[Spotify] Opening Spotify app to connect (playback). For creating playlists, tap \"Allow creating playlists\" after connecting.")
         let scopes = ["user-read-private", "user-modify-playback-state"]
         appRemote.authorizeAndPlayURI("", asRadio: false, additionalScopes: scopes, sessionIdentifier: nil)
         return true
         #endif
     }
 
-    /// Web OAuth with PKCE - uses ASWebAuthenticationSession (no deprecated APIs)
+    /// Run Web PKCE and store token as API token (playlist scopes). Call this on device after connect() to enable create playlist. On simulator we already use PKCE for connect() so this is no-op.
     @MainActor
-    private func connectWithWebAuth() -> Bool {
+    @discardableResult
+    func grantPlaylistAccess() -> Bool {
+        #if targetEnvironment(simulator)
+        return false
+        #else
+        return connectWithWebAuth(forPlaylistScopesOnly: true)
+        #endif
+    }
+
+    /// Web OAuth with PKCE. Simulator: forPlaylistScopesOnly false (main connect). Device: forPlaylistScopesOnly true (store as API token only).
+    @MainActor
+    private func connectWithWebAuth(forPlaylistScopesOnly: Bool = false) -> Bool {
         let codeVerifier = generateCodeVerifier()
         guard let codeChallenge = createCodeChallenge(from: codeVerifier) else {
             print("[Spotify] Failed to create code challenge")
@@ -90,7 +127,7 @@ class SpotifyManager: NSObject, ObservableObject {
             URLQueryItem(name: "client_id", value: spotifyClientID),
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "redirect_uri", value: spotifyRedirectURL.absoluteString),
-            URLQueryItem(name: "scope", value: "user-read-private user-modify-playback-state"), // Search + play
+            URLQueryItem(name: "scope", value: "user-read-private user-modify-playback-state playlist-modify-public playlist-modify-private"),
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
             URLQueryItem(name: "code_challenge", value: codeChallenge)
@@ -113,7 +150,7 @@ class SpotifyManager: NSObject, ObservableObject {
                     print("[Spotify] No callback URL received")
                     return
                 }
-                self?.handlePKCECallback(url: callbackURL, codeVerifier: codeVerifier)
+                self?.handlePKCECallback(url: callbackURL, codeVerifier: codeVerifier, forPlaylistScopesOnly: forPlaylistScopesOnly)
             }
         }
         session.presentationContextProvider = self
@@ -125,11 +162,15 @@ class SpotifyManager: NSObject, ObservableObject {
         return started
     }
 
-    private func handlePKCECallback(url: URL, codeVerifier: String) {
+    private func handlePKCECallback(url: URL, codeVerifier: String, forPlaylistScopesOnly: Bool = false) {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return }
         if let code = components.queryItems?.first(where: { $0.name == "code" })?.value {
-            isFinishingAuth = true
-            exchangeCodeForToken(code: code, codeVerifier: codeVerifier)
+            if forPlaylistScopesOnly {
+                exchangeCodeForApiToken(code: code, codeVerifier: codeVerifier)
+            } else {
+                isFinishingAuth = true
+                exchangeCodeForToken(code: code, codeVerifier: codeVerifier)
+            }
         } else if let error = components.queryItems?.first(where: { $0.name == "error" })?.value {
             print("[Spotify] Auth error: \(error)")
         }
@@ -172,7 +213,41 @@ class SpotifyManager: NSObject, ObservableObject {
         }
     }
 
-    /// Refresh the access token using the saved refresh token
+    private func exchangeCodeForApiToken(code: String, codeVerifier: String) {
+        var request = URLRequest(url: URL(string: "https://accounts.spotify.com/api/token")!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let body = [
+            "grant_type": "authorization_code",
+            "code": code,
+            "redirect_uri": spotifyRedirectURL.absoluteString,
+            "client_id": spotifyClientID,
+            "code_verifier": codeVerifier
+        ]
+        request.httpBody = body.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }.joined(separator: "&").data(using: .utf8)
+
+        Task {
+            do {
+                let (data, _) = try await URLSession.shared.data(for: request)
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                await MainActor.run {
+                    if let token = json?["access_token"] as? String {
+                        self.apiAccessToken = token
+                        if let refresh = json?["refresh_token"] as? String {
+                            self.apiRefreshToken = refresh
+                        }
+                        print("[Spotify] Playlist access granted (API token saved)")
+                    } else if let error = json?["error"] as? String {
+                        print("[Spotify] API token exchange error: \(error)")
+                    }
+                }
+            } catch {
+                print("[Spotify] API token exchange failed: \(error)")
+            }
+        }
+    }
+
+    /// Refresh the access token using the saved refresh token (main token, used on simulator).
     @MainActor
     func refreshAccessTokenIfNeeded() async -> Bool {
         guard let refresh = refreshToken else { return false }
@@ -202,6 +277,57 @@ class SpotifyManager: NSObject, ObservableObject {
             print("[Spotify] Token refresh failed: \(error)")
         }
         return false
+    }
+
+    /// Refresh the API token (playlist scopes). Use when Web API returns 401 and we have apiRefreshToken.
+    @MainActor
+    func refreshApiAccessTokenIfNeeded() async -> Bool {
+        guard let refresh = apiRefreshToken else { return false }
+        var request = URLRequest(url: URL(string: "https://accounts.spotify.com/api/token")!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        let body = [
+            "grant_type": "refresh_token",
+            "refresh_token": refresh,
+            "client_id": spotifyClientID
+        ]
+        request.httpBody = body.map { "\($0.key)=\($0.value.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? $0.value)" }.joined(separator: "&").data(using: .utf8)
+
+        do {
+            let (data, _) = try await URLSession.shared.data(for: request)
+            let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+            if let token = json?["access_token"] as? String {
+                apiAccessToken = token
+                if let newRefresh = json?["refresh_token"] as? String {
+                    apiRefreshToken = newRefresh
+                }
+                print("[Spotify] API token refreshed successfully")
+                return true
+            }
+        } catch {
+            print("[Spotify] API token refresh failed: \(error)")
+        }
+        return false
+    }
+
+    /// Refresh the token used for Web API (playlists, /me). Tries API refresh first if we have API credentials.
+    @MainActor
+    func refreshWebAPITokenIfNeeded() async -> Bool {
+        if apiRefreshToken != nil {
+            return await refreshApiAccessTokenIfNeeded()
+        }
+        return await refreshAccessTokenIfNeeded()
+    }
+
+    /// Clear the credentials used for Web API when refresh fails (so UI can show "sign in again").
+    func clearWebAPICredentialsOnRefreshFailure() {
+        if apiRefreshToken != nil {
+            apiAccessToken = nil
+            apiRefreshToken = nil
+        } else {
+            accessToken = nil
+            refreshToken = nil
+        }
     }
 
     /// Play a track by URI (e.g. "spotify:track:..."). Opens in Spotify app if not connected.
@@ -245,6 +371,8 @@ class SpotifyManager: NSObject, ObservableObject {
     func signOut() {
         accessToken = nil
         refreshToken = nil
+        apiAccessToken = nil
+        apiRefreshToken = nil
         disconnect()
         print("[Spotify] Signed out, credentials cleared")
     }

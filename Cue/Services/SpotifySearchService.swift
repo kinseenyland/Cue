@@ -11,6 +11,12 @@ class SpotifySearchService {
     static let shared = SpotifySearchService()
     private let baseURL = "https://api.spotify.com/v1"
     
+    struct SpotifyPlaylist: Codable {
+        let id: String
+        let name: String
+        let uri: String
+    }
+
     struct SpotifyTrack: Codable, Identifiable {
         let id: String
         let name: String
@@ -42,7 +48,7 @@ class SpotifySearchService {
     }
     
     func searchTracks(query: String) async throws -> [SpotifyTrack] {
-        guard var token = SpotifyManager.shared.accessToken else {
+        guard var token = SpotifyManager.shared.tokenForWebAPI else {
             throw SpotifyError.notAuthenticated
         }
 
@@ -61,14 +67,13 @@ class SpotifySearchService {
 
         // Token expired (401) → refresh and retry once
         if statusCode == 401 {
-            let refreshed = await SpotifyManager.shared.refreshAccessTokenIfNeeded()
-            if refreshed, let newToken = SpotifyManager.shared.accessToken {
+            let refreshed = await SpotifyManager.shared.refreshWebAPITokenIfNeeded()
+            if refreshed, let newToken = SpotifyManager.shared.tokenForWebAPI {
                 request.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
                 (data, response) = try await URLSession.shared.data(for: request)
                 statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
             } else {
-                // Refresh failed or no refresh token → clear token so user can reconnect
-                await MainActor.run { SpotifyManager.shared.accessToken = nil }
+                await MainActor.run { SpotifyManager.shared.clearWebAPICredentialsOnRefreshFailure() }
                 throw SpotifyError.tokenExpired
             }
         }
@@ -80,6 +85,88 @@ class SpotifySearchService {
         let decoded = try JSONDecoder().decode(SearchResponse.self, from: data)
         return decoded.tracks.items
     }
+
+    /// Current user's Spotify ID (needed for creating playlists).
+    func getCurrentUserId() async throws -> String {
+        var request = URLRequest(url: URL(string: "\(baseURL)/me")!)
+        try await setAuthAndRefreshIfNeeded(request: &request)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if statusCode == 401 {
+            try await handle401AndRetryGetUserId()
+            return try await getCurrentUserId()
+        }
+        if statusCode != 200 {
+            let msg = (try? JSONDecoder().decode(SpotifyErrorPayload.self, from: data)).flatMap { $0.error?.message }
+            throw SpotifyError.apiError(status: statusCode, message: msg)
+        }
+        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        guard let id = json?["id"] as? String else { throw SpotifyError.badResponse }
+        return id
+    }
+
+    /// Create a playlist for the current user. Uses POST /me/playlists (no user_id). Requires playlist-modify-public or playlist-modify-private.
+    func createPlaylist(name: String, description: String? = nil, isPublic: Bool = true) async throws -> SpotifyPlaylist {
+        var request = URLRequest(url: URL(string: "\(baseURL)/me/playlists")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try await setAuthAndRefreshIfNeeded(request: &request)
+        let body: [String: Any] = [
+            "name": name,
+            "description": description ?? "",
+            "public": isPublic
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if statusCode == 401 {
+            let refreshed = await SpotifyManager.shared.refreshWebAPITokenIfNeeded()
+            if refreshed { return try await createPlaylist(name: name, description: description, isPublic: isPublic) }
+            await MainActor.run { SpotifyManager.shared.clearWebAPICredentialsOnRefreshFailure() }
+            throw SpotifyError.tokenExpired
+        }
+        if statusCode != 201 {
+            let msg = (try? JSONDecoder().decode(SpotifyErrorPayload.self, from: data)).flatMap { $0.error?.message }
+            throw SpotifyError.apiError(status: statusCode, message: msg)
+        }
+        let decoded = try JSONDecoder().decode(SpotifyPlaylist.self, from: data)
+        return decoded
+    }
+
+    /// Add tracks to a playlist. URIs should be like "spotify:track:...".
+    func addTracksToPlaylist(playlistId: String, uris: [String]) async throws {
+        guard !uris.isEmpty else { return }
+        var request = URLRequest(url: URL(string: "\(baseURL)/playlists/\(playlistId)/tracks")!)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        try await setAuthAndRefreshIfNeeded(request: &request)
+        let body = ["uris": uris] as [String: Any]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (_, response) = try await URLSession.shared.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if statusCode == 401 {
+            let refreshed = await SpotifyManager.shared.refreshWebAPITokenIfNeeded()
+            if refreshed { try await addTracksToPlaylist(playlistId: playlistId, uris: uris); return }
+            await MainActor.run { SpotifyManager.shared.clearWebAPICredentialsOnRefreshFailure() }
+            throw SpotifyError.tokenExpired
+        }
+        guard statusCode == 201 else { throw SpotifyError.badResponse }
+    }
+
+    private func setAuthAndRefreshIfNeeded(request: inout URLRequest) async throws {
+        guard let token = SpotifyManager.shared.tokenForWebAPI else {
+            throw SpotifyError.notAuthenticated
+        }
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+    }
+
+    private func handle401AndRetryGetUserId() async throws {
+        let refreshed = await SpotifyManager.shared.refreshWebAPITokenIfNeeded()
+        if !refreshed {
+            await MainActor.run { SpotifyManager.shared.clearWebAPICredentialsOnRefreshFailure() }
+            throw SpotifyError.tokenExpired
+        }
+    }
     
     private struct SearchResponse: Codable {
         let tracks: TracksWrapper
@@ -90,5 +177,16 @@ class SpotifySearchService {
         case notAuthenticated
         case badResponse
         case tokenExpired
+        /// API returned non-success; status and message from response body when available.
+        case apiError(status: Int, message: String?)
+    }
+}
+
+/// Spotify error response body: { "error": { "status": 403, "message": "..." } }
+private struct SpotifyErrorPayload: Codable {
+    let error: Inner?
+    struct Inner: Codable {
+        let status: Int?
+        let message: String?
     }
 }
