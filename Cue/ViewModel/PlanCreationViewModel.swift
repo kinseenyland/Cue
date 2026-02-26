@@ -1,0 +1,101 @@
+//
+//  PlanCreationViewModel.swift
+//  Cue
+//
+
+import Combine
+import Foundation
+import SwiftUI
+
+enum PlanCreationStep: Int, CaseIterable {
+    case name               = 0
+    case type               = 1
+    case duration           = 2
+    case warmUpIntro        = 3
+    case warmUpMovements    = 4
+    case mainSections       = 5
+    case mainMovements      = 6
+    case coolDownIntro      = 7
+    case coolDownMovements  = 8
+    case review             = 9
+
+    static let total = Self.allCases.count
+
+    var title: String {
+        switch self {
+        case .name:             return "Name Your Plan"
+        case .type:             return "Workout Type"
+        case .duration:         return "Duration"
+        case .warmUpIntro:      return "Warm-Up"
+        case .warmUpMovements:  return "Warm-Up Movements"
+        case .mainSections:     return "Main Workout"
+        case .mainMovements:    return "Main Movements"
+        case .coolDownIntro:    return "Cool-Down"
+        case .coolDownMovements: return "Cool-Down Movements"
+        case .review:           return "Review"
+        }
+    }
+}
+
+@MainActor
+final class PlanCreationViewModel: ObservableObject {
+    @Published var step: PlanCreationStep = .name
+    @Published var draft = PlanCreationDraft()
+
+    var canAdvance: Bool {
+        switch step {
+        case .name:
+            return !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        case .type:
+            return draft.type != nil && draft.difficulty != nil
+        case .duration:
+            return draft.durationMinutes > 0
+        case .warmUpIntro:
+            return true
+        case .warmUpMovements:
+            return !draft.warmUpMovements.isEmpty
+        case .mainSections:
+            return !draft.mainSections.isEmpty &&
+                draft.mainSections.allSatisfy { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        case .mainMovements:
+            return draft.mainSections.allSatisfy { !$0.movements.isEmpty }
+        case .coolDownIntro:
+            return true
+        case .coolDownMovements:
+            return !draft.coolDownMovements.isEmpty
+        case .review:
+            return true
+        }
+    }
+
+    var isOnFirstStep: Bool { step == .name }
+    var isOnLastStep: Bool { step == .review }
+
+    var suggestedMainMinutes: Int { max(0, draft.durationMinutes - 10) }
+
+    func advance() {
+        guard canAdvance, let next = PlanCreationStep(rawValue: step.rawValue + 1) else { return }
+        step = next
+    }
+
+    func back() {
+        guard let prev = PlanCreationStep(rawValue: step.rawValue - 1) else { return }
+        step = prev
+    }
+
+    /// Converts the finished draft into a WorkoutPlanDraft for persisting to Firestore.
+    /// Movements are flattened: warm-up → main sections → cool-down.
+    func toWorkoutPlanDraft() -> WorkoutPlanDraft {
+        let allMovements = draft.warmUpMovements
+            + draft.mainSections.flatMap { $0.movements }
+            + draft.coolDownMovements
+
+        return WorkoutPlanDraft(
+            title: draft.name,
+            type: draft.type ?? .strength,
+            difficulty: draft.difficulty ?? .medium,
+            durationMinutes: draft.durationMinutes,
+            movements: allMovements
+        )
+    }
+}
