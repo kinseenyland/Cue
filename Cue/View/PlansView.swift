@@ -17,7 +17,6 @@ struct PlansView: View {
     @State private var selectedType: WorkoutType? = nil
     @StateObject private var vm = CueViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
-    @EnvironmentObject private var authVM: AuthViewModel
 
     var filteredPlans: [WorkoutPlan] {
         guard let type = selectedType else { return vm.plans }
@@ -28,12 +27,6 @@ struct PlansView: View {
         NavigationStack(path: $navigationPath) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Button("Sign Out") {
-                        authVM.signOut()
-                    }
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    Spacer()
                     Text("Plans")
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(.black)
@@ -251,6 +244,5 @@ struct PlanRowCard: View {
 
 #Preview {
     PlansView(selectedTab: .constant(.plans))
-        .environmentObject(AuthViewModel())
         .environmentObject(WorkoutSessionViewModel())
 }
