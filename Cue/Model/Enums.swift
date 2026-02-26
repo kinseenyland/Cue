@@ -18,3 +18,9 @@ enum Difficulty: String, CaseIterable, Codable {
 enum GoalType: String, CaseIterable, Codable {
     case timed, reps
 }
+
+enum WorkoutSection: String, CaseIterable, Codable {
+    case warmUp = "warmUp"
+    case main = "main"
+    case coolDown = "coolDown"
+}
