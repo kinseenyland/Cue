@@ -11,72 +11,88 @@ struct AuthView: View {
     @EnvironmentObject var authVM: AuthViewModel
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 24) {
+        ZStack {
+            Color.white.ignoresSafeArea()
+
+            VStack {
                 Spacer()
 
-                VStack(spacing: 12) {
-                    Image(systemName: "figure.strengthtraining.traditional")
-                        .font(.system(size: 80))
-                        .foregroundStyle(.white)
-                        .padding(24)
-                        .background(Circle().fill(Color.orange))
+                // Card
+                VStack(spacing: 14) {
 
+                    // CUE wordmark
                     Text("CUE")
-                        .font(.system(size: 40, weight: .bold))
+                        .font(.system(size: 96, weight: .black))
+                        .foregroundStyle(.black)
+                        .padding(.bottom, 10)
 
-                    Text("CUE handles class logistics so fitness instructors can stay present with their students.")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-                }
-
-                Spacer()
-
-                VStack(spacing: 16) {
-                    TextField("Email", text: $authVM.email)
+                    // Email field
+                    TextField("e-mail address", text: $authVM.email)
+                        .font(.system(size: 12, weight: .thin))
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
-                        .textFieldStyle(.roundedBorder)
-                        .padding(.horizontal, 24)
+                        .autocorrectionDisabled()
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 7)
+                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
 
-                    SecureField("Password", text: $authVM.password)
-                        .textFieldStyle(.roundedBorder)
-                        .padding(.horizontal, 24)
+                    // Password field
+                    SecureField("password", text: $authVM.password)
+                        .font(.system(size: 12, weight: .thin))
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 7)
+                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
 
-                    Button("Sign In") {
+                    // Sign In button
+                    Button {
                         authVM.signIn()
+                    } label: {
+                        Text("Sign In")
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 40)
+                            .padding(.vertical, 10)
+                            .background(Color.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.borderedProminent)
                     .disabled(authVM.isLoading)
-                    .padding(.horizontal, 24)
 
-                    Button("Create Account") {
+                    // Create account link
+                    Button {
                         authVM.signUp()
+                    } label: {
+                        Text("Create an Account")
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundStyle(.black)
                     }
-                    .frame(maxWidth: .infinity)
-                    .buttonStyle(.bordered)
                     .disabled(authVM.isLoading)
-                    .padding(.horizontal, 24)
-                }
-                .padding(.bottom, 24)
 
-                if let status = authVM.statusMessage {
-                    Text(status)
-                        .foregroundStyle(.green)
-                        .padding(.horizontal)
-                }
+                    if let status = authVM.statusMessage {
+                        Text(status)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.green)
+                            .multilineTextAlignment(.center)
+                    }
 
-                if let error = authVM.errorMessage {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .padding(.horizontal)
+                    if let error = authVM.errorMessage {
+                        Text(error)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                    }
                 }
+                .padding(.horizontal, 31)
+                .padding(.vertical, 28)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.black, lineWidth: 1)
+                )
+                .padding(.horizontal, 32)
+
+                Spacer()
             }
-            .navigationTitle("Account")
         }
+        .toolbar(.hidden, for: .navigationBar)
     }
 }
 
