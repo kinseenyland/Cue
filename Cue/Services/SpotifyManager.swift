@@ -19,6 +19,7 @@ class SpotifyManager: NSObject, ObservableObject {
 
     @Published var isConnected = false
     @Published var currentTrackName = ""
+    @Published var isPaused = true
     /// True while exchanging auth code for token (user returned from browser but token not ready yet)
     @Published var isFinishingAuth = false
     @Published var accessToken: String? {
@@ -71,8 +72,12 @@ class SpotifyManager: NSObject, ObservableObject {
 
     /// Token to use for Web API (playlists, /me). Prefer API token (has playlist scopes); fallback to main token.
     var tokenForWebAPI: String? { apiAccessToken ?? accessToken }
+
+    /// Token that has playlist-read scope. Use this for GET playlist/tracks; do not use playback token (causes 403).
+    var tokenForPlaylistRead: String? { apiAccessToken }
     
     var playURI = ""
+    private let webAPIBaseURL = "https://api.spotify.com/v1"
     
     lazy var configuration = SPTConfiguration(
         clientID: spotifyClientID,
@@ -95,7 +100,8 @@ class SpotifyManager: NSObject, ObservableObject {
         return connectWithWebAuth()
         #else
         print("[Spotify] Opening Spotify app to connect (playback). For creating playlists, tap \"Allow creating playlists\" after connecting.")
-        let scopes = ["user-read-private", "user-modify-playback-state"]
+        // App Remote playback/control needs app-remote-control. We also request playback scopes for state/control.
+        let scopes = ["app-remote-control", "user-read-playback-state", "user-modify-playback-state", "user-read-private"]
         appRemote.authorizeAndPlayURI("", asRadio: false, additionalScopes: scopes, sessionIdentifier: nil)
         return true
         #endif
@@ -127,7 +133,7 @@ class SpotifyManager: NSObject, ObservableObject {
             URLQueryItem(name: "client_id", value: spotifyClientID),
             URLQueryItem(name: "response_type", value: "code"),
             URLQueryItem(name: "redirect_uri", value: spotifyRedirectURL.absoluteString),
-            URLQueryItem(name: "scope", value: "user-read-private user-modify-playback-state playlist-modify-public playlist-modify-private"),
+            URLQueryItem(name: "scope", value: "user-read-private user-read-playback-state user-modify-playback-state playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative"),
             URLQueryItem(name: "state", value: state),
             URLQueryItem(name: "code_challenge_method", value: "S256"),
             URLQueryItem(name: "code_challenge", value: codeChallenge)
@@ -358,11 +364,177 @@ class SpotifyManager: NSObject, ObservableObject {
         }
     }
 
+    /// Ensure App Remote is connected so we can control playback + receive player state updates.
+    @discardableResult
+    func connectAppRemoteIfNeeded() -> Bool {
+        #if targetEnvironment(simulator)
+        return false
+        #else
+        guard accessToken != nil else { return false }
+        guard !appRemote.isConnected else { return true }
+        guard !isAppRemoteConnecting else { return false }
+        isAppRemoteConnecting = true
+        appRemote.connectionParameters.accessToken = accessToken
+        appRemote.connect()
+        return false
+        #endif
+    }
+
+    func nextTrack() {
+        #if targetEnvironment(simulator)
+        playbackError = "Playback requires a physical device with the Spotify app installed."
+        return
+        #endif
+        guard appRemote.isConnected else {
+            pendingPlaybackCommand = .next
+            connectAppRemoteIfNeeded()
+            playbackError = "Connecting to Spotify…"
+            return
+        }
+        appRemote.playerAPI?.skip(toNext: { [weak self] _, error in
+            Task { @MainActor in
+                if let error { self?.playbackError = error.localizedDescription }
+            }
+        })
+    }
+
+    func previousTrack() {
+        #if targetEnvironment(simulator)
+        playbackError = "Playback requires a physical device with the Spotify app installed."
+        return
+        #endif
+        guard appRemote.isConnected else {
+            pendingPlaybackCommand = .previous
+            connectAppRemoteIfNeeded()
+            playbackError = "Connecting to Spotify…"
+            return
+        }
+        appRemote.playerAPI?.skip(toPrevious: { [weak self] _, error in
+            Task { @MainActor in
+                if let error { self?.playbackError = error.localizedDescription }
+            }
+        })
+    }
+
+    func togglePlayPause() {
+        #if targetEnvironment(simulator)
+        playbackError = "Playback requires a physical device with the Spotify app installed."
+        return
+        #endif
+        guard appRemote.isConnected else {
+            pendingPlaybackCommand = .togglePlayPause
+            connectAppRemoteIfNeeded()
+            playbackError = "Connecting to Spotify…"
+            return
+        }
+        if isPaused {
+            appRemote.playerAPI?.resume({ [weak self] _, error in
+                Task { @MainActor in
+                    if let error { self?.playbackError = error.localizedDescription }
+                    else { self?.playbackError = nil }
+                }
+            })
+        } else {
+            appRemote.playerAPI?.pause({ [weak self] _, error in
+                Task { @MainActor in
+                    if let error { self?.playbackError = error.localizedDescription }
+                    else { self?.playbackError = nil }
+                }
+            })
+        }
+    }
+
+    /// Play a playlist from the beginning. Prefers Web API (supports offset position 0), falls back to App Remote play(uri).
+    func playPlaylistFromStart(playlistUri: String) {
+        guard !playlistUri.isEmpty else { return }
+        #if targetEnvironment(simulator)
+        playbackError = "Playback requires a physical device with the Spotify app installed."
+        return
+        #endif
+
+        Task { @MainActor in
+            do {
+                // Spotify remembers shuffle state per device; explicitly disable it so order matches the playlist.
+                try? await setShuffleViaWebAPI(false)
+                try await playContextFromStartViaWebAPI(contextUri: playlistUri)
+                playbackError = nil
+            } catch {
+                // If Web API playback fails (e.g. no active device), fall back to App Remote.
+                print("[Spotify] Web API play failed, falling back to App Remote: \(error)")
+                self.play(trackUri: playlistUri)
+            }
+        }
+    }
+
+    private func setShuffleViaWebAPI(_ enabled: Bool) async throws {
+        guard let token = tokenForWebAPI else { throw NSError(domain: "Spotify", code: 401) }
+        var components = URLComponents(string: "\(webAPIBaseURL)/me/player/shuffle")!
+        components.queryItems = [URLQueryItem(name: "state", value: enabled ? "true" : "false")]
+        var request = URLRequest(url: components.url!)
+        request.httpMethod = "PUT"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if statusCode == 401 {
+            let refreshed = await refreshWebAPITokenIfNeeded()
+            if refreshed {
+                try await setShuffleViaWebAPI(enabled)
+                return
+            }
+            await MainActor.run { self.clearWebAPICredentialsOnRefreshFailure() }
+            throw NSError(domain: "Spotify", code: 401)
+        }
+        guard statusCode == 204 else {
+            let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let message = (json?["error"] as? [String: Any])?["message"] as? String
+            throw NSError(domain: "Spotify", code: statusCode, userInfo: [NSLocalizedDescriptionKey: message ?? "HTTP \(statusCode)"])
+        }
+    }
+
+    private func playContextFromStartViaWebAPI(contextUri: String) async throws {
+        guard let token = tokenForWebAPI else { throw NSError(domain: "Spotify", code: 401) }
+        var request = URLRequest(url: URL(string: "\(webAPIBaseURL)/me/player/play")!)
+        request.httpMethod = "PUT"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        let body: [String: Any] = [
+            "context_uri": contextUri,
+            "offset": ["position": 0],
+            "position_ms": 0
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        if statusCode == 401 {
+            let refreshed = await refreshWebAPITokenIfNeeded()
+            if refreshed {
+                try await playContextFromStartViaWebAPI(contextUri: contextUri)
+                return
+            }
+            await MainActor.run { self.clearWebAPICredentialsOnRefreshFailure() }
+            throw NSError(domain: "Spotify", code: 401)
+        }
+        guard statusCode == 204 else {
+            let json = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let message = (json?["error"] as? [String: Any])?["message"] as? String
+            throw NSError(domain: "Spotify", code: statusCode, userInfo: [NSLocalizedDescriptionKey: message ?? "HTTP \(statusCode)"])
+        }
+    }
+
     /// URI to play when App Remote connects (e.g. after app launch)
     private var pendingPlayURI: String?
 
     /// True from connect() until we get connected or failed (avoids multiple connection attempts when user taps repeatedly).
     private var isAppRemoteConnecting = false
+    
+    private enum PendingPlaybackCommand {
+        case togglePlayPause
+        case next
+        case previous
+    }
+    private var pendingPlaybackCommand: PendingPlaybackCommand?
 
     /// Last playback error message for UI
     @Published var playbackError: String?
@@ -395,6 +567,7 @@ class SpotifyManager: NSObject, ObservableObject {
         if appRemote.isConnected {
             appRemote.disconnect()
         }
+        isAppRemoteConnecting = false
     }
     
     func handleURL(_ url: URL) {
@@ -421,12 +594,39 @@ class SpotifyManager: NSObject, ObservableObject {
 extension SpotifyManager: SPTAppRemoteDelegate {
     func appRemoteDidEstablishConnection(_ appRemote: SPTAppRemote) {
         print("[Spotify] App Remote connected")
-        isConnected = true
-        isAppRemoteConnecting = false
+        Task { @MainActor in
+            self.isConnected = true
+            self.isAppRemoteConnecting = false
+        }
         appRemote.playerAPI?.delegate = self
         appRemote.playerAPI?.subscribe(toPlayerState: { result, error in
             if let error { debugPrint(error.localizedDescription) }
         })
+        // Fetch initial state immediately (subscribe only delivers changes).
+        appRemote.playerAPI?.getPlayerState({ [weak self] result, error in
+            if let error {
+                print("[Spotify] getPlayerState failed: \(error.localizedDescription)")
+                return
+            }
+            if let state = result as? SPTAppRemotePlayerState {
+                Task { @MainActor in
+                    self?.currentTrackName = state.track.name
+                    self?.isPaused = state.isPaused
+                }
+            }
+        })
+
+        if let cmd = pendingPlaybackCommand {
+            pendingPlaybackCommand = nil
+            switch cmd {
+            case .togglePlayPause:
+                togglePlayPause()
+            case .next:
+                nextTrack()
+            case .previous:
+                previousTrack()
+            }
+        }
         // Play pending track if user tapped one before we were connected
         if let uri = pendingPlayURI, !uri.isEmpty {
             pendingPlayURI = nil
@@ -440,13 +640,17 @@ extension SpotifyManager: SPTAppRemoteDelegate {
     
     func appRemote(_ appRemote: SPTAppRemote, didDisconnectWithError error: Error?) {
         print("disconnected")
-        isConnected = false
+        Task { @MainActor in
+            self.isConnected = false
+        }
     }
     
     func appRemote(_ appRemote: SPTAppRemote, didFailConnectionAttemptWithError error: Error?) {
         print("failed")
-        isConnected = false
-        isAppRemoteConnecting = false
+        Task { @MainActor in
+            self.isConnected = false
+            self.isAppRemoteConnecting = false
+        }
         let hadPendingPlay = pendingPlayURI != nil
         pendingPlayURI = nil
         if hadPendingPlay {
@@ -461,7 +665,10 @@ extension SpotifyManager: SPTAppRemoteDelegate {
 extension SpotifyManager: SPTAppRemotePlayerStateDelegate {
     func playerStateDidChange(_ playerState: SPTAppRemotePlayerState) {
         debugPrint("Track name: \(playerState.track.name)")
-        currentTrackName = playerState.track.name
+        Task { @MainActor in
+            self.currentTrackName = playerState.track.name
+            self.isPaused = playerState.isPaused
+        }
     }
 }
 
