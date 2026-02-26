@@ -13,113 +13,130 @@ struct PlansView: View {
     @State private var editingPlan: WorkoutPlan? = nil
     @State private var isShowingAlert = false
     @State private var alertMessage = ""
+    @State private var selectedType: WorkoutType? = nil
     @StateObject private var vm = CueViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
     @EnvironmentObject private var authVM: AuthViewModel
 
+    var filteredPlans: [WorkoutPlan] {
+        guard let type = selectedType else { return vm.plans }
+        return vm.plans.filter { $0.type == type }
+    }
+
     var body: some View {
         NavigationStack {
-            List {
-                if let status = vm.statusMessage {
-                    Text(status)
-                        .foregroundStyle(.green)
-                }
-
-                if let error = vm.errorMessage {
-                    Text(error)
-                        .foregroundStyle(.red)
-                }
-
-                Button {
-                    isPresentingCreateForm = true
-                } label: {
-                    Label("Create Plan", systemImage: "plus.circle.fill")
-                }
-
-                ForEach(vm.plans) { plan in
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(plan.title)
-                            .font(.headline)
-                        Text("Type: \(plan.type.rawValue.capitalized) • Difficulty: \(plan.difficulty.rawValue.capitalized) • Time: \(plan.durationMinutes) mins")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-
-                        if !plan.movements.isEmpty {
-                            Text(plan.movements.map { $0.name }.joined(separator: ", "))
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.vertical, 4)
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            Task { await vm.deletePlan(id: plan.id) }
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    }
-                    .swipeActions(edge: .leading) {
-                        Button {
-                            editingPlan = plan
-                        } label: {
-                            Label("Edit", systemImage: "pencil")
-                        }
-                        .tint(.blue)
-                    }
-                    .contextMenu {
-                        Button("Start Workout") {
-                            sessionVM.load(plan: plan)
-                            selectedTab = .workout
-                        }
-                        Button("Edit") {
-                            editingPlan = plan
-                        }
-                        Button(role: .destructive) {
-                            Task { await vm.deletePlan(id: plan.id) }
-                        } label: {
-                            Text("Delete")
-                        }
-                    }
-                }
-            }
-            .navigationTitle("Plans")
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack {
                     Button("Sign Out") {
                         authVM.signOut()
                     }
-                }
-                ToolbarItemGroup(placement: .primaryAction) {
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Plans")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.black)
+                    Spacer()
                     Button {
                         isPresentingCreateForm = true
                     } label: {
                         Image(systemName: "plus")
-                    }
-
-                    Button {
-                        alertMessage = "Share plan coming soon."
-                        isShowingAlert = true
-                    } label: {
-                        Image(systemName: "square.and.arrow.up")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.black)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        PlanFilterChip(label: "All", isSelected: selectedType == nil) {
+                            selectedType = nil
+                        }
+                        ForEach(WorkoutType.allCases, id: \.self) { type in
+                            PlanFilterChip(
+                                label: type.rawValue.capitalized,
+                                isSelected: selectedType == type
+                            ) {
+                                selectedType = type
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+                .padding(.vertical, 8)
+
+                if filteredPlans.isEmpty {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "doc.text")
+                            .font(.system(size: 40))
+                            .foregroundStyle(.secondary)
+                        Text("No plans yet")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.black)
+                        Text("Tap + to create your first plan")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    Spacer()
+                } else {
+                List {
+                    ForEach(filteredPlans) { plan in
+                        PlanRowCard(plan: plan)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .swipeActions(edge: .trailing) {
+                                Button(role: .destructive) {
+                                    Task { await vm.deletePlan(id: plan.id) }
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    editingPlan = plan
+                                } label: {
+                                    Label("Edit", systemImage: "pencil")
+                                }
+                                .tint(.blue)
+                            }
+                            .contextMenu {
+                                Button("Start Workout") {
+                                    sessionVM.load(plan: plan)
+                                    selectedTab = .workout
+                                }
+                                Button("Edit") {
+                                    editingPlan = plan
+                                }
+                                Button(role: .destructive) {
+                                    Task { await vm.deletePlan(id: plan.id) }
+                                } label: {
+                                    Text("Delete")
+                                }
+                            }
+                    }
+                }
+                .listStyle(.plain)
+                .scrollContentBackground(.hidden)
+                }
             }
+            .toolbar(.hidden, for: .navigationBar)
         }
         .task {
             await vm.fetchPlans()
         }
         .sheet(isPresented: $isPresentingCreateForm) {
-            NavigationStack {
-                WorkoutPlanFormView { newPlan in
-                    Task { await vm.createPlan(from: newPlan) }
-                }
+            PlanCreationView { newPlan in
+                Task { await vm.createPlan(from: newPlan) }
             }
         }
         .sheet(item: $editingPlan) { plan in
-            NavigationStack {
-                WorkoutPlanFormView(draft: draft(from: plan)) { updated in
-                    Task { await vm.updatePlan(id: plan.id, from: updated) }
-                }
+            WorkoutPlanFormView(draft: draft(from: plan)) { updated in
+                Task { await vm.updatePlan(id: plan.id, from: updated) }
             }
         }
         .alert("Cue", isPresented: $isShowingAlert) {
@@ -136,6 +153,79 @@ struct PlansView: View {
             difficulty: plan.difficulty,
             durationMinutes: plan.durationMinutes,
             movements: plan.movements
+        )
+    }
+}
+
+struct PlanFilterChip: View {
+    let label: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundStyle(isSelected ? .white : Color(red: 0.286, green: 0.271, blue: 0.310))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(isSelected ? Color.black : Color.clear)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(red: 0.792, green: 0.769, blue: 0.816), lineWidth: 1)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct PlanRowCard: View {
+    let plan: WorkoutPlan
+
+    private var difficultyLabel: String {
+        switch plan.difficulty {
+        case .easy: return "Low"
+        case .medium: return "Medium"
+        case .hard: return "High"
+        }
+    }
+
+    var body: some View {
+        HStack(spacing: 22) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(plan.title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.black)
+
+                HStack(spacing: 4) {
+                    Image(systemName: "timer")
+                        .font(.system(size: 12))
+                    Text("\(plan.durationMinutes) min")
+                        .font(.system(size: 12, weight: .thin))
+
+                    Image(systemName: "flame")
+                        .font(.system(size: 12))
+                    Text(difficultyLabel)
+                        .font(.system(size: 12, weight: .thin))
+                }
+                .foregroundStyle(.black)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14))
+                .foregroundStyle(.black)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .frame(height: 76)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.black, lineWidth: 1)
         )
     }
 }
