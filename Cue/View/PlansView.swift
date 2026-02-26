@@ -27,6 +27,12 @@ struct PlansView: View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
+                    Button("Sign Out") {
+                        authVM.signOut()
+                    }
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    Spacer()
                     Text("Plans")
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(.black)
@@ -124,7 +130,7 @@ struct PlansView: View {
             await vm.fetchPlans()
         }
         .sheet(isPresented: $isPresentingCreateForm) {
-            WorkoutPlanFormView { newPlan in
+            PlanCreationView { newPlan in
                 Task { await vm.createPlan(from: newPlan) }
             }
         }
