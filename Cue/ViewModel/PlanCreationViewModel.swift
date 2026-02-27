@@ -84,18 +84,32 @@ final class PlanCreationViewModel: ObservableObject {
     }
 
     /// Converts the finished draft into a WorkoutPlanDraft for persisting to Firestore.
-    /// Movements are flattened: warm-up → main sections → cool-down.
+    /// Movements are flattened: warm-up → main sections → cool-down, each tagged with section info.
     func toWorkoutPlanDraft() -> WorkoutPlanDraft {
-        let allMovements = draft.warmUpMovements
-            + draft.mainSections.flatMap { $0.movements }
-            + draft.coolDownMovements
+        let warmUp = draft.warmUpMovements.map { m -> Movement in
+            var copy = m; copy.section = .warmUp; copy.sectionName = nil
+            copy.sectionDurationMinutes = draft.warmUpDurationMinutes; return copy
+        }
+        let main = draft.mainSections.flatMap { section -> [Movement] in
+            section.movements.map { m -> Movement in
+                var copy = m
+                copy.section = .main
+                copy.sectionName = section.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : section.name
+                copy.sectionDurationMinutes = section.durationMinutes
+                return copy
+            }
+        }
+        let coolDown = draft.coolDownMovements.map { m -> Movement in
+            var copy = m; copy.section = .coolDown; copy.sectionName = nil
+            copy.sectionDurationMinutes = draft.coolDownDurationMinutes; return copy
+        }
 
         return WorkoutPlanDraft(
             title: draft.name,
             type: draft.type ?? .strength,
             difficulty: draft.difficulty ?? .medium,
             durationMinutes: draft.durationMinutes,
-            movements: allMovements
+            movements: warmUp + main + coolDown
         )
     }
 }

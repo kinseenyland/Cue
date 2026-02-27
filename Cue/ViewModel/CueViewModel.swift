@@ -195,7 +195,8 @@ class CueViewModel: ObservableObject {
         var data: [String: Any] = [
             "id": movement.id,
             "name": movement.name,
-            "goalType": movement.goalType.rawValue
+            "goalType": movement.goalType.rawValue,
+            "section": movement.section.rawValue
         ]
         if let seconds = movement.seconds {
             data["seconds"] = seconds
@@ -205,6 +206,12 @@ class CueViewModel: ObservableObject {
         }
         if let notes = movement.notes {
             data["notes"] = notes
+        }
+        if let sectionName = movement.sectionName {
+            data["sectionName"] = sectionName
+        }
+        if let sectionDurationMinutes = movement.sectionDurationMinutes {
+            data["sectionDurationMinutes"] = sectionDurationMinutes
         }
         return data
     }
@@ -216,13 +223,18 @@ class CueViewModel: ObservableObject {
             let goalType = GoalType(rawValue: goalTypeRaw)
         else { return nil }
 
+        let section = WorkoutSection(rawValue: data["section"] as? String ?? "") ?? .main
+
         return Movement(
             id: data["id"] as? String ?? UUID().uuidString,
             name: name,
             notes: data["notes"] as? String,
             goalType: goalType,
             seconds: data["seconds"] as? Int,
-            reps: data["reps"] as? Int
+            reps: data["reps"] as? Int,
+            section: section,
+            sectionName: data["sectionName"] as? String,
+            sectionDurationMinutes: data["sectionDurationMinutes"] as? Int
         )
     }
 }

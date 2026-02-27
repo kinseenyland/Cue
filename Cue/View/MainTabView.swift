@@ -8,63 +8,68 @@
 import SwiftUI
 
 enum MainTab: Hashable {
-    case plans
-    case workout
+    case home
     case schedule
-    case spotify
+    case plans
+    case profile
+    case workout  // used internally by PlansView/PlanDetailView to start a workout
 }
 
 struct MainTabView: View {
     @EnvironmentObject private var spotifyManager: SpotifyManager
-    @State private var selection: MainTab = .plans
+    @State private var selection: MainTab = .home
     @StateObject private var sessionVM = WorkoutSessionViewModel()
 
-    private var isInActiveWorkout: Bool {
-        selection == .workout && !sessionVM.movements.isEmpty
-    }
-
     var body: some View {
-        TabView(selection: $selection) {
-            PlansView(selectedTab: $selection)
-                .tabItem {
-                    Label("Plans", systemImage: "doc.text")
-                }
-                .tag(MainTab.plans)
-
-            PlayerView()
-                .tabItem {
-                    Label("Workout", systemImage: "figure.core.training")
-                }
-                .tag(MainTab.workout)
-
-            ScheduleView()
-                .tabItem {
-                    Label("Schedule", systemImage: "calendar")
-                }
-                .tag(MainTab.schedule)
-
-            NavigationStack {
-                SpotifySearchView(onTrackSelected: { _ in })
+        ZStack {
+            switch selection {
+            case .home:
+                HomeView(selectedTab: $selection)
+            case .schedule:
+                ScheduleView(selectedTab: $selection)
+            case .plans:
+                PlansView(selectedTab: $selection)
+            case .profile:
+                ProfileView()
                     .environmentObject(spotifyManager)
+            case .workout:
+                PlayerView(selectedTab: $selection)
             }
-            .tabItem {
-                Label("Spotify", systemImage: "music.note")
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom) {
+            HStack(alignment: .center, spacing: 0) {
+                ForEach(MainTab.visibleTabs, id: \.self) { tab in
+                    Button {
+                        selection = tab
+                    } label: {
+                        Text(tab.label)
+                            .font(.system(size: 15, weight: selection == tab ? .bold : .regular))
+                            .foregroundStyle(.black)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
-            .tag(MainTab.spotify)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(Color.white)
         }
         .environmentObject(sessionVM)
-        .toolbar {
-            if isInActiveWorkout {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        sessionVM.reset()
-                    } label: {
-                        Image(systemName: "chevron.left")
-                    }
-                }
-            }
+    }
+}
+
+extension MainTab {
+    static let visibleTabs: [MainTab] = [.home, .schedule, .plans, .profile]
+
+    var label: String {
+        switch self {
+        case .home:     return "Home"
+        case .schedule: return "Schedule"
+        case .plans:    return "Plans"
+        case .profile:  return "Profile"
+        case .workout:  return "Workout"
         }
-        .navigationBarBackButtonHidden(isInActiveWorkout)
     }
 }
 
