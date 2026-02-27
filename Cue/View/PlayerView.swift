@@ -192,8 +192,29 @@ struct PlayerView: View {
                 }
             }
 
-            HStack {
+            HStack(spacing: 16) {
+                Button {
+                    sessionVM.previousMove()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 50, height: 50)
+                        .background(Circle().fill(Color.black))
+                }
+                .disabled(!sessionVM.canGoPrevious)
+                .opacity(sessionVM.canGoPrevious ? 1.0 : 0.3)
+
+                Button {
+                    sessionVM.toggleRunning()
+                } label: {
+                    Image(systemName: sessionVM.isRunning ? "pause.circle.fill" : "play.circle.fill")
+                        .font(.system(size: 44))
+                        .foregroundStyle(.black)
+                }
+
                 Spacer()
+
                 Button {
                     sessionVM.nextMove()
                 } label: {
