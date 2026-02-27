@@ -57,6 +57,7 @@ final class WorkoutSessionViewModel: ObservableObject {
     var upNextDurationMinutes: Int? {
         guard let next = onDeckMove else { return nil }
         if next.section != currentMove?.section || next.sectionName != currentMove?.sectionName {
+            if let mins = next.sectionDurationMinutes { return mins }
             let totalSecs = sectionTotalSeconds(for: next)
             return max(1, totalSecs / 60)
         }
@@ -159,7 +160,11 @@ final class WorkoutSessionViewModel: ObservableObject {
 
     private func resetSectionTimer() {
         guard let move = currentMove else { sectionRemainingSeconds = 0; return }
-        sectionRemainingSeconds = sectionTotalSeconds(for: move)
+        if let mins = move.sectionDurationMinutes {
+            sectionRemainingSeconds = mins * 60
+        } else {
+            sectionRemainingSeconds = sectionTotalSeconds(for: move)
+        }
     }
 
     private func resetMoveTimer() {

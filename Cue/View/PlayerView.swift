@@ -92,6 +92,7 @@ struct PlayerView: View {
             HStack {
                 Button {
                     sessionVM.reset()
+                    selectedTab = .plans
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 20, weight: .medium))
