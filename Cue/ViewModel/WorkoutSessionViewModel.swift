@@ -17,6 +17,7 @@ final class WorkoutSessionViewModel: ObservableObject {
     @Published var isRunning: Bool = false
     @Published var sectionRemainingSeconds: Int = 0
     @Published var moveRemainingSeconds: Int = 0
+    @Published var isComplete: Bool = false
 
     let defaultMoveSeconds = 30
 
@@ -102,7 +103,10 @@ final class WorkoutSessionViewModel: ObservableObject {
     }
 
     func nextMove() {
-        guard canGoNext else { return }
+        guard canGoNext else {
+            completeWorkout()
+            return
+        }
         let oldMove = currentMove
         currentIndex += 1
         let newMove = currentMove
@@ -110,6 +114,11 @@ final class WorkoutSessionViewModel: ObservableObject {
             resetSectionTimer()
         }
         resetMoveTimer()
+    }
+
+    func completeWorkout() {
+        isRunning = false
+        isComplete = true
     }
 
     func previousMove() {
@@ -131,6 +140,8 @@ final class WorkoutSessionViewModel: ObservableObject {
         guard let move = currentMove, move.goalType == .timed else { return }
         if moveRemainingSeconds > 0 {
             moveRemainingSeconds -= 1
+        } else if !canGoNext {
+            completeWorkout()
         }
     }
 
@@ -139,6 +150,7 @@ final class WorkoutSessionViewModel: ObservableObject {
         movements = []
         currentIndex = 0
         isRunning = false
+        isComplete = false
         sectionRemainingSeconds = 0
         moveRemainingSeconds = 0
     }

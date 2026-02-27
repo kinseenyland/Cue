@@ -15,7 +15,9 @@ struct PlayerView: View {
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        if sessionVM.movements.isEmpty {
+        if sessionVM.isComplete {
+            completionView
+        } else if sessionVM.movements.isEmpty {
             planSelectionView
         } else {
             workoutPlayerView
@@ -210,14 +212,20 @@ struct PlayerView: View {
                 Button {
                     sessionVM.nextMove()
                 } label: {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
-                        .background(Circle().fill(Color.black))
+                    if sessionVM.canGoNext {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 50, height: 50)
+                            .background(Circle().fill(Color.black))
+                    } else {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 50, height: 50)
+                            .background(Circle().fill(Color.black))
+                    }
                 }
-                .disabled(!sessionVM.canGoNext)
-                .opacity(sessionVM.canGoNext ? 1.0 : 0.3)
             }
         }
         .padding(20)
@@ -265,6 +273,47 @@ struct PlayerView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(Color(.systemGray4), lineWidth: 1)
             )
+        }
+    }
+
+    // MARK: - Completion
+
+    private var completionView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 80))
+                .foregroundStyle(.black)
+
+            Text("Workout Complete!")
+                .font(.system(size: 28, weight: .bold))
+
+            Text(sessionVM.planTitle)
+                .font(.title3)
+                .foregroundStyle(.secondary)
+
+            Text("\(sessionVM.movements.count) movements finished")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            Button {
+                sessionVM.reset()
+            } label: {
+                Text("Done")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Color.black)
+                    )
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 32)
         }
     }
 
