@@ -17,6 +17,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
     var createdAt: Double        // store as TimeInterval since 1970
     var updatedAt: Double
     var isPublic: Bool
+    var isFavorited: Bool
     var movements: [Movement]
 
     init(
@@ -29,6 +30,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         createdAt: Double = Date().timeIntervalSince1970,
         updatedAt: Double = Date().timeIntervalSince1970,
         isPublic: Bool = false,
+        isFavorited: Bool = false,
         movements: [Movement] = []
     ) {
         self.id = id
@@ -40,6 +42,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isPublic = isPublic
+        self.isFavorited = isFavorited
         self.movements = movements
     }
 }

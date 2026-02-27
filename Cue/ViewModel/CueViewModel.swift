@@ -62,6 +62,7 @@ class CueViewModel: ObservableObject {
                     createdAt: data["createdAt"] as? Double ?? Date().timeIntervalSince1970,
                     updatedAt: data["updatedAt"] as? Double ?? Date().timeIntervalSince1970,
                     isPublic: data["isPublic"] as? Bool ?? false,
+                    isFavorited: data["isFavorited"] as? Bool ?? false,
                     movements: resolvedMovements
                 )
             }
@@ -102,7 +103,8 @@ class CueViewModel: ObservableObject {
                 "movements": plan.movements.map { movementToDict($0) },
                 "createdAt": plan.createdAt,
                 "updatedAt": plan.updatedAt,
-                "isPublic": plan.isPublic
+                "isPublic": plan.isPublic,
+                "isFavorited": false
             ]
 
             try await db.collection("plans").document(plan.id).setData(data, merge: true)
@@ -140,7 +142,8 @@ class CueViewModel: ObservableObject {
             "movements": draft.movements.map { movementToDict($0) },
             "createdAt": plan.createdAt,
             "updatedAt": plan.updatedAt,
-            "isPublic": plan.isPublic
+            "isPublic": plan.isPublic,
+            "isFavorited": false
         ]
 
         do {
@@ -174,6 +177,22 @@ class CueViewModel: ObservableObject {
         } catch {
             errorMessage = "❌ Update failed: \(error.localizedDescription)"
             statusMessage = nil
+        }
+    }
+
+    func toggleFavorite(id: String, isFavorited: Bool) async {
+        // Optimistic update
+        if let idx = plans.firstIndex(where: { $0.id == id }) {
+            plans[idx].isFavorited = isFavorited
+        }
+        do {
+            try await db.collection("plans").document(id).updateData(["isFavorited": isFavorited])
+        } catch {
+            // Revert on failure
+            if let idx = plans.firstIndex(where: { $0.id == id }) {
+                plans[idx].isFavorited = !isFavorited
+            }
+            errorMessage = "❌ Update failed: \(error.localizedDescription)"
         }
     }
 
