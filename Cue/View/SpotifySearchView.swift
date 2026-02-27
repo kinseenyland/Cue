@@ -307,13 +307,13 @@ struct SpotifySearchView: View {
                 .cornerRadius(8)
             } else if !hasPlaylistAccess {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("To create playlists, allow access in the browser.")
+                    Text("To use playlists, allow access in the browser.")
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                     Button {
                         spotifyManager.grantPlaylistAccess()
                     } label: {
-                        Label("Allow creating playlists", systemImage: "link")
+                        Label("Allow using playlists", systemImage: "link")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)

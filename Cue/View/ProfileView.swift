@@ -6,7 +6,6 @@
 import SwiftUI
 
 struct ProfileView: View {
-    @EnvironmentObject private var spotifyManager: SpotifyManager
     @EnvironmentObject private var authVM: AuthViewModel
 
     var body: some View {
@@ -32,8 +31,13 @@ struct ProfileView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 16)
 
-                SpotifySearchView(onTrackSelected: { _ in })
-                    .environmentObject(spotifyManager)
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Profile details coming soon.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(Color.white)

@@ -201,7 +201,8 @@ class SpotifySearchService {
         var request = URLRequest(url: components.url!)
         try await setAuthForPlaylistRead(request: &request)
         let (data, response) = try await URLSession.shared.data(for: request)
-        let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+        let httpResponse = response as? HTTPURLResponse
+        let statusCode = httpResponse?.statusCode ?? -1
         if statusCode == 401 {
             let refreshed = await SpotifyManager.shared.refreshWebAPITokenIfNeeded()
             if refreshed { return try await getMyPlaylists(limit: limit, offset: offset) }
@@ -209,6 +210,18 @@ class SpotifySearchService {
             throw SpotifyError.tokenExpired
         }
         guard statusCode == 200 else {
+            if statusCode == 429 {
+                // Rate limited: read Retry-After so UI can tell user how long to wait.
+                let retryHeader = httpResponse?.value(forHTTPHeaderField: "Retry-After")
+                if let retryHeader,
+                   let seconds = Int(retryHeader), seconds > 0 {
+                    let msg = "Could not load playlists (429). Too many requests. Try again in about \(seconds) seconds."
+                    throw SpotifyError.apiError(status: statusCode, message: msg)
+                } else {
+                    let msg = "Could not load playlists (429). Too many requests. Please wait and try again."
+                    throw SpotifyError.apiError(status: statusCode, message: msg)
+                }
+            }
             let msg = (try? JSONDecoder().decode(SpotifyErrorPayload.self, from: data)).flatMap { $0.error?.message }
             throw SpotifyError.apiError(status: statusCode, message: msg)
         }

@@ -97,14 +97,26 @@ struct PlanCreationView: View {
                 ]
             )
         case .warmUpMovements:
-            MovementListStepView(
-                headline: "Warm-Up Movements",
-                defaultGoalType: vm.draft.goalType,
-                durationMinutes: $vm.draft.warmUpDurationMinutes,
-                movements: $vm.draft.warmUpMovements
-            )
+            VStack(alignment: .leading, spacing: 12) {
+                MovementListStepView(
+                    headline: "Warm-Up Movements",
+                    defaultGoalType: vm.draft.goalType,
+                    durationMinutes: $vm.draft.warmUpDurationMinutes,
+                    movements: $vm.draft.warmUpMovements
+                )
+                PlanSectionPlaylistPicker(
+                    title: "Warm-up playlist",
+                    selectedPlaylistId: $vm.draft.warmUpPlaylistId
+                )
+            }
         case .mainSections:
-            PlanMainSectionsStepView()
+            VStack(alignment: .leading, spacing: 12) {
+                PlanMainSectionsStepView()
+                PlanSectionPlaylistPicker(
+                    title: "Main workout playlist",
+                    selectedPlaylistId: $vm.draft.mainPlaylistId
+                )
+            }
         case .mainMovements:
             PlanMainMovementsStepView()
         case .coolDownIntro:
@@ -118,12 +130,18 @@ struct PlanCreationView: View {
                 ]
             )
         case .coolDownMovements:
-            MovementListStepView(
-                headline: "Cool-Down Movements",
-                defaultGoalType: vm.draft.goalType,
-                durationMinutes: $vm.draft.coolDownDurationMinutes,
-                movements: $vm.draft.coolDownMovements
-            )
+            VStack(alignment: .leading, spacing: 12) {
+                MovementListStepView(
+                    headline: "Cool-Down Movements",
+                    defaultGoalType: vm.draft.goalType,
+                    durationMinutes: $vm.draft.coolDownDurationMinutes,
+                    movements: $vm.draft.coolDownMovements
+                )
+                PlanSectionPlaylistPicker(
+                    title: "Cool-down playlist",
+                    selectedPlaylistId: $vm.draft.coolDownPlaylistId
+                )
+            }
         case .review:
             PlanReviewStepView()
         }
@@ -155,6 +173,103 @@ struct PlanCreationView: View {
 
     private var progress: Double {
         Double(vm.step.rawValue + 1) / Double(PlanCreationStep.total)
+    }
+}
+
+// MARK: - Playlist picker per section
+
+struct PlanSectionPlaylistPicker: View {
+    let title: String
+    @Binding var selectedPlaylistId: String?
+    @EnvironmentObject private var vm: PlanCreationViewModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 24)
+
+            if vm.spotifyPlaylists.isEmpty {
+                HStack {
+                    if vm.isLoadingPlaylists {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                        Text("Loading Spotify playlists…")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button {
+                            Task { await vm.loadSpotifyPlaylistsIfNeeded() }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "music.note.list")
+                                Text("Load Spotify playlists")
+                            }
+                            .font(.system(size: 13, weight: .medium))
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
+
+                if let error = vm.playlistsError {
+                    Text(error)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 24)
+                }
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        // None chip
+                        Button {
+                            selectedPlaylistId = nil
+                        } label: {
+                            Text("None")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(selectedPlaylistId == nil ? Color.white : Color.black)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .fill(selectedPlaylistId == nil ? Color.black : Color.clear)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.black.opacity(0.2), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+
+                        ForEach(vm.spotifyPlaylists, id: \.id) { playlist in
+                            Button {
+                                selectedPlaylistId = playlist.id
+                            } label: {
+                                Text(playlist.name)
+                                    .lineLimit(1)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(selectedPlaylistId == playlist.id ? Color.white : Color.black)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(selectedPlaylistId == playlist.id ? Color.black : Color.clear)
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .stroke(Color.black.opacity(0.2), lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 4)
+                }
+            }
+        }
     }
 }
 

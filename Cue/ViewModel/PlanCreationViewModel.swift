@@ -41,6 +41,9 @@ enum PlanCreationStep: Int, CaseIterable {
 final class PlanCreationViewModel: ObservableObject {
     @Published var step: PlanCreationStep = .name
     @Published var draft = PlanCreationDraft()
+    @Published var spotifyPlaylists: [SpotifySearchService.SpotifyPlaylist] = []
+    @Published var isLoadingPlaylists = false
+    @Published var playlistsError: String? = nil
 
     var canAdvance: Bool {
         switch step {
@@ -106,7 +109,28 @@ final class PlanCreationViewModel: ObservableObject {
             type: draft.type ?? .strength,
             difficulty: draft.difficulty ?? .medium,
             durationMinutes: draft.durationMinutes,
-            movements: warmUp + main + coolDown
+            movements: warmUp + main + coolDown,
+            warmUpPlaylistId: draft.warmUpPlaylistId,
+            mainPlaylistId: draft.mainPlaylistId,
+            coolDownPlaylistId: draft.coolDownPlaylistId
         )
+    }
+
+    func loadSpotifyPlaylistsIfNeeded() async {
+        if !spotifyPlaylists.isEmpty || isLoadingPlaylists { return }
+        isLoadingPlaylists = true
+        playlistsError = nil
+        defer { isLoadingPlaylists = false }
+        do {
+            spotifyPlaylists = try await SpotifySearchService.shared.getMyPlaylists(limit: 50)
+        } catch SpotifySearchService.SpotifyError.apiError(let status, let message) {
+            playlistsError = message ?? "Could not load playlists (\(status))."
+        } catch SpotifySearchService.SpotifyError.notAuthenticated {
+            playlistsError = "Connect to Spotify and allow playlists to choose a playlist."
+        } catch SpotifySearchService.SpotifyError.tokenExpired {
+            playlistsError = "Spotify session expired. Reconnect in the Spotify tab."
+        } catch {
+            playlistsError = "Could not load playlists. Try again."
+        }
     }
 }

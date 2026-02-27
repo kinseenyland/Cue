@@ -62,7 +62,10 @@ class CueViewModel: ObservableObject {
                     createdAt: data["createdAt"] as? Double ?? Date().timeIntervalSince1970,
                     updatedAt: data["updatedAt"] as? Double ?? Date().timeIntervalSince1970,
                     isPublic: data["isPublic"] as? Bool ?? false,
-                    movements: resolvedMovements
+                    movements: resolvedMovements,
+                    warmUpPlaylistId: data["warmUpPlaylistId"] as? String,
+                    mainPlaylistId: data["mainPlaylistId"] as? String,
+                    coolDownPlaylistId: data["coolDownPlaylistId"] as? String
                 )
             }
 
@@ -128,10 +131,13 @@ class CueViewModel: ObservableObject {
             difficulty: draft.difficulty,
             durationMinutes: draft.durationMinutes,
             isPublic: false,
-            movements: draft.movements
+            movements: draft.movements,
+            warmUpPlaylistId: draft.warmUpPlaylistId,
+            mainPlaylistId: draft.mainPlaylistId,
+            coolDownPlaylistId: draft.coolDownPlaylistId
         )
 
-        let data: [String: Any] = [
+        var data: [String: Any] = [
             "ownerId": plan.ownerId,
             "title": plan.title,
             "type": plan.type.rawValue,
@@ -142,6 +148,16 @@ class CueViewModel: ObservableObject {
             "updatedAt": plan.updatedAt,
             "isPublic": plan.isPublic
         ]
+
+        if let warm = draft.warmUpPlaylistId {
+            data["warmUpPlaylistId"] = warm
+        }
+        if let main = draft.mainPlaylistId {
+            data["mainPlaylistId"] = main
+        }
+        if let cool = draft.coolDownPlaylistId {
+            data["coolDownPlaylistId"] = cool
+        }
 
         do {
             try await db.collection("plans").document(plan.id).setData(data, merge: true)
@@ -158,7 +174,7 @@ class CueViewModel: ObservableObject {
         statusMessage = "Updating plan..."
         errorMessage = nil
 
-        let data: [String: Any] = [
+        var data: [String: Any] = [
             "title": draft.title,
             "type": draft.type.rawValue,
             "difficulty": draft.difficulty.rawValue,
@@ -166,6 +182,16 @@ class CueViewModel: ObservableObject {
             "movements": draft.movements.map { movementToDict($0) },
             "updatedAt": Date().timeIntervalSince1970
         ]
+
+        if let warm = draft.warmUpPlaylistId {
+            data["warmUpPlaylistId"] = warm
+        }
+        if let main = draft.mainPlaylistId {
+            data["mainPlaylistId"] = main
+        }
+        if let cool = draft.coolDownPlaylistId {
+            data["coolDownPlaylistId"] = cool
+        }
 
         do {
             try await db.collection("plans").document(id).updateData(data)
