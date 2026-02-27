@@ -16,6 +16,7 @@ struct Movement: Identifiable, Codable, Hashable {
     var reps: Int?
     var section: WorkoutSection
     var sectionName: String?
+    var sectionDurationMinutes: Int?
 
     init(
         id: String = UUID().uuidString,
@@ -25,7 +26,8 @@ struct Movement: Identifiable, Codable, Hashable {
         seconds: Int? = nil,
         reps: Int? = nil,
         section: WorkoutSection = .main,
-        sectionName: String? = nil
+        sectionName: String? = nil,
+        sectionDurationMinutes: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -35,5 +37,6 @@ struct Movement: Identifiable, Codable, Hashable {
         self.reps = reps
         self.section = section
         self.sectionName = sectionName
+        self.sectionDurationMinutes = sectionDurationMinutes
     }
 }

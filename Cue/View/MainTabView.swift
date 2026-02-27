@@ -33,7 +33,7 @@ struct MainTabView: View {
                 ProfileView()
                     .environmentObject(spotifyManager)
             case .workout:
-                PlayerView()
+                PlayerView(selectedTab: $selection)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
