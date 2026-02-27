@@ -9,6 +9,7 @@ import Combine
 import SwiftUI
 
 struct PlayerView: View {
+    @Binding var selectedTab: MainTab
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
     @StateObject private var vm = CueViewModel()
 
@@ -301,6 +302,7 @@ struct PlayerView: View {
 
             Button {
                 sessionVM.reset()
+                selectedTab = .plans
             } label: {
                 Text("Done")
                     .font(.headline)
@@ -349,6 +351,6 @@ struct PlayerView: View {
 }
 
 #Preview {
-    PlayerView()
+    PlayerView(selectedTab: .constant(.workout))
         .environmentObject(WorkoutSessionViewModel())
 }
