@@ -205,14 +205,6 @@ struct PlayerView: View {
                 .disabled(!sessionVM.canGoPrevious)
                 .opacity(sessionVM.canGoPrevious ? 1.0 : 0.3)
 
-                Button {
-                    sessionVM.toggleRunning()
-                } label: {
-                    Image(systemName: sessionVM.isRunning ? "pause.circle.fill" : "play.circle.fill")
-                        .font(.system(size: 44))
-                        .foregroundStyle(.black)
-                }
-
                 Spacer()
 
                 Button {

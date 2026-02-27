@@ -88,7 +88,7 @@ final class WorkoutSessionViewModel: ObservableObject {
         planTitle = plan.title
         movements = plan.movements
         currentIndex = 0
-        isRunning = false
+        isRunning = true
         resetSectionTimer()
         resetMoveTimer()
     }
