@@ -9,6 +9,7 @@ import SwiftUI
 
 struct PlansView: View {
     @Binding var selectedTab: MainTab
+    @State private var navigationPath = NavigationPath()
     @State private var isPresentingCreateForm = false
     @State private var editingPlan: WorkoutPlan? = nil
     @State private var isShowingAlert = false
@@ -16,7 +17,6 @@ struct PlansView: View {
     @State private var selectedType: WorkoutType? = nil
     @StateObject private var vm = CueViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
-    @EnvironmentObject private var authVM: AuthViewModel
 
     var filteredPlans: [WorkoutPlan] {
         guard let type = selectedType else { return vm.plans }
@@ -24,15 +24,9 @@ struct PlansView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             VStack(alignment: .leading, spacing: 0) {
                 HStack {
-                    Button("Sign Out") {
-                        authVM.signOut()
-                    }
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    Spacer()
                     Text("Plans")
                         .font(.system(size: 24, weight: .semibold))
                         .foregroundStyle(.black)
@@ -85,7 +79,12 @@ struct PlansView: View {
                 } else {
                 List {
                     ForEach(filteredPlans) { plan in
-                        PlanRowCard(plan: plan)
+                        Button {
+                            navigationPath.append(plan)
+                        } label: {
+                            PlanRowCard(plan: plan)
+                        }
+                        .buttonStyle(.plain)
                             .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
@@ -125,6 +124,19 @@ struct PlansView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: WorkoutPlan.self) { plan in
+                PlanDetailView(
+                    plan: plan,
+                    selectedTab: $selectedTab,
+                    onUpdate: { draft in Task { await vm.updatePlan(id: plan.id, from: draft) } },
+                    onDelete: {
+                        Task {
+                            await vm.deletePlan(id: plan.id)
+                            navigationPath.removeLast()
+                        }
+                    }
+                )
+            }
         }
         .task {
             await vm.fetchPlans()
@@ -232,6 +244,5 @@ struct PlanRowCard: View {
 
 #Preview {
     PlansView(selectedTab: .constant(.plans))
-        .environmentObject(AuthViewModel())
         .environmentObject(WorkoutSessionViewModel())
 }
