@@ -26,7 +26,7 @@ struct MainTabView: View {
             case .home:
                 HomeView(selectedTab: $selection)
             case .schedule:
-                ScheduleView()
+                ScheduleView(selectedTab: $selection)
             case .plans:
                 PlansView(selectedTab: $selection)
             case .profile:

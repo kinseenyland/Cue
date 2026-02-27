@@ -8,10 +8,12 @@
 import SwiftUI
 
 struct ScheduleView: View {
+    @Binding var selectedTab: MainTab
     @StateObject private var vm = ScheduleViewModel()
     @StateObject private var plansVM = CueViewModel()
     @State private var isPresentingCreateForm = false
     @State private var editingItem: ScheduleItem? = nil
+    @State private var navigationPath = NavigationPath()
 
     private var groupedByMonth: [(key: String, items: [ScheduleItem])] {
         let formatter = DateFormatter()
@@ -30,7 +32,7 @@ struct ScheduleView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $navigationPath) {
             ScrollView {
                 if let error = vm.errorMessage {
                     Text(error)
@@ -45,9 +47,14 @@ struct ScheduleView: View {
                             VStack(spacing: 12) {
                                 ForEach(items) { item in
                                     Button {
-                                        editingItem = item
+                                        if let planId = item.planId,
+                                           let plan = plansVM.plans.first(where: { $0.id == planId }) {
+                                            navigationPath.append(plan)
+                                        }
                                     } label: {
-                                        ScheduleCard(item: item)
+                                        ScheduleCard(item: item) {
+                                            editingItem = item
+                                        }
                                     }
                                     .buttonStyle(.plain)
                                 }
@@ -70,6 +77,18 @@ struct ScheduleView: View {
                     Image(systemName: "plus")
                         .fontWeight(.medium)
                 }
+            }
+            .navigationDestination(for: WorkoutPlan.self) { plan in
+                PlanDetailView(
+                    plan: plan,
+                    selectedTab: $selectedTab,
+                    onUpdate: { draft in
+                        Task { await plansVM.updatePlan(id: plan.id, from: draft) }
+                    },
+                    onDelete: {
+                        Task { await plansVM.deletePlan(id: plan.id) }
+                    }
+                )
             }
         }
         .task {
@@ -116,6 +135,7 @@ struct ScheduleView: View {
 
 private struct ScheduleCard: View {
     let item: ScheduleItem
+    let onEdit: () -> Void
 
     private static let monthFormatter: DateFormatter = {
         let f = DateFormatter()
@@ -169,6 +189,14 @@ private struct ScheduleCard: View {
 
             Spacer()
 
+            Button { onEdit() } label: {
+                Image(systemName: "pencil")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .padding(8)
+            }
+            .buttonStyle(.plain)
+
             Image(systemName: "chevron.right")
                 .font(.body)
                 .foregroundStyle(.secondary)
@@ -185,5 +213,5 @@ private struct ScheduleCard: View {
 }
 
 #Preview {
-    ScheduleView()
+    ScheduleView(selectedTab: .constant(.schedule))
 }
