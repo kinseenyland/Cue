@@ -236,6 +236,9 @@ class CueViewModel: ObservableObject {
         if let sectionName = movement.sectionName {
             data["sectionName"] = sectionName
         }
+        if let sectionDurationMinutes = movement.sectionDurationMinutes {
+            data["sectionDurationMinutes"] = sectionDurationMinutes
+        }
         return data
     }
 
@@ -256,7 +259,8 @@ class CueViewModel: ObservableObject {
             seconds: data["seconds"] as? Int,
             reps: data["reps"] as? Int,
             section: section,
-            sectionName: data["sectionName"] as? String
+            sectionName: data["sectionName"] as? String,
+            sectionDurationMinutes: data["sectionDurationMinutes"] as? Int
         )
     }
 }

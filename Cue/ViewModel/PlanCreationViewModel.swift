@@ -90,18 +90,21 @@ final class PlanCreationViewModel: ObservableObject {
     /// Movements are flattened: warm-up → main sections → cool-down, each tagged with section info.
     func toWorkoutPlanDraft() -> WorkoutPlanDraft {
         let warmUp = draft.warmUpMovements.map { m -> Movement in
-            var copy = m; copy.section = .warmUp; copy.sectionName = nil; return copy
+            var copy = m; copy.section = .warmUp; copy.sectionName = nil
+            copy.sectionDurationMinutes = draft.warmUpDurationMinutes; return copy
         }
         let main = draft.mainSections.flatMap { section -> [Movement] in
             section.movements.map { m -> Movement in
                 var copy = m
                 copy.section = .main
                 copy.sectionName = section.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : section.name
+                copy.sectionDurationMinutes = section.durationMinutes
                 return copy
             }
         }
         let coolDown = draft.coolDownMovements.map { m -> Movement in
-            var copy = m; copy.section = .coolDown; copy.sectionName = nil; return copy
+            var copy = m; copy.section = .coolDown; copy.sectionName = nil
+            copy.sectionDurationMinutes = draft.coolDownDurationMinutes; return copy
         }
 
         return WorkoutPlanDraft(

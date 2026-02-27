@@ -37,7 +37,7 @@ struct MainTabView: View {
                 SpotifySearchView(onTrackSelected: { _ in })
                     .environmentObject(spotifyManager)
             case .workout:
-                PlayerView()
+                PlayerView(selectedTab: $selection)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
