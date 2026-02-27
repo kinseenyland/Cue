@@ -32,4 +32,8 @@ struct PlanCreationDraft {
     var warmUpMovements: [Movement] = []
     var mainSections: [WorkoutSubSection] = [WorkoutSubSection()]
     var coolDownMovements: [Movement] = []
+    /// Optional Spotify playlist IDs/URIs for each section.
+    var warmUpPlaylistId: String? = nil
+    var mainPlaylistId: String? = nil
+    var coolDownPlaylistId: String? = nil
 }

@@ -14,6 +14,9 @@ struct WorkoutPlanDraft: Identifiable, Hashable {
     var difficulty: Difficulty
     var durationMinutes: Int
     var movements: [Movement]
+    var warmUpPlaylistId: String?
+    var mainPlaylistId: String?
+    var coolDownPlaylistId: String?
 
     var summaryLine: String {
         "Type: \(type.rawValue.capitalized) • Difficulty: \(difficulty.rawValue.capitalized) • Time: \(durationMinutes) mins"

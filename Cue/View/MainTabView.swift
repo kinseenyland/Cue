@@ -12,6 +12,7 @@ enum MainTab: Hashable {
     case schedule
     case plans
     case profile
+    case spotify
     case workout  // used internally by PlansView/PlanDetailView to start a workout
 }
 
@@ -31,6 +32,9 @@ struct MainTabView: View {
                 PlansView(selectedTab: $selection)
             case .profile:
                 ProfileView()
+                    .environmentObject(spotifyManager)
+            case .spotify:
+                SpotifySearchView(onTrackSelected: { _ in })
                     .environmentObject(spotifyManager)
             case .workout:
                 PlayerView(selectedTab: $selection)
@@ -60,7 +64,7 @@ struct MainTabView: View {
 }
 
 extension MainTab {
-    static let visibleTabs: [MainTab] = [.home, .schedule, .plans, .profile]
+    static let visibleTabs: [MainTab] = [.home, .schedule, .plans, .profile, .spotify]
 
     var label: String {
         switch self {
@@ -68,6 +72,7 @@ extension MainTab {
         case .schedule: return "Schedule"
         case .plans:    return "Plans"
         case .profile:  return "Profile"
+        case .spotify:  return "Spotify"
         case .workout:  return "Workout"
         }
     }

@@ -11,6 +11,7 @@ import SwiftUI
 struct PlayerView: View {
     @Binding var selectedTab: MainTab
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
+    @EnvironmentObject private var spotifyManager: SpotifyManager
     @StateObject private var vm = CueViewModel()
 
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
@@ -324,24 +325,59 @@ struct PlayerView: View {
 
     private var spotifyBar: some View {
         HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 6)
-                .fill(Color(.systemGray4))
-                .frame(width: 48, height: 48)
+            if let art = spotifyManager.currentArtwork {
+                Image(uiImage: art)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+                    .frame(width: 48, height: 48)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            } else {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(.systemGray4))
+                    .frame(width: 48, height: 48)
+            }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Song Title")
+                Text(spotifyManager.currentTrackName.isEmpty ? "No song playing" : spotifyManager.currentTrackName)
                     .font(.subheadline)
                     .fontWeight(.medium)
-                Text("Artist")
+                    .lineLimit(1)
+                Text(spotifyManager.currentArtistName.isEmpty ? "" : spotifyManager.currentArtistName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
             Spacer()
 
-            Image(systemName: "forward.end.fill")
-                .font(.title3)
-                .foregroundStyle(.black)
+            HStack(spacing: 16) {
+                Button {
+                    spotifyManager.previousTrack()
+                } label: {
+                    Image(systemName: "backward.fill")
+                        .font(.title3)
+                        .foregroundStyle(.black)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    spotifyManager.togglePlayPause()
+                } label: {
+                    Image(systemName: spotifyManager.isPaused ? "play.fill" : "pause.fill")
+                        .font(.title3)
+                        .foregroundStyle(.black)
+                }
+                .buttonStyle(.plain)
+
+                Button {
+                    spotifyManager.nextTrack()
+                } label: {
+                    Image(systemName: "forward.fill")
+                        .font(.title3)
+                        .foregroundStyle(.black)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .padding(12)
         .overlay(
