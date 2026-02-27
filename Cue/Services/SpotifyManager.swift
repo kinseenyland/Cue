@@ -19,6 +19,8 @@ class SpotifyManager: NSObject, ObservableObject {
 
     @Published var isConnected = false
     @Published var currentTrackName = ""
+    @Published var currentArtistName = ""
+    @Published var currentArtwork: UIImage?
     @Published var isPaused = true
     /// True while exchanging auth code for token (user returned from browser but token not ready yet)
     @Published var isFinishingAuth = false
@@ -609,10 +611,7 @@ extension SpotifyManager: SPTAppRemoteDelegate {
                 return
             }
             if let state = result as? SPTAppRemotePlayerState {
-                Task { @MainActor in
-                    self?.currentTrackName = state.track.name
-                    self?.isPaused = state.isPaused
-                }
+                self?.updateFromPlayerState(state)
             }
         })
 
@@ -665,10 +664,27 @@ extension SpotifyManager: SPTAppRemoteDelegate {
 extension SpotifyManager: SPTAppRemotePlayerStateDelegate {
     func playerStateDidChange(_ playerState: SPTAppRemotePlayerState) {
         debugPrint("Track name: \(playerState.track.name)")
+        updateFromPlayerState(playerState)
+    }
+}
+
+private extension SpotifyManager {
+    func updateFromPlayerState(_ state: SPTAppRemotePlayerState) {
         Task { @MainActor in
-            self.currentTrackName = playerState.track.name
-            self.isPaused = playerState.isPaused
+            self.currentTrackName = state.track.name
+            self.currentArtistName = state.track.artist.name
+            self.isPaused = state.isPaused
         }
+        appRemote.imageAPI?.fetchImage(forItem: state.track, with: CGSize(width: 64, height: 64), callback: { [weak self] image, error in
+            if let error {
+                print("[Spotify] fetchImage failed: \(error.localizedDescription)")
+                return
+            }
+            guard let uiImage = image as? UIImage else { return }
+            Task { @MainActor in
+                self?.currentArtwork = uiImage
+            }
+        })
     }
 }
 

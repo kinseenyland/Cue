@@ -243,19 +243,19 @@ struct PlanSectionPlaylistPicker: View {
                         }
                         .buttonStyle(.plain)
 
-                        ForEach(vm.spotifyPlaylists, id: \.id) { playlist in
+                        ForEach(vm.spotifyPlaylists, id: \.uri) { playlist in
                             Button {
-                                selectedPlaylistId = playlist.id
+                                selectedPlaylistId = playlist.uri   // store full context_uri
                             } label: {
                                 Text(playlist.name)
                                     .lineLimit(1)
                                     .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(selectedPlaylistId == playlist.id ? Color.white : Color.black)
+                                    .foregroundStyle(selectedPlaylistId == playlist.uri ? Color.white : Color.black)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
                                     .background(
                                         RoundedRectangle(cornerRadius: 8)
-                                            .fill(selectedPlaylistId == playlist.id ? Color.black : Color.clear)
+                                            .fill(selectedPlaylistId == playlist.uri ? Color.black : Color.clear)
                                     )
                                     .overlay(
                                         RoundedRectangle(cornerRadius: 8)

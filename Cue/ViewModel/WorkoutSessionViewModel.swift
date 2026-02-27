@@ -19,6 +19,10 @@ final class WorkoutSessionViewModel: ObservableObject {
     @Published var moveRemainingSeconds: Int = 0
     @Published var isComplete: Bool = false
 
+    var warmUpPlaylistId: String?
+    var mainPlaylistId: String?
+    var coolDownPlaylistId: String?
+
     let defaultMoveSeconds = 30
 
     var currentMove: Movement? {
@@ -91,8 +95,12 @@ final class WorkoutSessionViewModel: ObservableObject {
         movements = plan.movements
         currentIndex = 0
         isRunning = true
+        warmUpPlaylistId = plan.warmUpPlaylistId
+        mainPlaylistId = plan.mainPlaylistId
+        coolDownPlaylistId = plan.coolDownPlaylistId
         resetSectionTimer()
         resetMoveTimer()
+        startPlaylistForCurrentSectionIfAny()
     }
 
     func toggleRunning() {
@@ -113,6 +121,11 @@ final class WorkoutSessionViewModel: ObservableObject {
         let newMove = currentMove
         if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
             resetSectionTimer()
+            // Only change playlist when moving between warm-up / main / cool-down,
+            // not when changing subsections within main.
+            if oldMove?.section != newMove?.section {
+                startPlaylistForCurrentSectionIfAny()
+            }
         }
         resetMoveTimer()
     }
@@ -129,6 +142,9 @@ final class WorkoutSessionViewModel: ObservableObject {
         let newMove = currentMove
         if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
             resetSectionTimer()
+            if oldMove?.section != newMove?.section {
+                startPlaylistForCurrentSectionIfAny()
+            }
         }
         resetMoveTimer()
     }
@@ -182,6 +198,21 @@ final class WorkoutSessionViewModel: ObservableObject {
         return sectionMoves.reduce(0) { total, m in
             total + (m.seconds ?? defaultMoveSeconds)
         }
+    }
+
+    private func startPlaylistForCurrentSectionIfAny() {
+        guard let move = currentMove else { return }
+        let playlistId: String?
+        switch move.section {
+        case .warmUp:
+            playlistId = warmUpPlaylistId
+        case .main:
+            playlistId = mainPlaylistId
+        case .coolDown:
+            playlistId = coolDownPlaylistId
+        }
+        guard let pid = playlistId, !pid.isEmpty else { return }
+        SpotifyManager.shared.playPlaylistFromStart(playlistUri: pid)
     }
 
     private func formatTime(_ seconds: Int) -> String {

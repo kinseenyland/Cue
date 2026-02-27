@@ -236,9 +236,9 @@ struct PlanDetailView: View {
                         Button("None") {
                             updatePlaylist(for: title, to: nil)
                         }
-                        ForEach(playlists, id: \.id) { playlist in
+                        ForEach(playlists, id: \.uri) { playlist in
                             Button(playlist.name) {
-                                updatePlaylist(for: title, to: playlist.id)
+                                updatePlaylist(for: title, to: playlist.uri)
                             }
                         }
                     } label: {
@@ -257,9 +257,9 @@ struct PlanDetailView: View {
                         Button("None") {
                             updatePlaylist(for: title, to: nil)
                         }
-                        ForEach(playlists, id: \.id) { playlist in
+                        ForEach(playlists, id: \.uri) { playlist in
                             Button(playlist.name) {
-                                updatePlaylist(for: title, to: playlist.id)
+                                updatePlaylist(for: title, to: playlist.uri)
                             }
                         }
                     } label: {
@@ -299,9 +299,9 @@ struct PlanDetailView: View {
                         Button("None") {
                             updatePlaylist(for: "MAIN WORKOUT", to: nil)
                         }
-                        ForEach(playlists, id: \.id) { playlist in
+                        ForEach(playlists, id: \.uri) { playlist in
                             Button(playlist.name) {
-                                updatePlaylist(for: "MAIN WORKOUT", to: playlist.id)
+                                updatePlaylist(for: "MAIN WORKOUT", to: playlist.uri)
                             }
                         }
                     } label: {
@@ -320,9 +320,9 @@ struct PlanDetailView: View {
                         Button("None") {
                             updatePlaylist(for: "MAIN WORKOUT", to: nil)
                         }
-                        ForEach(playlists, id: \.id) { playlist in
+                        ForEach(playlists, id: \.uri) { playlist in
                             Button(playlist.name) {
-                                updatePlaylist(for: "MAIN WORKOUT", to: playlist.id)
+                                updatePlaylist(for: "MAIN WORKOUT", to: playlist.uri)
                             }
                         }
                     } label: {
@@ -388,7 +388,8 @@ struct PlanDetailView: View {
     }
 
     private func playlistName(for id: String) -> String? {
-        playlists.first(where: { $0.id == id })?.name
+        // We store the Spotify playlist URI (context_uri), so match on uri
+        playlists.first(where: { $0.uri == id })?.name
     }
 
     private func updatePlaylist(for sectionTitle: String, to id: String?) {

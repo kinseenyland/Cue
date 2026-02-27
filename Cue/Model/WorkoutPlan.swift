@@ -17,6 +17,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
     var createdAt: Double        // store as TimeInterval since 1970
     var updatedAt: Double
     var isPublic: Bool
+    var isFavorited: Bool
     var movements: [Movement]
     var warmUpPlaylistId: String?
     var mainPlaylistId: String?
@@ -32,10 +33,15 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         createdAt: Double = Date().timeIntervalSince1970,
         updatedAt: Double = Date().timeIntervalSince1970,
         isPublic: Bool = false,
+<<<<<<< HEAD
         movements: [Movement] = [],
         warmUpPlaylistId: String? = nil,
         mainPlaylistId: String? = nil,
         coolDownPlaylistId: String? = nil
+=======
+        isFavorited: Bool = false,
+        movements: [Movement] = []
+>>>>>>> origin/dev
     ) {
         self.id = id
         self.ownerId = ownerId
@@ -46,6 +52,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.isPublic = isPublic
+        self.isFavorited = isFavorited
         self.movements = movements
         self.warmUpPlaylistId = warmUpPlaylistId
         self.mainPlaylistId = mainPlaylistId
