@@ -33,15 +33,11 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         createdAt: Double = Date().timeIntervalSince1970,
         updatedAt: Double = Date().timeIntervalSince1970,
         isPublic: Bool = false,
-<<<<<<< HEAD
+        isFavorited: Bool = false,
         movements: [Movement] = [],
         warmUpPlaylistId: String? = nil,
         mainPlaylistId: String? = nil,
         coolDownPlaylistId: String? = nil
-=======
-        isFavorited: Bool = false,
-        movements: [Movement] = []
->>>>>>> origin/dev
     ) {
         self.id = id
         self.ownerId = ownerId

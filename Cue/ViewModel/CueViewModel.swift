@@ -62,15 +62,11 @@ class CueViewModel: ObservableObject {
                     createdAt: data["createdAt"] as? Double ?? Date().timeIntervalSince1970,
                     updatedAt: data["updatedAt"] as? Double ?? Date().timeIntervalSince1970,
                     isPublic: data["isPublic"] as? Bool ?? false,
-<<<<<<< HEAD
+                    isFavorited: data["isFavorited"] as? Bool ?? false,
                     movements: resolvedMovements,
                     warmUpPlaylistId: data["warmUpPlaylistId"] as? String,
                     mainPlaylistId: data["mainPlaylistId"] as? String,
                     coolDownPlaylistId: data["coolDownPlaylistId"] as? String
-=======
-                    isFavorited: data["isFavorited"] as? Bool ?? false,
-                    movements: resolvedMovements
->>>>>>> origin/dev
                 )
             }
 
