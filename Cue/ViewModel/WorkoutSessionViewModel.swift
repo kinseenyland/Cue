@@ -15,8 +15,8 @@ final class WorkoutSessionViewModel: ObservableObject {
     @Published var movements: [Movement] = []
     @Published var currentIndex: Int = 0
     @Published var isRunning: Bool = false
-    @Published var elapsedSeconds: Int = 0
-    @Published var totalElapsedSeconds: Int = 0
+    @Published var sectionRemainingSeconds: Int = 0
+    @Published var moveRemainingSeconds: Int = 0
 
     let defaultMoveSeconds = 30
 
@@ -56,10 +56,7 @@ final class WorkoutSessionViewModel: ObservableObject {
     var upNextDurationMinutes: Int? {
         guard let next = onDeckMove else { return nil }
         if next.section != currentMove?.section || next.sectionName != currentMove?.sectionName {
-            let targetSection = next.section
-            let targetName = next.sectionName
-            let sectionMoves = movements.filter { $0.section == targetSection && $0.sectionName == targetName }
-            let totalSecs = sectionMoves.reduce(0) { $0 + ($1.seconds ?? defaultMoveSeconds) }
+            let totalSecs = sectionTotalSeconds(for: next)
             return max(1, totalSecs / 60)
         }
         return nil
@@ -79,21 +76,21 @@ final class WorkoutSessionViewModel: ObservableObject {
         return currentIndex > 0
     }
 
-    var totalTimerFormatted: String {
-        formatTime(totalElapsedSeconds)
+    var sectionTimerFormatted: String {
+        formatTime(sectionRemainingSeconds)
     }
 
     var moveTimerFormatted: String {
-        formatTime(elapsedSeconds)
+        formatTime(moveRemainingSeconds)
     }
 
     func load(plan: WorkoutPlan) {
         planTitle = plan.title
         movements = plan.movements
         currentIndex = 0
-        elapsedSeconds = 0
-        totalElapsedSeconds = 0
         isRunning = false
+        resetSectionTimer()
+        resetMoveTimer()
     }
 
     func toggleRunning() {
@@ -106,20 +103,35 @@ final class WorkoutSessionViewModel: ObservableObject {
 
     func nextMove() {
         guard canGoNext else { return }
+        let oldMove = currentMove
         currentIndex += 1
-        elapsedSeconds = 0
+        let newMove = currentMove
+        if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
+            resetSectionTimer()
+        }
+        resetMoveTimer()
     }
 
     func previousMove() {
         guard canGoPrevious else { return }
+        let oldMove = currentMove
         currentIndex -= 1
-        elapsedSeconds = 0
+        let newMove = currentMove
+        if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
+            resetSectionTimer()
+        }
+        resetMoveTimer()
     }
 
     func tick() {
         guard isRunning else { return }
-        totalElapsedSeconds += 1
-        elapsedSeconds += 1
+        if sectionRemainingSeconds > 0 {
+            sectionRemainingSeconds -= 1
+        }
+        guard let move = currentMove, move.goalType == .timed else { return }
+        if moveRemainingSeconds > 0 {
+            moveRemainingSeconds -= 1
+        }
     }
 
     func reset() {
@@ -127,8 +139,32 @@ final class WorkoutSessionViewModel: ObservableObject {
         movements = []
         currentIndex = 0
         isRunning = false
-        elapsedSeconds = 0
-        totalElapsedSeconds = 0
+        sectionRemainingSeconds = 0
+        moveRemainingSeconds = 0
+    }
+
+    // MARK: - Helpers
+
+    private func resetSectionTimer() {
+        guard let move = currentMove else { sectionRemainingSeconds = 0; return }
+        sectionRemainingSeconds = sectionTotalSeconds(for: move)
+    }
+
+    private func resetMoveTimer() {
+        guard let move = currentMove, move.goalType == .timed else {
+            moveRemainingSeconds = 0
+            return
+        }
+        moveRemainingSeconds = move.seconds ?? defaultMoveSeconds
+    }
+
+    private func sectionTotalSeconds(for move: Movement) -> Int {
+        let sectionMoves = movements.filter {
+            $0.section == move.section && $0.sectionName == move.sectionName
+        }
+        return sectionMoves.reduce(0) { total, m in
+            total + (m.seconds ?? defaultMoveSeconds)
+        }
     }
 
     private func formatTime(_ seconds: Int) -> String {

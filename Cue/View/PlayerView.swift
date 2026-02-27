@@ -112,7 +112,7 @@ struct PlayerView: View {
                 Text(sessionVM.currentSectionLabel)
                     .font(.system(size: 32, weight: .bold))
                 Spacer()
-                Text(sessionVM.totalTimerFormatted)
+                Text(sessionVM.sectionTimerFormatted)
                     .font(.system(size: 48, weight: .bold))
                     .monospacedDigit()
             }
