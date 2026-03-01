@@ -32,12 +32,14 @@ final class ScheduleViewModel: ObservableObject {
                 .order(by: "startsAt", descending: false)
                 .getDocuments()
 
+            let now = Date().timeIntervalSince1970
             items = snapshot.documents.compactMap { doc in
                 let data = doc.data()
                 guard
                     let title = data["title"] as? String,
                     let startsAt = data["startsAt"] as? Double,
-                    let durationMinutes = data["durationMinutes"] as? Int
+                    let durationMinutes = data["durationMinutes"] as? Int,
+                    startsAt >= now
                 else { return nil }
 
                 let wt = (data["workoutType"] as? String).flatMap { WorkoutType(rawValue: $0) }
