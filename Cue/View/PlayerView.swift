@@ -252,8 +252,8 @@ struct PlayerView: View {
     // MARK: - Upcoming Sections
 
     private var upcomingSectionsView: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(sessionVM.upcomingSections.enumerated()), id: \.offset) { idx, section in
+        Group {
+            if let section = sessionVM.upcomingSections.first {
                 SectionDropdown(
                     label: section.label,
                     movements: section.movements,
@@ -438,20 +438,13 @@ private struct SectionDropdown: View {
             )
 
             if isExpanded {
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(movements) { move in
-                        HStack(alignment: .top, spacing: 8) {
-                            Text("•")
-                                .foregroundStyle(.secondary)
-                            Text(move.name)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                Text(movements.map(\.name).joined(separator: ", "))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
     }
