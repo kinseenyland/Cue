@@ -236,14 +236,9 @@ struct PlanRowCard: View {
             }
             .buttonStyle(.plain)
 
-            Button {
-                onTap()
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14))
-                    .foregroundStyle(.black)
-            }
-            .buttonStyle(.plain)
+            Image(systemName: "chevron.right")
+                .font(.system(size: 14))
+                .foregroundStyle(.black)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
@@ -254,6 +249,8 @@ struct PlanRowCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.black, lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
     }
 }
 

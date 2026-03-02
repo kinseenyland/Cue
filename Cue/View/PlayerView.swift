@@ -246,14 +246,21 @@ struct PlayerView: View {
     private var upcomingSectionsView: some View {
         Group {
             if let section = sessionVM.upcomingSections.first {
-                SectionDropdown(
-                    label: section.label,
-                    movements: section.movements,
-                    onTapLabel: {
-                        sessionVM.jumpToMove(at: section.startIndex)
+                VStack(alignment: .leading, spacing: 8) {
+                    if sessionVM.upcomingMovesInSection.isEmpty {
+                        Text("Up Next")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
-                )
-                .id(sessionVM.currentIndex)
+                    SectionDropdown(
+                        label: section.label,
+                        movements: section.movements,
+                        onTapLabel: {
+                            sessionVM.jumpToMove(at: section.startIndex)
+                        }
+                    )
+                    .id(sessionVM.currentIndex)
+                }
             }
         }
     }
