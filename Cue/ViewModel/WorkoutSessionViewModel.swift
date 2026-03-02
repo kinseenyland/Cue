@@ -35,23 +35,19 @@ final class WorkoutSessionViewModel: ObservableObject {
         return movements[currentIndex + 1]
     }
 
-    /// Remaining movements in the same section as the current move (excluding current).
-    var remainingMovesInSection: [Movement] {
-        guard let move = currentMove else { return [] }
-        var result: [Movement] = []
+    /// Next upcoming movements (up to 4), spanning across all sections.
+    var upcomingMoves: [(index: Int, movement: Movement)] {
+        guard currentIndex < movements.count else { return [] }
+        var result: [(index: Int, movement: Movement)] = []
         for i in (currentIndex + 1)..<movements.count {
-            let m = movements[i]
-            if m.section == move.section && m.sectionName == move.sectionName {
-                result.append(m)
-            } else {
-                break
-            }
+            if result.count >= 4 { break }
+            result.append((i, movements[i]))
         }
         return result
     }
 
-    /// The next section's label and movements (first group after the current section).
-    var nextSectionInfo: (label: String, movements: [Movement])? {
+    /// The next section's label, start index, and movements (first group after the current section).
+    var nextSectionInfo: (label: String, startIndex: Int, movements: [Movement])? {
         guard let move = currentMove else { return nil }
         guard let startIdx = ((currentIndex + 1)..<movements.count).first(where: { i in
             let m = movements[i]
@@ -77,7 +73,7 @@ final class WorkoutSessionViewModel: ObservableObject {
                 break
             }
         }
-        return (label, sectionMoves)
+        return (label, startIdx, sectionMoves)
     }
 
     var currentSectionLabel: String {

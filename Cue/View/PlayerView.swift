@@ -235,15 +235,18 @@ struct PlayerView: View {
     // MARK: - Upcoming Moves List
 
     private var upcomingMovesList: some View {
-        VStack(spacing: 8) {
-            ForEach(Array(sessionVM.remainingMovesInSection.enumerated()), id: \.element.id) { offset, move in
-                Button {
-                    let targetIndex = sessionVM.currentIndex + 1 + offset
-                    sessionVM.jumpToMove(at: targetIndex)
-                } label: {
-                    moveRow(move)
-                }
-                .buttonStyle(.plain)
+        VStack(alignment: .leading, spacing: 8) {
+            if !sessionVM.upcomingMoves.isEmpty {
+                Text("Up Next")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(sessionVM.upcomingMoves, id: \.movement.id) { item in
+                moveRow(item.movement)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        sessionVM.jumpToMove(at: item.index)
+                    }
             }
         }
     }
@@ -254,28 +257,37 @@ struct PlayerView: View {
         Group {
             if let info = sessionVM.nextSectionInfo {
                 VStack(spacing: 0) {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.25)) {
-                            isNextSectionExpanded.toggle()
-                        }
-                    } label: {
-                        HStack {
-                            Text(info.label)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: "chevron.down")
+                    HStack(spacing: 0) {
+                        Text(info.label)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                sessionVM.jumpToMove(at: info.startIndex)
+                                isNextSectionExpanded = false
+                            }
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.25)) {
+                                isNextSectionExpanded.toggle()
+                            }
+                        } label: {
+                            Image(systemName: "chevron.right")
                                 .font(.body)
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(isNextSectionExpanded ? 180 : 0))
+                                .rotationEffect(.degrees(isNextSectionExpanded ? 90 : 0))
+                                .padding(8)
                         }
-                        .padding(14)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color(.systemGray4), lineWidth: 1)
-                        )
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
+                    .padding(.leading, 14)
+                    .padding(.trailing, 6)
+                    .padding(.vertical, 6)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color(.systemGray4), lineWidth: 1)
+                    )
 
                     if isNextSectionExpanded {
                         VStack(spacing: 8) {
