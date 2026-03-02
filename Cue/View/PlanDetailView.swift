@@ -602,6 +602,7 @@ private struct MovementEditSheet: View {
     @State private var goalType: GoalType
     @State private var reps: String
     @State private var seconds: String
+    @State private var notes: String
     let movement: Movement
     let onSave: (Movement) -> Void
 
@@ -612,6 +613,7 @@ private struct MovementEditSheet: View {
         _goalType = State(initialValue: movement.goalType)
         _reps = State(initialValue: movement.reps.map { String($0) } ?? "")
         _seconds = State(initialValue: movement.seconds.map { String($0) } ?? "")
+        _notes = State(initialValue: movement.notes ?? "")
     }
 
     private var canSave: Bool {
@@ -636,6 +638,8 @@ private struct MovementEditSheet: View {
                     updated.goalType = goalType
                     updated.reps = goalType == .reps ? Int(reps) : nil
                     updated.seconds = goalType == .timed ? Int(seconds) : nil
+                    let trimmedNote = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                    updated.notes = trimmedNote.isEmpty ? nil : trimmedNote
                     onSave(updated)
                     dismiss()
                 }
@@ -694,6 +698,19 @@ private struct MovementEditSheet: View {
                             .buttonStyle(.plain)
                         }
                     }
+                }
+
+                // Notes
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("NOTE")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .kerning(1.2)
+                    TextField("e.g. 5lb weight, use a band", text: $notes)
+                        .font(.system(size: 16))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 13)
+                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
                 }
             }
             .padding(.horizontal, 20)
@@ -774,12 +791,6 @@ private struct MovementDetailCard: View {
                 }
             }
             Spacer()
-            Button(action: onEdit) {
-                Image(systemName: "pencil")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color(.systemGray3))
-            }
-            .buttonStyle(.plain)
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .font(.system(size: 13))
@@ -794,6 +805,8 @@ private struct MovementDetailCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.black, lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture { onEdit() }
     }
 }
 

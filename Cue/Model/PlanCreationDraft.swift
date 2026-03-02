@@ -25,7 +25,7 @@ struct PlanCreationDraft {
     var name: String = ""
     var type: WorkoutType? = nil
     var difficulty: Difficulty? = nil
-    var goalType: GoalType = .reps
+    var goalType: GoalType? = nil
     var durationMinutes: Int = 45
     var warmUpDurationMinutes: Int = 5
     var coolDownDurationMinutes: Int = 5
