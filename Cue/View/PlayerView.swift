@@ -146,57 +146,55 @@ struct PlayerView: View {
     // MARK: - Movement Card
 
     private func movementCard(_ move: Movement) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
-                Text(move.name)
-                    .font(.system(size: 24, weight: .medium))
-                Spacer()
-                if move.goalType == .timed, let seconds = move.seconds {
-                    Text("\(seconds)s")
-                        .font(.system(size: 20, weight: .bold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.black, lineWidth: 2)
-                        )
-                } else if let reps = move.reps {
-                    Text("\(reps) reps")
-                        .font(.system(size: 20, weight: .bold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.black, lineWidth: 2)
-                        )
-                }
+        VStack(alignment: .leading, spacing: 16) {
+            Text(move.name)
+                .font(.system(size: 32, weight: .bold))
+
+            if move.goalType == .timed, let seconds = move.seconds {
+                Text("\(seconds)s")
+                    .font(.system(size: 16, weight: .semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.black, lineWidth: 1.5)
+                    )
+            } else if let reps = move.reps {
+                Text("\(reps) reps")
+                    .font(.system(size: 16, weight: .semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .stroke(Color.black, lineWidth: 1.5)
+                    )
             }
 
             if let notes = move.notes, !notes.isEmpty {
                 let lines = notes.components(separatedBy: "\n").filter { !$0.isEmpty }
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(lines, id: \.self) { line in
-                        HStack(alignment: .top, spacing: 10) {
+                        HStack(alignment: .top, spacing: 8) {
                             Circle()
                                 .fill(Color.black)
-                                .frame(width: 6, height: 6)
+                                .frame(width: 5, height: 5)
                                 .padding(.top, 6)
                             Text(line)
-                                .font(.system(size: 15))
+                                .font(.system(size: 14))
                                 .foregroundStyle(.primary)
                         }
                     }
                 }
             }
 
-            HStack(spacing: 16) {
+            HStack {
                 Button {
                     sessionVM.previousMove()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
+                        .frame(width: 34, height: 34)
                         .background(Circle().fill(Color.black))
                 }
                 .disabled(!sessionVM.canGoPrevious)
@@ -207,19 +205,11 @@ struct PlayerView: View {
                 Button {
                     sessionVM.nextMove()
                 } label: {
-                    if sessionVM.canGoNext {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 50, height: 50)
-                            .background(Circle().fill(Color.black))
-                    } else {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 50, height: 50)
-                            .background(Circle().fill(Color.black))
-                    }
+                    Image(systemName: sessionVM.canGoNext ? "chevron.right" : "checkmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 34, height: 34)
+                        .background(Circle().fill(Color.black))
                 }
             }
         }
@@ -261,6 +251,7 @@ struct PlayerView: View {
                         sessionVM.jumpToMove(at: section.startIndex)
                     }
                 )
+                .id(sessionVM.currentIndex)
             }
         }
     }
