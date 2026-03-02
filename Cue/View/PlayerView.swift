@@ -13,8 +13,6 @@ struct PlayerView: View {
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
     @EnvironmentObject private var spotifyManager: SpotifyManager
     @StateObject private var vm = CueViewModel()
-    @State private var isNextSectionExpanded = false
-
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -129,7 +127,7 @@ struct PlayerView: View {
                         .padding(.horizontal)
                         .padding(.top, 12)
 
-                    nextSectionDropdown
+                    upcomingSectionsView
                         .padding(.horizontal)
                         .padding(.top, 8)
                         .padding(.bottom, 16)
@@ -236,12 +234,12 @@ struct PlayerView: View {
 
     private var upcomingMovesList: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if !sessionVM.upcomingMoves.isEmpty {
+            if !sessionVM.upcomingMovesInSection.isEmpty {
                 Text("Up Next")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            ForEach(sessionVM.upcomingMoves, id: \.movement.id) { item in
+            ForEach(sessionVM.upcomingMovesInSection, id: \.movement.id) { item in
                 moveRow(item.movement)
                     .contentShape(Rectangle())
                     .onTapGesture {
@@ -251,54 +249,18 @@ struct PlayerView: View {
         }
     }
 
-    // MARK: - Next Section Dropdown
+    // MARK: - Upcoming Sections
 
-    private var nextSectionDropdown: some View {
-        Group {
-            if let info = sessionVM.nextSectionInfo {
-                VStack(spacing: 0) {
-                    HStack(spacing: 0) {
-                        Text(info.label)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                sessionVM.jumpToMove(at: info.startIndex)
-                                isNextSectionExpanded = false
-                            }
-
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.25)) {
-                                isNextSectionExpanded.toggle()
-                            }
-                        } label: {
-                            Image(systemName: "chevron.right")
-                                .font(.body)
-                                .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(isNextSectionExpanded ? 90 : 0))
-                                .padding(8)
-                        }
-                        .buttonStyle(.plain)
+    private var upcomingSectionsView: some View {
+        VStack(spacing: 8) {
+            ForEach(Array(sessionVM.upcomingSections.enumerated()), id: \.offset) { idx, section in
+                SectionDropdown(
+                    label: section.label,
+                    movements: section.movements,
+                    onTapLabel: {
+                        sessionVM.jumpToMove(at: section.startIndex)
                     }
-                    .padding(.leading, 14)
-                    .padding(.trailing, 6)
-                    .padding(.vertical, 6)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color(.systemGray4), lineWidth: 1)
-                    )
-
-                    if isNextSectionExpanded {
-                        VStack(spacing: 8) {
-                            ForEach(info.movements) { move in
-                                moveRow(move)
-                            }
-                        }
-                        .padding(.top, 8)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
+                )
             }
         }
     }
@@ -433,6 +395,65 @@ struct PlayerView: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color(.systemGray4), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Section Dropdown
+
+private struct SectionDropdown: View {
+    let label: String
+    let movements: [Movement]
+    let onTapLabel: () -> Void
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Text(label)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onTapLabel() }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .padding(8)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 6)
+            .padding(.vertical, 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(.systemGray4), lineWidth: 1)
+            )
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(movements) { move in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("•")
+                                .foregroundStyle(.secondary)
+                            Text(move.name)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
     }
 }
 
