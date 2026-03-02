@@ -147,9 +147,9 @@ struct PlayerView: View {
 
     private func movementCard(_ move: Movement) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
+            HStack(alignment: .center) {
                 Text(move.name)
-                    .font(.system(size: 32, weight: .bold))
+                    .font(.system(size: 30, weight: .bold))
                 Spacer()
                 if move.goalType == .timed, let seconds = move.seconds {
                     Text("\(seconds)s")
