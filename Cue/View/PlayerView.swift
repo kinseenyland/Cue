@@ -13,7 +13,6 @@ struct PlayerView: View {
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
     @EnvironmentObject private var spotifyManager: SpotifyManager
     @StateObject private var vm = CueViewModel()
-
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -89,7 +88,6 @@ struct PlayerView: View {
 
     private var workoutPlayerView: some View {
         VStack(spacing: 0) {
-            // Back button
             HStack {
                 Button {
                     sessionVM.reset()
@@ -104,43 +102,38 @@ struct PlayerView: View {
             .padding(.horizontal)
             .padding(.top, 8)
 
-            // Plan title
-            Text(sessionVM.planTitle)
-                .font(.system(size: 17))
-                .foregroundStyle(.primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                .padding(.top, 4)
+            ScrollView {
+                VStack(spacing: 0) {
+                    Text(sessionVM.planTitle)
+                        .font(.system(size: 17))
+                        .foregroundStyle(.primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                        .padding(.top, 4)
 
-            // Section name + total timer
-            HStack(alignment: .firstTextBaseline) {
-                Text(sessionVM.currentSectionLabel)
-                    .font(.system(size: 32, weight: .bold))
-                Spacer()
-                Text(sessionVM.sectionTimerFormatted)
-                    .font(.system(size: 48, weight: .bold))
-                    .monospacedDigit()
-            }
-            .padding(.horizontal)
-            .padding(.top, 8)
+                    Text(sessionVM.currentSectionLabel)
+                        .font(.system(size: 32, weight: .bold))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
 
-            // Current movement card
-            if let move = sessionVM.currentMove {
-                movementCard(move)
-                    .padding(.horizontal)
-                    .padding(.top, 12)
-            }
+                    if let move = sessionVM.currentMove {
+                        movementCard(move)
+                            .padding(.horizontal)
+                            .padding(.top, 12)
+                    }
 
-            // Up Next
-            if let nextMove = sessionVM.onDeckMove {
-                upNextSection(nextMove)
-                    .padding(.horizontal)
-                    .padding(.top, 16)
+                    upcomingMovesList
+                        .padding(.horizontal)
+                        .padding(.top, 12)
+
+                    upcomingSectionsView
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                        .padding(.bottom, 16)
+                }
             }
 
-            Spacer()
-
-            // Spotify now playing bar
             spotifyBar
                 .padding(.horizontal)
                 .padding(.bottom, 8)
@@ -154,28 +147,27 @@ struct PlayerView: View {
 
     private func movementCard(_ move: Movement) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top) {
+            HStack(alignment: .center) {
                 Text(move.name)
-                    .font(.system(size: 24, weight: .medium))
+                    .font(.system(size: 30, weight: .bold))
                 Spacer()
-                if move.goalType == .timed {
-                    Text(sessionVM.moveTimerFormatted)
-                        .font(.system(size: 20, weight: .bold))
-                        .monospacedDigit()
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
+                if move.goalType == .timed, let seconds = move.seconds {
+                    Text("\(seconds)s")
+                        .font(.system(size: 15, weight: .semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.black, lineWidth: 2)
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.black, lineWidth: 1.5)
                         )
                 } else if let reps = move.reps {
                     Text("\(reps) reps")
-                        .font(.system(size: 20, weight: .bold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
+                        .font(.system(size: 15, weight: .semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.black, lineWidth: 2)
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.black, lineWidth: 1.5)
                         )
                 }
             }
@@ -197,14 +189,14 @@ struct PlayerView: View {
                 }
             }
 
-            HStack(spacing: 16) {
+            HStack {
                 Button {
                     sessionVM.previousMove()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 50, height: 50)
+                        .frame(width: 40, height: 40)
                         .background(Circle().fill(Color.black))
                 }
                 .disabled(!sessionVM.canGoPrevious)
@@ -215,19 +207,11 @@ struct PlayerView: View {
                 Button {
                     sessionVM.nextMove()
                 } label: {
-                    if sessionVM.canGoNext {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 50, height: 50)
-                            .background(Circle().fill(Color.black))
-                    } else {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
-                            .frame(width: 50, height: 50)
-                            .background(Circle().fill(Color.black))
-                    }
+                    Image(systemName: sessionVM.canGoNext ? "chevron.right" : "checkmark")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.white)
+                        .frame(width: 40, height: 40)
+                        .background(Circle().fill(Color.black))
                 }
             }
         }
@@ -238,45 +222,65 @@ struct PlayerView: View {
         )
     }
 
-    // MARK: - Up Next
+    // MARK: - Upcoming Moves List
 
-    private func upNextSection(_ nextMove: Movement) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Up Next:")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(nextMove.name)
-                        .font(.body)
-                        .fontWeight(.semibold)
-                    if nextMove.goalType == .timed, let seconds = nextMove.seconds {
-                        HStack(spacing: 4) {
-                            Image(systemName: "timer")
-                                .font(.caption)
-                            Text("\(seconds)s")
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.secondary)
-                    } else if let reps = nextMove.reps {
-                        HStack(spacing: 4) {
-                            Image(systemName: "arrow.counterclockwise")
-                                .font(.caption)
-                            Text("\(reps) reps")
-                                .font(.caption)
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                }
-                Spacer()
+    private var upcomingMovesList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if !sessionVM.upcomingMovesInSection.isEmpty {
+                Text("Up Next")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-            .padding(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(.systemGray4), lineWidth: 1)
-            )
+            ForEach(sessionVM.upcomingMovesInSection, id: \.movement.id) { item in
+                moveRow(item.movement)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        sessionVM.jumpToMove(at: item.index)
+                    }
+            }
         }
+    }
+
+    // MARK: - Upcoming Sections
+
+    private var upcomingSectionsView: some View {
+        Group {
+            if let section = sessionVM.upcomingSections.first {
+                SectionDropdown(
+                    label: section.label,
+                    movements: section.movements,
+                    onTapLabel: {
+                        sessionVM.jumpToMove(at: section.startIndex)
+                    }
+                )
+                .id(sessionVM.currentIndex)
+            }
+        }
+    }
+
+    // MARK: - Move Row
+
+    private func moveRow(_ move: Movement) -> some View {
+        HStack {
+            Text(move.name)
+                .font(.body)
+                .foregroundStyle(.primary)
+            Spacer()
+            if move.goalType == .timed, let seconds = move.seconds {
+                Text("\(seconds)s")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else if let reps = move.reps {
+                Text("\(reps) reps")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(14)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(.systemGray4), lineWidth: 1)
+        )
     }
 
     // MARK: - Completion
@@ -384,6 +388,58 @@ struct PlayerView: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color(.systemGray4), lineWidth: 1)
         )
+    }
+}
+
+// MARK: - Section Dropdown
+
+private struct SectionDropdown: View {
+    let label: String
+    let movements: [Movement]
+    let onTapLabel: () -> Void
+    @State private var isExpanded = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Text(label)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onTapLabel() }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        isExpanded.toggle()
+                    }
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                        .padding(8)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, 6)
+            .padding(.vertical, 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color(.systemGray4), lineWidth: 1)
+            )
+
+            if isExpanded {
+                Text(movements.map(\.name).joined(separator: ", "))
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
     }
 }
 

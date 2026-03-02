@@ -35,6 +35,60 @@ final class WorkoutSessionViewModel: ObservableObject {
         return movements[currentIndex + 1]
     }
 
+    /// Remaining movements in the current section (excluding current move).
+    var upcomingMovesInSection: [(index: Int, movement: Movement)] {
+        guard let move = currentMove else { return [] }
+        var result: [(index: Int, movement: Movement)] = []
+        for i in (currentIndex + 1)..<movements.count {
+            let m = movements[i]
+            if m.section == move.section && m.sectionName == move.sectionName {
+                result.append((i, m))
+            } else {
+                break
+            }
+        }
+        return result
+    }
+
+    /// All upcoming sections after the current one.
+    var upcomingSections: [(label: String, startIndex: Int, movements: [Movement])] {
+        guard let move = currentMove else { return [] }
+        var sections: [(label: String, startIndex: Int, movements: [Movement])] = []
+        var i = currentIndex + 1
+
+        // Skip past remaining moves in current section
+        while i < movements.count {
+            let m = movements[i]
+            if m.section != move.section || m.sectionName != move.sectionName { break }
+            i += 1
+        }
+
+        while i < movements.count {
+            let first = movements[i]
+            let label: String = {
+                if let name = first.sectionName, !name.isEmpty { return name }
+                switch first.section {
+                case .warmUp: return "Warm-Up"
+                case .main: return "Main"
+                case .coolDown: return "Cool-Down"
+                }
+            }()
+            let startIdx = i
+            var sectionMoves: [Movement] = []
+            while i < movements.count {
+                let m = movements[i]
+                if m.section == first.section && m.sectionName == first.sectionName {
+                    sectionMoves.append(m)
+                    i += 1
+                } else {
+                    break
+                }
+            }
+            sections.append((label, startIdx, sectionMoves))
+        }
+        return sections
+    }
+
     var currentSectionLabel: String {
         guard let move = currentMove else { return "" }
         if let name = move.sectionName, !name.isEmpty { return name }
@@ -133,6 +187,20 @@ final class WorkoutSessionViewModel: ObservableObject {
     func completeWorkout() {
         isRunning = false
         isComplete = true
+    }
+
+    func jumpToMove(at index: Int) {
+        guard index >= 0, index < movements.count else { return }
+        let oldMove = currentMove
+        currentIndex = index
+        let newMove = currentMove
+        if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
+            resetSectionTimer()
+            if oldMove?.section != newMove?.section {
+                startPlaylistForCurrentSectionIfAny()
+            }
+        }
+        resetMoveTimer()
     }
 
     func previousMove() {
