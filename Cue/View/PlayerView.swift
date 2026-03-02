@@ -149,25 +149,25 @@ struct PlayerView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .top) {
                 Text(move.name)
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: 32, weight: .bold))
                 Spacer()
                 if move.goalType == .timed, let seconds = move.seconds {
                     Text("\(seconds)s")
-                        .font(.system(size: 18, weight: .bold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
+                        .font(.system(size: 15, weight: .semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.black, lineWidth: 2)
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.black, lineWidth: 1.5)
                         )
                 } else if let reps = move.reps {
                     Text("\(reps) reps")
-                        .font(.system(size: 18, weight: .bold))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 6)
+                        .font(.system(size: 15, weight: .semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 20)
-                                .stroke(Color.black, lineWidth: 2)
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.black, lineWidth: 1.5)
                         )
                 }
             }
