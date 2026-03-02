@@ -146,41 +146,43 @@ struct PlayerView: View {
     // MARK: - Movement Card
 
     private func movementCard(_ move: Movement) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(move.name)
-                .font(.system(size: 32, weight: .bold))
-
-            if move.goalType == .timed, let seconds = move.seconds {
-                Text("\(seconds)s")
-                    .font(.system(size: 16, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.black, lineWidth: 1.5)
-                    )
-            } else if let reps = move.reps {
-                Text("\(reps) reps")
-                    .font(.system(size: 16, weight: .semibold))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 5)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.black, lineWidth: 1.5)
-                    )
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top) {
+                Text(move.name)
+                    .font(.system(size: 28, weight: .bold))
+                Spacer()
+                if move.goalType == .timed, let seconds = move.seconds {
+                    Text("\(seconds)s")
+                        .font(.system(size: 18, weight: .bold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.black, lineWidth: 2)
+                        )
+                } else if let reps = move.reps {
+                    Text("\(reps) reps")
+                        .font(.system(size: 18, weight: .bold))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 20)
+                                .stroke(Color.black, lineWidth: 2)
+                        )
+                }
             }
 
             if let notes = move.notes, !notes.isEmpty {
                 let lines = notes.components(separatedBy: "\n").filter { !$0.isEmpty }
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 8) {
                     ForEach(lines, id: \.self) { line in
-                        HStack(alignment: .top, spacing: 8) {
+                        HStack(alignment: .top, spacing: 10) {
                             Circle()
                                 .fill(Color.black)
-                                .frame(width: 5, height: 5)
+                                .frame(width: 6, height: 6)
                                 .padding(.top, 6)
                             Text(line)
-                                .font(.system(size: 14))
+                                .font(.system(size: 15))
                                 .foregroundStyle(.primary)
                         }
                     }
@@ -192,9 +194,9 @@ struct PlayerView: View {
                     sessionVM.previousMove()
                 } label: {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 40, height: 40)
                         .background(Circle().fill(Color.black))
                 }
                 .disabled(!sessionVM.canGoPrevious)
@@ -206,9 +208,9 @@ struct PlayerView: View {
                     sessionVM.nextMove()
                 } label: {
                     Image(systemName: sessionVM.canGoNext ? "chevron.right" : "checkmark")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 34, height: 34)
+                        .frame(width: 40, height: 40)
                         .background(Circle().fill(Color.black))
                 }
             }
