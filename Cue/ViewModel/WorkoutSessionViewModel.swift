@@ -35,6 +35,51 @@ final class WorkoutSessionViewModel: ObservableObject {
         return movements[currentIndex + 1]
     }
 
+    /// Remaining movements in the same section as the current move (excluding current).
+    var remainingMovesInSection: [Movement] {
+        guard let move = currentMove else { return [] }
+        var result: [Movement] = []
+        for i in (currentIndex + 1)..<movements.count {
+            let m = movements[i]
+            if m.section == move.section && m.sectionName == move.sectionName {
+                result.append(m)
+            } else {
+                break
+            }
+        }
+        return result
+    }
+
+    /// The next section's label and movements (first group after the current section).
+    var nextSectionInfo: (label: String, movements: [Movement])? {
+        guard let move = currentMove else { return nil }
+        guard let startIdx = ((currentIndex + 1)..<movements.count).first(where: { i in
+            let m = movements[i]
+            return m.section != move.section || m.sectionName != move.sectionName
+        }) else { return nil }
+
+        let firstNext = movements[startIdx]
+        let label: String = {
+            if let name = firstNext.sectionName, !name.isEmpty { return name }
+            switch firstNext.section {
+            case .warmUp: return "Warm-Up"
+            case .main: return "Main"
+            case .coolDown: return "Cool-Down"
+            }
+        }()
+
+        var sectionMoves: [Movement] = []
+        for i in startIdx..<movements.count {
+            let m = movements[i]
+            if m.section == firstNext.section && m.sectionName == firstNext.sectionName {
+                sectionMoves.append(m)
+            } else {
+                break
+            }
+        }
+        return (label, sectionMoves)
+    }
+
     var currentSectionLabel: String {
         guard let move = currentMove else { return "" }
         if let name = move.sectionName, !name.isEmpty { return name }
@@ -133,6 +178,20 @@ final class WorkoutSessionViewModel: ObservableObject {
     func completeWorkout() {
         isRunning = false
         isComplete = true
+    }
+
+    func jumpToMove(at index: Int) {
+        guard index >= 0, index < movements.count else { return }
+        let oldMove = currentMove
+        currentIndex = index
+        let newMove = currentMove
+        if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
+            resetSectionTimer()
+            if oldMove?.section != newMove?.section {
+                startPlaylistForCurrentSectionIfAny()
+            }
+        }
+        resetMoveTimer()
     }
 
     func previousMove() {
