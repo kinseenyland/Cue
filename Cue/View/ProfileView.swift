@@ -16,7 +16,6 @@ struct ProfileView: View {
                 HStack(spacing: 10) {
                     Text("Account Settings")
                         .font(.system(size: 24, weight: .semibold))
-                        .lineSpacing(52)
                         .foregroundColor(.black)
                 }
                 .padding(8)
@@ -26,7 +25,6 @@ struct ProfileView: View {
                 // Music section
                 Text("Music")
                     .font(.system(size: 16, weight: .semibold))
-                    .lineSpacing(22)
                     .foregroundColor(.black)
                     .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -55,7 +53,6 @@ struct ProfileView: View {
                                 HStack(spacing: 10) {
                                     Text("Connect Your Account")
                                         .font(.system(size: 14, weight: .semibold))
-                                        .lineSpacing(22)
                                         .foregroundColor(.white)
                                 }
                                 .padding(10)

@@ -79,13 +79,12 @@ struct PlansView: View {
                 } else {
                 List {
                     ForEach(filteredPlans) { plan in
-                        Button {
+                        PlanRowCard(plan: plan) {
                             navigationPath.append(plan)
-                        } label: {
-                            PlanRowCard(plan: plan)
+                        } onToggleFavorite: {
+                            Task { await vm.toggleFavorite(id: plan.id, isFavorited: !plan.isFavorited) }
                         }
-                        .buttonStyle(.plain)
-                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
                             .swipeActions(edge: .trailing) {
@@ -194,6 +193,8 @@ struct PlanFilterChip: View {
 
 struct PlanRowCard: View {
     let plan: WorkoutPlan
+    let onTap: () -> Void
+    let onToggleFavorite: () -> Void
 
     private var difficultyLabel: String {
         switch plan.difficulty {
@@ -204,7 +205,7 @@ struct PlanRowCard: View {
     }
 
     var body: some View {
-        HStack(spacing: 22) {
+        HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(plan.title)
                     .font(.system(size: 15, weight: .semibold))
@@ -226,6 +227,15 @@ struct PlanRowCard: View {
 
             Spacer()
 
+            Button {
+                onToggleFavorite()
+            } label: {
+                Image(systemName: plan.isFavorited ? "star.fill" : "star")
+                    .font(.system(size: 16))
+                    .foregroundStyle(plan.isFavorited ? Color.yellow : Color.black)
+            }
+            .buttonStyle(.plain)
+
             Image(systemName: "chevron.right")
                 .font(.system(size: 14))
                 .foregroundStyle(.black)
@@ -239,6 +249,8 @@ struct PlanRowCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.black, lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
     }
 }
 

@@ -19,6 +19,12 @@ struct PlanDetailView: View {
     @State private var editingMovement: Movement? = nil
     @State private var isShowingDetailsEdit = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var warmUpPlaylistIdLocal: String?
+    @State private var mainPlaylistIdLocal: String?
+    @State private var coolDownPlaylistIdLocal: String?
+    @State private var playlists: [SpotifySearchService.SpotifyPlaylist] = []
+    @State private var isLoadingPlaylists = false
+    @State private var playlistsError: String? = nil
 
     init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void) {
         self.plan = plan
@@ -26,6 +32,9 @@ struct PlanDetailView: View {
         self.onUpdate = onUpdate
         self.onDelete = onDelete
         self._localMovements = State(initialValue: plan.movements)
+        self._warmUpPlaylistIdLocal = State(initialValue: plan.warmUpPlaylistId)
+        self._mainPlaylistIdLocal = State(initialValue: plan.mainPlaylistId)
+        self._coolDownPlaylistIdLocal = State(initialValue: plan.coolDownPlaylistId)
     }
 
     // MARK: - Computed groupings (use localMovements so edits reflect immediately)
@@ -131,13 +140,21 @@ struct PlanDetailView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     if hasSectionStructure {
                         if !warmUpMovements.isEmpty {
-                            movementSectionBlock(title: "WARM-UP", movements: warmUpMovements)
+                            movementSectionBlock(
+                                title: "WARM-UP",
+                                movements: warmUpMovements,
+                                playlistId: warmUpPlaylistIdLocal
+                            )
                         }
                         if !mainSections.isEmpty {
                             mainWorkoutBlock
                         }
                         if !coolDownMovements.isEmpty {
-                            movementSectionBlock(title: "COOL-DOWN", movements: coolDownMovements)
+                            movementSectionBlock(
+                                title: "COOL-DOWN",
+                                movements: coolDownMovements,
+                                playlistId: coolDownPlaylistIdLocal
+                            )
                         }
                     } else {
                         VStack(spacing: 8) {
@@ -180,6 +197,9 @@ struct PlanDetailView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white)
         .navigationBarBackButtonHidden(true)
+        .task {
+            await loadPlaylistsIfNeeded()
+        }
         .alert("Delete \"\(plan.title)\"?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) { onDelete(); dismiss() }
             Button("Cancel", role: .cancel) {}
@@ -204,13 +224,58 @@ struct PlanDetailView: View {
     // MARK: - Section Blocks
 
     @ViewBuilder
-    private func movementSectionBlock(title: String, movements: [Movement]) -> some View {
+    private func movementSectionBlock(title: String, movements: [Movement], playlistId: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .kerning(1.2)
-                .padding(.horizontal, 20)
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .kerning(1.2)
+                if let playlistId, let name = playlistName(for: playlistId) {
+                    Menu {
+                        Button("None") {
+                            updatePlaylist(for: title, to: nil)
+                        }
+                        ForEach(playlists, id: \.uri) { playlist in
+                            Button(playlist.name) {
+                                updatePlaylist(for: title, to: playlist.uri)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "music.note.list")
+                            Text(name)
+                                .font(.system(size: 11, weight: .regular))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                } else if !playlists.isEmpty {
+                    Menu {
+                        Button("None") {
+                            updatePlaylist(for: title, to: nil)
+                        }
+                        ForEach(playlists, id: \.uri) { playlist in
+                            Button(playlist.name) {
+                                updatePlaylist(for: title, to: playlist.uri)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "music.note.list")
+                            Text("None")
+                                .font(.system(size: 11, weight: .regular))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 20)
             ForEach(movements) { movement in
                 MovementDetailCard(
                     movement: movement,
@@ -224,11 +289,56 @@ struct PlanDetailView: View {
 
     private var mainWorkoutBlock: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("MAIN WORKOUT")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .kerning(1.2)
-                .padding(.horizontal, 20)
+            HStack(spacing: 6) {
+                Text("MAIN WORKOUT")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .kerning(1.2)
+                if let pid = mainPlaylistIdLocal, let name = playlistName(for: pid) {
+                    Menu {
+                        Button("None") {
+                            updatePlaylist(for: "MAIN WORKOUT", to: nil)
+                        }
+                        ForEach(playlists, id: \.uri) { playlist in
+                            Button(playlist.name) {
+                                updatePlaylist(for: "MAIN WORKOUT", to: playlist.uri)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "music.note.list")
+                            Text(name)
+                                .font(.system(size: 11, weight: .regular))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                } else if !playlists.isEmpty {
+                    Menu {
+                        Button("None") {
+                            updatePlaylist(for: "MAIN WORKOUT", to: nil)
+                        }
+                        ForEach(playlists, id: \.uri) { playlist in
+                            Button(playlist.name) {
+                                updatePlaylist(for: "MAIN WORKOUT", to: playlist.uri)
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "music.note.list")
+                            Text("None")
+                                .font(.system(size: 11, weight: .regular))
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .medium))
+                        }
+                        .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 20)
 
             ForEach(mainSections.indices, id: \.self) { idx in
                 let section = mainSections[idx]
@@ -269,8 +379,62 @@ struct PlanDetailView: View {
     private func saveMovements() {
         onUpdate(WorkoutPlanDraft(
             title: plan.title, type: plan.type, difficulty: plan.difficulty,
-            durationMinutes: plan.durationMinutes, movements: localMovements
+            durationMinutes: plan.durationMinutes,
+            movements: localMovements,
+            warmUpPlaylistId: warmUpPlaylistIdLocal,
+            mainPlaylistId: mainPlaylistIdLocal,
+            coolDownPlaylistId: coolDownPlaylistIdLocal
         ))
+    }
+
+    private func playlistName(for id: String) -> String? {
+        // We store the Spotify playlist URI (context_uri), so match on uri
+        playlists.first(where: { $0.uri == id })?.name
+    }
+
+    private func updatePlaylist(for sectionTitle: String, to id: String?) {
+        var warm = plan.warmUpPlaylistId
+        var main = plan.mainPlaylistId
+        var cool = plan.coolDownPlaylistId
+
+        switch sectionTitle {
+        case "WARM-UP":
+            warm = id
+        case "MAIN WORKOUT":
+            main = id
+        case "COOL-DOWN":
+            cool = id
+        default:
+            break
+        }
+
+        // Update local state so UI reflects change immediately
+        warmUpPlaylistIdLocal = warm
+        mainPlaylistIdLocal = main
+        coolDownPlaylistIdLocal = cool
+
+        onUpdate(WorkoutPlanDraft(
+            title: plan.title,
+            type: plan.type,
+            difficulty: plan.difficulty,
+            durationMinutes: plan.durationMinutes,
+            movements: localMovements,
+            warmUpPlaylistId: warm,
+            mainPlaylistId: main,
+            coolDownPlaylistId: cool
+        ))
+    }
+
+    private func loadPlaylistsIfNeeded() async {
+        if !playlists.isEmpty || isLoadingPlaylists { return }
+        isLoadingPlaylists = true
+        playlistsError = nil
+        defer { isLoadingPlaylists = false }
+        do {
+            playlists = try await SpotifySearchService.shared.getMyPlaylists(limit: 50)
+        } catch {
+            playlistsError = "Could not load Spotify playlists."
+        }
     }
 }
 
@@ -438,6 +602,7 @@ private struct MovementEditSheet: View {
     @State private var goalType: GoalType
     @State private var reps: String
     @State private var seconds: String
+    @State private var notes: String
     let movement: Movement
     let onSave: (Movement) -> Void
 
@@ -448,6 +613,7 @@ private struct MovementEditSheet: View {
         _goalType = State(initialValue: movement.goalType)
         _reps = State(initialValue: movement.reps.map { String($0) } ?? "")
         _seconds = State(initialValue: movement.seconds.map { String($0) } ?? "")
+        _notes = State(initialValue: movement.notes ?? "")
     }
 
     private var canSave: Bool {
@@ -472,6 +638,8 @@ private struct MovementEditSheet: View {
                     updated.goalType = goalType
                     updated.reps = goalType == .reps ? Int(reps) : nil
                     updated.seconds = goalType == .timed ? Int(seconds) : nil
+                    let trimmedNote = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+                    updated.notes = trimmedNote.isEmpty ? nil : trimmedNote
                     onSave(updated)
                     dismiss()
                 }
@@ -530,6 +698,19 @@ private struct MovementEditSheet: View {
                             .buttonStyle(.plain)
                         }
                     }
+                }
+
+                // Notes
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("NOTE")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .kerning(1.2)
+                    TextField("e.g. 5lb weight, use a band", text: $notes)
+                        .font(.system(size: 16))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 13)
+                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
                 }
             }
             .padding(.horizontal, 20)
@@ -610,12 +791,6 @@ private struct MovementDetailCard: View {
                 }
             }
             Spacer()
-            Button(action: onEdit) {
-                Image(systemName: "pencil")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color(.systemGray3))
-            }
-            .buttonStyle(.plain)
             Button(action: onDelete) {
                 Image(systemName: "trash")
                     .font(.system(size: 13))
@@ -630,6 +805,8 @@ private struct MovementDetailCard: View {
             RoundedRectangle(cornerRadius: 10)
                 .stroke(Color.black, lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture { onEdit() }
     }
 }
 

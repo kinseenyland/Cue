@@ -62,11 +62,16 @@ struct PlanTypeStepView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("FORMAT")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .kerning(1.2)
-                    .padding(.horizontal, 24)
+                HStack(spacing: 6) {
+                    Text("FORMAT")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .kerning(1.2)
+                    Text("· Optional")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 24)
 
                 HStack(spacing: 8) {
                     ForEach(GoalType.allCases, id: \.self) { goalType in
@@ -74,13 +79,17 @@ struct PlanTypeStepView: View {
                             label: goalType == .reps ? "Reps" : "Timed",
                             isSelected: vm.draft.goalType == goalType
                         ) {
-                            vm.draft.goalType = goalType
+                            if vm.draft.goalType == goalType {
+                                vm.draft.goalType = nil
+                            } else {
+                                vm.draft.goalType = goalType
+                            }
                         }
                     }
                 }
                 .padding(.horizontal, 24)
 
-                Text("You can still change individual movements later — handy for things like a 30-second plank in an otherwise rep-based class.")
+                Text("Skip this if movements vary — you can set timed or reps individually on each move.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 24)

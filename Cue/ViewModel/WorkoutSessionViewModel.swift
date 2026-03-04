@@ -19,6 +19,10 @@ final class WorkoutSessionViewModel: ObservableObject {
     @Published var moveRemainingSeconds: Int = 0
     @Published var isComplete: Bool = false
 
+    var warmUpPlaylistId: String?
+    var mainPlaylistId: String?
+    var coolDownPlaylistId: String?
+
     let defaultMoveSeconds = 30
 
     var currentMove: Movement? {
@@ -29,6 +33,60 @@ final class WorkoutSessionViewModel: ObservableObject {
     var onDeckMove: Movement? {
         guard canGoNext else { return nil }
         return movements[currentIndex + 1]
+    }
+
+    /// Remaining movements in the current section (excluding current move).
+    var upcomingMovesInSection: [(index: Int, movement: Movement)] {
+        guard let move = currentMove else { return [] }
+        var result: [(index: Int, movement: Movement)] = []
+        for i in (currentIndex + 1)..<movements.count {
+            let m = movements[i]
+            if m.section == move.section && m.sectionName == move.sectionName {
+                result.append((i, m))
+            } else {
+                break
+            }
+        }
+        return result
+    }
+
+    /// All upcoming sections after the current one.
+    var upcomingSections: [(label: String, startIndex: Int, movements: [Movement])] {
+        guard let move = currentMove else { return [] }
+        var sections: [(label: String, startIndex: Int, movements: [Movement])] = []
+        var i = currentIndex + 1
+
+        // Skip past remaining moves in current section
+        while i < movements.count {
+            let m = movements[i]
+            if m.section != move.section || m.sectionName != move.sectionName { break }
+            i += 1
+        }
+
+        while i < movements.count {
+            let first = movements[i]
+            let label: String = {
+                if let name = first.sectionName, !name.isEmpty { return name }
+                switch first.section {
+                case .warmUp: return "Warm-Up"
+                case .main: return "Main"
+                case .coolDown: return "Cool-Down"
+                }
+            }()
+            let startIdx = i
+            var sectionMoves: [Movement] = []
+            while i < movements.count {
+                let m = movements[i]
+                if m.section == first.section && m.sectionName == first.sectionName {
+                    sectionMoves.append(m)
+                    i += 1
+                } else {
+                    break
+                }
+            }
+            sections.append((label, startIdx, sectionMoves))
+        }
+        return sections
     }
 
     var currentSectionLabel: String {
@@ -91,8 +149,12 @@ final class WorkoutSessionViewModel: ObservableObject {
         movements = plan.movements
         currentIndex = 0
         isRunning = true
+        warmUpPlaylistId = plan.warmUpPlaylistId
+        mainPlaylistId = plan.mainPlaylistId
+        coolDownPlaylistId = plan.coolDownPlaylistId
         resetSectionTimer()
         resetMoveTimer()
+        startPlaylistForCurrentSectionIfAny()
     }
 
     func toggleRunning() {
@@ -113,6 +175,11 @@ final class WorkoutSessionViewModel: ObservableObject {
         let newMove = currentMove
         if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
             resetSectionTimer()
+            // Only change playlist when moving between warm-up / main / cool-down,
+            // not when changing subsections within main.
+            if oldMove?.section != newMove?.section {
+                startPlaylistForCurrentSectionIfAny()
+            }
         }
         resetMoveTimer()
     }
@@ -122,6 +189,20 @@ final class WorkoutSessionViewModel: ObservableObject {
         isComplete = true
     }
 
+    func jumpToMove(at index: Int) {
+        guard index >= 0, index < movements.count else { return }
+        let oldMove = currentMove
+        currentIndex = index
+        let newMove = currentMove
+        if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
+            resetSectionTimer()
+            if oldMove?.section != newMove?.section {
+                startPlaylistForCurrentSectionIfAny()
+            }
+        }
+        resetMoveTimer()
+    }
+
     func previousMove() {
         guard canGoPrevious else { return }
         let oldMove = currentMove
@@ -129,6 +210,9 @@ final class WorkoutSessionViewModel: ObservableObject {
         let newMove = currentMove
         if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
             resetSectionTimer()
+            if oldMove?.section != newMove?.section {
+                startPlaylistForCurrentSectionIfAny()
+            }
         }
         resetMoveTimer()
     }
@@ -182,6 +266,21 @@ final class WorkoutSessionViewModel: ObservableObject {
         return sectionMoves.reduce(0) { total, m in
             total + (m.seconds ?? defaultMoveSeconds)
         }
+    }
+
+    private func startPlaylistForCurrentSectionIfAny() {
+        guard let move = currentMove else { return }
+        let playlistId: String?
+        switch move.section {
+        case .warmUp:
+            playlistId = warmUpPlaylistId
+        case .main:
+            playlistId = mainPlaylistId
+        case .coolDown:
+            playlistId = coolDownPlaylistId
+        }
+        guard let pid = playlistId, !pid.isEmpty else { return }
+        SpotifyManager.shared.playPlaylistFromStart(playlistUri: pid)
     }
 
     private func formatTime(_ seconds: Int) -> String {
