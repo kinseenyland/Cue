@@ -22,6 +22,7 @@ class SpotifyManager: NSObject, ObservableObject {
     @Published var currentArtistName = ""
     @Published var currentArtwork: UIImage?
     @Published var isPaused = true
+    @Published var nextTrackTitle = ""
     /// True while exchanging auth code for token (user returned from browser but token not ready yet)
     @Published var isFinishingAuth = false
     @Published var accessToken: String? {
@@ -468,6 +469,46 @@ class SpotifyManager: NSObject, ObservableObject {
         }
     }
 
+    /// Fetch the next track in the user's playback queue via Web API and update `nextTrackTitle`.
+    func refreshNextTrackFromQueue() {
+        Task {
+            guard let token = tokenForWebAPI else { return }
+            var request = URLRequest(url: URL(string: "\(webAPIBaseURL)/me/player/queue")!)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+
+                if statusCode == 401 {
+                    let refreshed = await refreshWebAPITokenIfNeeded()
+                    if refreshed {
+                        refreshNextTrackFromQueue()
+                        return
+                    }
+                    await MainActor.run { self.clearWebAPICredentialsOnRefreshFailure() }
+                    return
+                }
+
+                guard statusCode == 200 else {
+                    return
+                }
+
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                let queue = json?["queue"] as? [[String: Any]]
+                let next = queue?.first
+                let name = next?["name"] as? String ?? ""
+
+                await MainActor.run {
+                    self.nextTrackTitle = name
+                }
+            } catch {
+                // Ignore errors; UI will simply not show an up-next title.
+            }
+        }
+    }
+
     private func setShuffleViaWebAPI(_ enabled: Bool) async throws {
         guard let token = tokenForWebAPI else { throw NSError(domain: "Spotify", code: 401) }
         var components = URLComponents(string: "\(webAPIBaseURL)/me/player/shuffle")!
@@ -665,6 +706,7 @@ extension SpotifyManager: SPTAppRemotePlayerStateDelegate {
     func playerStateDidChange(_ playerState: SPTAppRemotePlayerState) {
         debugPrint("Track name: \(playerState.track.name)")
         updateFromPlayerState(playerState)
+        refreshNextTrackFromQueue()
     }
 }
 

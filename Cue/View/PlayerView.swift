@@ -134,9 +134,29 @@ struct PlayerView: View {
                 }
             }
 
-            spotifyBar
-                .padding(.horizontal)
-                .padding(.bottom, 8)
+            VStack(spacing: 6) {
+                spotifyBar
+
+                if !spotifyManager.nextTrackTitle.isEmpty {
+                    HStack {
+                        Text("Up next:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(spotifyManager.nextTrackTitle)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemGray6))
+                    )
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
         }
         .onReceive(timer) { _ in
             sessionVM.tick()
