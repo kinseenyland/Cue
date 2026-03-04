@@ -20,7 +20,7 @@ struct HomeView: View {
     }
 
     private var upcomingItems: [ScheduleItem] {
-        scheduleVM.items.filter { $0.startDate >= Date() }
+        Array(scheduleVM.items.filter { $0.startDate >= Date() }.prefix(2))
     }
 
     private var favoritePlans: [WorkoutPlan] {
