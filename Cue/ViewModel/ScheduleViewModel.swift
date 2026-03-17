@@ -18,6 +18,19 @@ final class ScheduleViewModel: ObservableObject {
     @Published var errorMessage: String? = nil
 
     private let db = Firestore.firestore()
+    private let calendar = Calendar.current
+
+    /// Set of dates (day-level) that have at least one scheduled item.
+    var scheduledDates: Set<DateComponents> {
+        Set(items.map { item in
+            calendar.dateComponents([.year, .month, .day], from: item.startDate)
+        })
+    }
+
+    /// Items for a specific day.
+    func items(for date: Date) -> [ScheduleItem] {
+        items.filter { calendar.isDate($0.startDate, inSameDayAs: date) }
+    }
 
     func fetchSchedules() async {
         guard let ownerId = Auth.auth().currentUser?.uid else {
