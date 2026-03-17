@@ -13,6 +13,7 @@ struct PlayerView: View {
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
     @EnvironmentObject private var spotifyManager: SpotifyManager
     @StateObject private var vm = CueViewModel()
+    @State private var showExitConfirmation = false
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -90,8 +91,7 @@ struct PlayerView: View {
         VStack(spacing: 0) {
             HStack {
                 Button {
-                    sessionVM.reset()
-                    selectedTab = .plans
+                    showExitConfirmation = true
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 20, weight: .medium))
@@ -140,6 +140,15 @@ struct PlayerView: View {
         }
         .onReceive(timer) { _ in
             sessionVM.tick()
+        }
+        .alert("End Workout?", isPresented: $showExitConfirmation) {
+            Button("Keep Going", role: .cancel) { }
+            Button("End Workout", role: .destructive) {
+                sessionVM.reset()
+                selectedTab = .plans
+            }
+        } message: {
+            Text("Are you sure you want to end this workout? Your progress will be lost.")
         }
     }
 
