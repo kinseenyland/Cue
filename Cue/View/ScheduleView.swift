@@ -14,7 +14,7 @@ struct ScheduleView: View {
     @State private var isPresentingCreateForm = false
     @State private var editingItem: ScheduleItem? = nil
     @State private var navigationPath = NavigationPath()
-    @State private var selectedDate: Date = Date()
+    @State private var selectedDate: Date? = nil
     @State private var displayedMonth: Date = Date()
 
     private let calendar = Calendar.current
@@ -47,8 +47,9 @@ struct ScheduleView: View {
         return (weekday - calendar.firstWeekday + 7) % 7
     }
 
-    private var itemsForSelectedDate: [ScheduleItem] {
-        vm.items(for: selectedDate)
+    private var itemsForSelectedDate: [ScheduleItem]? {
+        guard let selectedDate else { return nil }
+        return vm.items(for: selectedDate)
     }
 
     var body: some View {
@@ -68,43 +69,45 @@ struct ScheduleView: View {
                             .padding(.top, 8)
                     }
 
-                    if itemsForSelectedDate.isEmpty {
-                        VStack(spacing: 12) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 36))
-                                .foregroundStyle(.secondary)
-                            Text("No classes on this day")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 48)
-                    } else {
-                        VStack(spacing: 10) {
-                            ForEach(itemsForSelectedDate) { item in
-                                ScheduleCard(item: item)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        if let planId = item.planId,
-                                           let plan = plansVM.plans.first(where: { $0.id == planId }) {
-                                            navigationPath.append(plan)
-                                        }
-                                    }
-                                    .contextMenu {
-                                        Button {
-                                            editingItem = item
-                                        } label: {
-                                            Label("Edit Schedule", systemImage: "pencil")
-                                        }
-                                        Button(role: .destructive) {
-                                            Task { await vm.deleteSchedule(id: item.id) }
-                                        } label: {
-                                            Label("Delete", systemImage: "trash")
-                                        }
-                                    }
+                    if let items = itemsForSelectedDate {
+                        if items.isEmpty {
+                            VStack(spacing: 12) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 36))
+                                    .foregroundStyle(.secondary)
+                                Text("No classes on this day")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                             }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 48)
+                        } else {
+                            VStack(spacing: 10) {
+                                ForEach(items) { item in
+                                    ScheduleCard(item: item)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            if let planId = item.planId,
+                                               let plan = plansVM.plans.first(where: { $0.id == planId }) {
+                                                navigationPath.append(plan)
+                                            }
+                                        }
+                                        .contextMenu {
+                                            Button {
+                                                editingItem = item
+                                            } label: {
+                                                Label("Edit Schedule", systemImage: "pencil")
+                                            }
+                                            Button(role: .destructive) {
+                                                Task { await vm.deleteSchedule(id: item.id) }
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
+                                        }
+                                }
+                            }
+                            .padding(.top, 12)
                         }
-                        .padding(.top, 12)
                     }
                 }
             }
@@ -165,6 +168,7 @@ struct ScheduleView: View {
                 Button {
                     withAnimation {
                         displayedMonth = calendar.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
+                        selectedDate = nil
                     }
                 } label: {
                     Image(systemName: "chevron.left")
@@ -182,6 +186,7 @@ struct ScheduleView: View {
                 Button {
                     withAnimation {
                         displayedMonth = calendar.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
+                        selectedDate = nil
                     }
                 } label: {
                     Image(systemName: "chevron.right")
@@ -212,7 +217,7 @@ struct ScheduleView: View {
                 }
 
                 ForEach(daysInMonth, id: \.self) { date in
-                    let isSelected = calendar.isDate(date, inSameDayAs: selectedDate)
+                    let isSelected = selectedDate.map { calendar.isDate(date, inSameDayAs: $0) } ?? false
                     let isToday = calendar.isDateInToday(date)
                     let hasItems = vm.scheduledDates.contains(
                         calendar.dateComponents([.year, .month, .day], from: date)
