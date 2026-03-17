@@ -14,60 +14,102 @@ struct ScheduleView: View {
     @State private var isPresentingCreateForm = false
     @State private var editingItem: ScheduleItem? = nil
     @State private var navigationPath = NavigationPath()
+    @State private var selectedDate: Date? = nil
+    @State private var displayedMonth: Date = Date()
 
-    private var groupedByMonth: [(key: String, items: [ScheduleItem])] {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM"
-        let grouped = Dictionary(grouping: vm.items) { item -> String in
-            formatter.string(from: item.startDate)
+    private let calendar = Calendar.current
+
+    private var daysInMonth: [Date] {
+        guard let range = calendar.range(of: .day, in: .month, for: displayedMonth),
+              let firstOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: displayedMonth))
+        else { return [] }
+        return range.compactMap { day in
+            calendar.date(byAdding: .day, value: day - 1, to: firstOfMonth)
         }
-        let ordered = vm.items.compactMap { item -> String in
-            formatter.string(from: item.startDate)
-        }
-        var seen = Set<String>()
-        let uniqueOrder = ordered.filter { seen.insert($0).inserted }
-        return uniqueOrder.map { month in
-            (key: month, items: grouped[month] ?? [])
-        }
+    }
+
+    private var monthYearLabel: String {
+        let f = DateFormatter()
+        f.dateFormat = "MMMM yyyy"
+        return f.string(from: displayedMonth)
+    }
+
+    private var weekdaySymbols: [String] {
+        let symbols = calendar.veryShortWeekdaySymbols
+        let firstWeekday = calendar.firstWeekday - 1
+        return Array(symbols[firstWeekday...]) + Array(symbols[..<firstWeekday])
+    }
+
+    private var firstWeekdayOffset: Int {
+        guard let firstOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: displayedMonth))
+        else { return 0 }
+        let weekday = calendar.component(.weekday, from: firstOfMonth)
+        return (weekday - calendar.firstWeekday + 7) % 7
+    }
+
+    private var itemsForSelectedDate: [ScheduleItem]? {
+        guard let selectedDate else { return nil }
+        return vm.items(for: selectedDate)
     }
 
     var body: some View {
         NavigationStack(path: $navigationPath) {
-            ScrollView {
-                if let error = vm.errorMessage {
-                    Text(error)
-                        .foregroundStyle(.red)
-                        .font(.footnote)
-                        .padding(.horizontal)
-                }
+            VStack(spacing: 0) {
+                calendarStrip
+                    .padding(.bottom, 8)
 
-                LazyVStack(alignment: .leading, spacing: 24) {
-                    ForEach(groupedByMonth, id: \.key) { month, items in
-                        Section {
+                Divider()
+
+                ScrollView {
+                    if let error = vm.errorMessage {
+                        Text(error)
+                            .foregroundStyle(.red)
+                            .font(.footnote)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                    }
+
+                    if let items = itemsForSelectedDate {
+                        if items.isEmpty {
                             VStack(spacing: 12) {
+                                Image(systemName: "calendar")
+                                    .font(.system(size: 36))
+                                    .foregroundStyle(.secondary)
+                                Text("No classes on this day")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.top, 48)
+                        } else {
+                            VStack(spacing: 10) {
                                 ForEach(items) { item in
-                                    Button {
-                                        if let planId = item.planId,
-                                           let plan = plansVM.plans.first(where: { $0.id == planId }) {
-                                            navigationPath.append(plan)
+                                    ScheduleCard(item: item)
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            if let planId = item.planId,
+                                               let plan = plansVM.plans.first(where: { $0.id == planId }) {
+                                                navigationPath.append(plan)
+                                            }
                                         }
-                                    } label: {
-                                        ScheduleCard(item: item) {
-                                            editingItem = item
+                                        .contextMenu {
+                                            Button {
+                                                editingItem = item
+                                            } label: {
+                                                Label("Edit Schedule", systemImage: "pencil")
+                                            }
+                                            Button(role: .destructive) {
+                                                Task { await vm.deleteSchedule(id: item.id) }
+                                            } label: {
+                                                Label("Delete", systemImage: "trash")
+                                            }
                                         }
-                                    }
-                                    .buttonStyle(.plain)
                                 }
                             }
-                        } header: {
-                            Text(month)
-                                .font(.title3)
-                                .fontWeight(.semibold)
-                                .padding(.horizontal)
+                            .padding(.top, 12)
                         }
                     }
                 }
-                .padding(.top, 8)
             }
             .navigationTitle("Schedule")
             .toolbar {
@@ -118,6 +160,99 @@ struct ScheduleView: View {
         }
     }
 
+    // MARK: - Calendar Strip
+
+    private var calendarStrip: some View {
+        VStack(spacing: 12) {
+            HStack {
+                Button {
+                    withAnimation {
+                        displayedMonth = calendar.date(byAdding: .month, value: -1, to: displayedMonth) ?? displayedMonth
+                        selectedDate = nil
+                    }
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+                }
+
+                Spacer()
+
+                Text(monthYearLabel)
+                    .font(.headline)
+
+                Spacer()
+
+                Button {
+                    withAnimation {
+                        displayedMonth = calendar.date(byAdding: .month, value: 1, to: displayedMonth) ?? displayedMonth
+                        selectedDate = nil
+                    }
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.primary)
+                }
+            }
+            .padding(.horizontal)
+
+            // Weekday headers
+            let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
+
+            LazyVGrid(columns: columns, spacing: 0) {
+                ForEach(weekdaySymbols, id: \.self) { symbol in
+                    Text(symbol)
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 8)
+
+            // Day grid
+            LazyVGrid(columns: columns, spacing: 6) {
+                ForEach(0..<firstWeekdayOffset, id: \.self) { _ in
+                    Color.clear.frame(height: 40)
+                }
+
+                ForEach(daysInMonth, id: \.self) { date in
+                    let isSelected = selectedDate.map { calendar.isDate(date, inSameDayAs: $0) } ?? false
+                    let isToday = calendar.isDateInToday(date)
+                    let hasItems = vm.scheduledDates.contains(
+                        calendar.dateComponents([.year, .month, .day], from: date)
+                    )
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selectedDate = date
+                        }
+                    } label: {
+                        VStack(spacing: 3) {
+                            Text("\(calendar.component(.day, from: date))")
+                                .font(.system(size: 15, weight: isSelected ? .bold : .regular))
+                                .foregroundStyle(
+                                    isSelected ? .white : isToday ? .black : .primary
+                                )
+                                .frame(width: 32, height: 32)
+                                .background(
+                                    Circle()
+                                        .fill(isSelected ? Color.black : Color.clear)
+                                )
+
+                            Circle()
+                                .fill(hasItems ? (isSelected ? .white : .black) : .clear)
+                                .frame(width: 5, height: 5)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 8)
+        }
+        .padding(.top, 4)
+    }
+
     private func draft(from item: ScheduleItem) -> ScheduleDraft {
         ScheduleDraft(
             title: item.title,
@@ -135,72 +270,43 @@ struct ScheduleView: View {
 
 private struct ScheduleCard: View {
     let item: ScheduleItem
-    let onEdit: () -> Void
-
-    private static let monthFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "MMM"
-        return f
-    }()
-
-    private static let dayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateFormat = "dd"
-        return f
-    }()
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "h:mma"
-        f.amSymbol = "am"
-        f.pmSymbol = "pm"
+        f.dateFormat = "h:mm a"
+        f.amSymbol = "AM"
+        f.pmSymbol = "PM"
         return f
     }()
 
     var body: some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 2) {
-                Text(Self.monthFormatter.string(from: item.startDate).uppercased())
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundStyle(.primary)
-                Text(Self.dayFormatter.string(from: item.startDate))
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundStyle(.primary)
-            }
-            .frame(width: 56)
-
-            Divider()
-                .frame(height: 40)
-                .padding(.horizontal, 12)
-
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
                     .font(.body)
                     .fontWeight(.semibold)
                     .foregroundStyle(.primary)
-                Text(item.location.isEmpty
-                     ? Self.timeFormatter.string(from: item.startDate)
-                     : "\(item.location) · \(Self.timeFormatter.string(from: item.startDate))")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+
+                HStack(spacing: 6) {
+                    Text(Self.timeFormatter.string(from: item.startDate))
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    if !item.location.isEmpty {
+                        Text("·")
+                            .foregroundStyle(.secondary)
+                        Text(item.location)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
 
             Spacer()
 
-            Button { onEdit() } label: {
-                Image(systemName: "pencil")
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .padding(8)
-            }
-            .buttonStyle(.plain)
-
             Image(systemName: "chevron.right")
-                .font(.body)
+                .font(.caption)
                 .foregroundStyle(.secondary)
-                .padding(.trailing, 4)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
