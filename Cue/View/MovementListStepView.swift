@@ -10,7 +10,6 @@ struct MovementListStepView: View {
     let defaultGoalType: GoalType?
     @Binding var durationMinutes: Int
     @Binding var movements: [Movement]
-    @EnvironmentObject private var creationVM: PlanCreationViewModel
 
     @State private var assigningGoal = false
     @State private var newName = ""
@@ -62,14 +61,6 @@ struct MovementListStepView: View {
             newGoalType = defaultGoalType ?? .reps
             assigningGoal = defaultGoalType != nil
             nameFieldFocused = true
-            creationVM.flushPendingMovement = { flushPending() }
-        }
-        .onDisappear {
-            creationVM.flushPendingMovement = nil
-            creationVM.hasPendingMovement = false
-        }
-        .onChange(of: newName) { _, name in
-            creationVM.hasPendingMovement = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -144,19 +135,25 @@ struct MovementListStepView: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Press Continue to add this movement")
-                .font(.system(size: 12))
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .center)
+            Button {
+                submitMovement()
+            } label: {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 32))
+                    .foregroundStyle(canSubmit ? Color.black : Color(.systemGray4))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSubmit)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 4)
         }
     }
 
-    private var hasPendingText: Bool {
+    private var canSubmit: Bool {
         !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func flushPending() -> Bool {
-        guard hasPendingText else { return false }
+    private func submitMovement() {
         let note = newNote.trimmingCharacters(in: .whitespacesAndNewlines)
         let m = Movement(
             name: newName.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -172,8 +169,6 @@ struct MovementListStepView: View {
         showNoteField = false
         newNote = ""
         nameFieldFocused = true
-        creationVM.hasPendingMovement = false
-        return true
     }
 }
 
