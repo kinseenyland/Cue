@@ -11,13 +11,11 @@ enum PlanCreationStep: Int, CaseIterable {
     case name               = 0
     case type               = 1
     case duration           = 2
-    case warmUpIntro        = 3
-    case warmUpMovements    = 4
-    case mainSections       = 5
-    case mainMovements      = 6
-    case coolDownIntro      = 7
-    case coolDownMovements  = 8
-    case review             = 9
+    case warmUpMovements    = 3
+    case mainSections       = 4
+    case mainMovements      = 5
+    case coolDownMovements  = 6
+    case review             = 7
 
     static let total = Self.allCases.count
 
@@ -26,11 +24,9 @@ enum PlanCreationStep: Int, CaseIterable {
         case .name:             return "Name Your Plan"
         case .type:             return "Workout Type"
         case .duration:         return "Duration"
-        case .warmUpIntro:      return "Warm-Up"
         case .warmUpMovements:  return "Warm-Up Movements"
         case .mainSections:     return "Main Workout"
         case .mainMovements:    return "Main Movements"
-        case .coolDownIntro:    return "Cool-Down"
         case .coolDownMovements: return "Cool-Down Movements"
         case .review:           return "Review"
         }
@@ -43,6 +39,7 @@ final class PlanCreationViewModel: ObservableObject {
     @Published var draft = PlanCreationDraft()
     /// Set by movement step views; returns true if a pending movement was saved (don't advance).
     var flushPendingMovement: (() -> Bool)? = nil
+    @Published var hasPendingMovement = false
     @Published var spotifyPlaylists: [SpotifySearchService.SpotifyPlaylist] = []
     @Published var isLoadingPlaylists = false
     @Published var playlistsError: String? = nil
@@ -55,19 +52,15 @@ final class PlanCreationViewModel: ObservableObject {
             return draft.type != nil && draft.difficulty != nil
         case .duration:
             return draft.durationMinutes > 0
-        case .warmUpIntro:
-            return true
         case .warmUpMovements:
-            return !draft.warmUpMovements.isEmpty
+            return !draft.warmUpMovements.isEmpty || hasPendingMovement
         case .mainSections:
             return !draft.mainSections.isEmpty &&
                 draft.mainSections.allSatisfy { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         case .mainMovements:
-            return draft.mainSections.allSatisfy { !$0.movements.isEmpty }
-        case .coolDownIntro:
-            return true
+            return draft.mainSections.allSatisfy { !$0.movements.isEmpty } || hasPendingMovement
         case .coolDownMovements:
-            return !draft.coolDownMovements.isEmpty
+            return !draft.coolDownMovements.isEmpty || hasPendingMovement
         case .review:
             return true
         }

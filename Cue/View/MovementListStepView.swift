@@ -66,6 +66,10 @@ struct MovementListStepView: View {
         }
         .onDisappear {
             creationVM.flushPendingMovement = nil
+            creationVM.hasPendingMovement = false
+        }
+        .onChange(of: newName) { _, name in
+            creationVM.hasPendingMovement = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -168,6 +172,7 @@ struct MovementListStepView: View {
         showNoteField = false
         newNote = ""
         nameFieldFocused = true
+        creationVM.hasPendingMovement = false
         return true
     }
 }

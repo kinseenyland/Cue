@@ -26,15 +26,74 @@ struct PlanCreationView: View {
         }
         .background(Color.white.ignoresSafeArea())
         .environmentObject(vm)
-        .alert("Leave Plan Creation?", isPresented: $showExitConfirmation) {
-            Button("Keep Editing", role: .cancel) { }
-            if !vm.isOnFirstStep {
-                Button("Go Back") { vm.back() }
+        .overlay {
+            if showExitConfirmation {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { showExitConfirmation = false }
+
+                VStack(spacing: 16) {
+                    HStack {
+                        Spacer()
+                        Button { showExitConfirmation = false } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 30, height: 30)
+                                .background(Color(.systemGray5))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Text("Are you sure?")
+                        .font(.system(size: 18, weight: .bold))
+
+                    Text("Your progress will be lost if you leave.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    VStack(spacing: 10) {
+                        if !vm.isOnFirstStep {
+                            Button {
+                                showExitConfirmation = false
+                                vm.back()
+                            } label: {
+                                Text("Go Back")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(Color(.systemGray6))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Button {
+                            showExitConfirmation = false
+                            dismiss()
+                        } label: {
+                            Text("Discard Plan")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(Color.red)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(20)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+                .padding(.horizontal, 40)
             }
-            Button("Discard Plan", role: .destructive) { dismiss() }
-        } message: {
-            Text("Are you sure? Your progress will be lost if you leave.")
         }
+        .animation(.easeInOut(duration: 0.2), value: showExitConfirmation)
     }
 
     // MARK: - Header
@@ -96,17 +155,6 @@ struct PlanCreationView: View {
             PlanTypeStepView()
         case .duration:
             PlanDurationStepView()
-        case .warmUpIntro:
-            PlanSectionIntroStepView(
-                headline: "Let's warm up.",
-                subtext: "Suggested ~5 min · Add the movements you use to prepare your class.",
-                bullets: [
-                    "Dynamic stretches, mobility work, or light cardio",
-                    "Movements that raise heart rate gradually",
-                    "Prep for the main workout ahead"
-                ]
-            )
-            .onAppear { Task { await vm.loadSpotifyPlaylistsIfNeeded() } }
         case .warmUpMovements:
             VStack(alignment: .leading, spacing: 12) {
                 MovementListStepView(
@@ -130,16 +178,6 @@ struct PlanCreationView: View {
             }
         case .mainMovements:
             PlanMainMovementsStepView()
-        case .coolDownIntro:
-            PlanSectionIntroStepView(
-                headline: "Wind it down.",
-                subtext: "Suggested ~5 min · Add the movements you use to close out your class.",
-                bullets: [
-                    "Static stretches and breathing exercises",
-                    "Movements that lower heart rate",
-                    "Help your class recover and reflect"
-                ]
-            )
         case .coolDownMovements:
             VStack(alignment: .leading, spacing: 12) {
                 MovementListStepView(
@@ -196,39 +234,41 @@ struct PlanSectionPlaylistPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Image(systemName: "music.note")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                Text(title)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                Text("· Optional")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 24)
+            Text(title)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 24)
 
             if vm.spotifyPlaylists.isEmpty {
-                HStack(spacing: 8) {
+                HStack {
                     if vm.isLoadingPlaylists {
                         ProgressView()
                             .scaleEffect(0.8)
-                        Text("Loading playlists…")
+                        Text("Loading Spotify playlists…")
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
-                    } else if let error = vm.playlistsError {
-                        Text(error)
-                            .font(.system(size: 12))
-                            .foregroundStyle(.red)
                     } else {
-                        Text("Connect Spotify to choose a playlist")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
+                        Button {
+                            Task { await vm.loadSpotifyPlaylistsIfNeeded() }
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "music.note.list")
+                                Text("Load Spotify playlists")
+                            }
+                            .font(.system(size: 13, weight: .medium))
+                        }
+                        .buttonStyle(.borderless)
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 24)
+
+                if let error = vm.playlistsError {
+                    Text(error)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 24)
+                }
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {

@@ -48,6 +48,7 @@ struct SectionMovementBlock: View {
     @Binding var section: WorkoutSubSection
     let defaultGoalType: GoalType?
     let flushRef: (@escaping () -> Bool) -> Void
+    @EnvironmentObject private var creationVM: PlanCreationViewModel
 
     @State private var assigningGoal = false
     @State private var newName = ""
@@ -98,6 +99,9 @@ struct SectionMovementBlock: View {
             newGoalType = defaultGoalType ?? .reps
             assigningGoal = defaultGoalType != nil
             flushRef { flushPending() }
+        }
+        .onChange(of: newName) { _, name in
+            creationVM.hasPendingMovement = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
@@ -200,6 +204,7 @@ struct SectionMovementBlock: View {
         showNoteField = false
         newNote = ""
         nameFieldFocused = true
+        creationVM.hasPendingMovement = false
         return true
     }
 }
