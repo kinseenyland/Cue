@@ -22,6 +22,7 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
     var warmUpPlaylistId: String?
     var mainPlaylistId: String?
     var coolDownPlaylistId: String?
+    var lastRunAt: Double?
 
     init(
         id: String = UUID().uuidString,
@@ -37,7 +38,8 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         movements: [Movement] = [],
         warmUpPlaylistId: String? = nil,
         mainPlaylistId: String? = nil,
-        coolDownPlaylistId: String? = nil
+        coolDownPlaylistId: String? = nil,
+        lastRunAt: Double? = nil
     ) {
         self.id = id
         self.ownerId = ownerId
@@ -53,5 +55,6 @@ struct WorkoutPlan: Identifiable, Codable, Hashable {
         self.warmUpPlaylistId = warmUpPlaylistId
         self.mainPlaylistId = mainPlaylistId
         self.coolDownPlaylistId = coolDownPlaylistId
+        self.lastRunAt = lastRunAt
     }
 }
