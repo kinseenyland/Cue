@@ -8,7 +8,26 @@
 import Foundation
 
 enum WorkoutType: String, CaseIterable, Codable {
-    case pilates, yoga, cycle, strength, cardio
+    case matPilates, reformerPilates, yoga, cycle, strength, cardio
+
+    var displayName: String {
+        switch self {
+        case .matPilates: return "Mat Pilates"
+        case .reformerPilates: return "Reformer Pilates"
+        case .yoga: return "Yoga"
+        case .cycle: return "Cycle"
+        case .strength: return "Strength"
+        case .cardio: return "Cardio"
+        }
+    }
+
+    init?(legacy rawValue: String) {
+        if rawValue == "pilates" {
+            self = .matPilates
+        } else {
+            self.init(rawValue: rawValue)
+        }
+    }
 }
 
 enum Difficulty: String, CaseIterable, Codable {

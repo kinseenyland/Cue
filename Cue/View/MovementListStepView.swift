@@ -10,8 +10,8 @@ struct MovementListStepView: View {
     let defaultGoalType: GoalType?
     @Binding var durationMinutes: Int
     @Binding var movements: [Movement]
+    @EnvironmentObject private var creationVM: PlanCreationViewModel
 
-    @State private var showAddForm = false
     @State private var assigningGoal = false
     @State private var newName = ""
     @State private var newGoalType: GoalType = .reps
@@ -24,7 +24,6 @@ struct MovementListStepView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Headline + editable duration badge
                 HStack(alignment: .top, spacing: 12) {
                     Text(headline)
                         .font(.system(size: 30, weight: .bold))
@@ -52,36 +51,21 @@ struct MovementListStepView: View {
                     .padding(.horizontal, 24)
                 }
 
-                if showAddForm {
-                    addForm
-                        .padding(.horizontal, 24)
-                } else {
-                    Button {
-                        newGoalType = defaultGoalType ?? .reps
-                        assigningGoal = defaultGoalType != nil
-                        showAddForm = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text("Add Movement")
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .overlay(Capsule().stroke(Color.black, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
+                addForm
                     .padding(.horizontal, 24)
-                }
             }
             .padding(.top, 4)
             .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: showAddForm) { _, isShowing in
-            if isShowing { nameFieldFocused = true }
+        .onAppear {
+            newGoalType = defaultGoalType ?? .reps
+            assigningGoal = defaultGoalType != nil
+            nameFieldFocused = true
+            creationVM.flushPendingMovement = { flushPending() }
+        }
+        .onDisappear {
+            creationVM.flushPendingMovement = nil
         }
     }
 
@@ -156,39 +140,19 @@ struct MovementListStepView: View {
                 .buttonStyle(.plain)
             }
 
-            Button {
-                submitMovement()
-            } label: {
-                Text("+ Add")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(canSubmit ? .white : Color(.systemGray3))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(canSubmit ? Color.black : Color(.systemGray5))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSubmit)
-
-            Button("done with section") {
-                closeForm()
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, alignment: .center)
+            Text("Press Continue to add this movement")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
-    private var canSubmit: Bool {
-        let nameOk = !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if assigningGoal {
-            return nameOk && (newGoalType == .reps ? !newReps.isEmpty : !newSeconds.isEmpty)
-        }
-        return nameOk
+    private var hasPendingText: Bool {
+        !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private func submitMovement() {
+    private func flushPending() -> Bool {
+        guard hasPendingText else { return false }
         let note = newNote.trimmingCharacters(in: .whitespacesAndNewlines)
         let m = Movement(
             name: newName.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -204,17 +168,7 @@ struct MovementListStepView: View {
         showNoteField = false
         newNote = ""
         nameFieldFocused = true
-    }
-
-    private func closeForm() {
-        newName = ""
-        newGoalType = defaultGoalType ?? .reps
-        assigningGoal = defaultGoalType != nil
-        newReps = ""
-        newSeconds = ""
-        showNoteField = false
-        newNote = ""
-        showAddForm = false
+        return true
     }
 }
 

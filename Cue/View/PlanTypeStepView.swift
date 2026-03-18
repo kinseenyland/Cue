@@ -26,7 +26,7 @@ struct PlanTypeStepView: View {
                     HStack(spacing: 8) {
                         ForEach(WorkoutType.allCases, id: \.self) { type in
                             PlanPillButton(
-                                label: type.rawValue.capitalized,
+                                label: type.displayName,
                                 isSelected: vm.draft.type == type
                             ) {
                                 vm.draft.type = type

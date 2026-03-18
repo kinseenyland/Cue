@@ -30,7 +30,7 @@ struct PlanReviewStepView: View {
 
                     HStack(spacing: 8) {
                         if let type = vm.draft.type {
-                            ReviewChip(label: type.rawValue.capitalized)
+                            ReviewChip(label: type.displayName)
                         }
                         if let difficulty = vm.draft.difficulty {
                             ReviewChip(label: difficulty.rawValue.capitalized)

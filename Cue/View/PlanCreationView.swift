@@ -9,6 +9,7 @@ struct PlanCreationView: View {
     @StateObject private var vm = PlanCreationViewModel()
     let onSave: (WorkoutPlanDraft) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var showExitConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,6 +26,15 @@ struct PlanCreationView: View {
         }
         .background(Color.white.ignoresSafeArea())
         .environmentObject(vm)
+        .alert("Leave Plan Creation?", isPresented: $showExitConfirmation) {
+            Button("Keep Editing", role: .cancel) { }
+            if !vm.isOnFirstStep {
+                Button("Go Back") { vm.back() }
+            }
+            Button("Discard Plan", role: .destructive) { dismiss() }
+        } message: {
+            Text("Are you sure? Your progress will be lost if you leave.")
+        }
     }
 
     // MARK: - Header
@@ -33,12 +43,12 @@ struct PlanCreationView: View {
         ZStack {
             HStack {
                 if vm.isOnFirstStep {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { showExitConfirmation = true }
                         .font(.system(size: 16))
                         .foregroundStyle(.secondary)
                 } else {
                     Button {
-                        vm.back()
+                        showExitConfirmation = true
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 16, weight: .medium))
@@ -96,6 +106,7 @@ struct PlanCreationView: View {
                     "Prep for the main workout ahead"
                 ]
             )
+            .onAppear { Task { await vm.loadSpotifyPlaylistsIfNeeded() } }
         case .warmUpMovements:
             VStack(alignment: .leading, spacing: 12) {
                 MovementListStepView(
@@ -185,41 +196,39 @@ struct PlanSectionPlaylistPicker: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 24)
+            HStack(spacing: 6) {
+                Image(systemName: "music.note")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text("· Optional")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 24)
 
             if vm.spotifyPlaylists.isEmpty {
-                HStack {
+                HStack(spacing: 8) {
                     if vm.isLoadingPlaylists {
                         ProgressView()
                             .scaleEffect(0.8)
-                        Text("Loading Spotify playlists…")
+                        Text("Loading playlists…")
                             .font(.system(size: 13))
                             .foregroundStyle(.secondary)
+                    } else if let error = vm.playlistsError {
+                        Text(error)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.red)
                     } else {
-                        Button {
-                            Task { await vm.loadSpotifyPlaylistsIfNeeded() }
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "music.note.list")
-                                Text("Load Spotify playlists")
-                            }
-                            .font(.system(size: 13, weight: .medium))
-                        }
-                        .buttonStyle(.borderless)
+                        Text("Connect Spotify to choose a playlist")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 24)
-
-                if let error = vm.playlistsError {
-                    Text(error)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 24)
-                }
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {

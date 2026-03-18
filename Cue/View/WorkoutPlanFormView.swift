@@ -109,10 +109,10 @@ struct WorkoutPlanFormView: View {
                 HStack(spacing: 10) {
                     FormDropdown(
                         placeholder: "Select Type",
-                        selected: selectedType?.rawValue.capitalized
+                        selected: selectedType?.displayName
                     ) {
                         ForEach(WorkoutType.allCases, id: \.self) { type in
-                            Button(type.rawValue.capitalized) { selectedType = type }
+                            Button(type.displayName) { selectedType = type }
                         }
                     }
 

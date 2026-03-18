@@ -41,6 +41,8 @@ enum PlanCreationStep: Int, CaseIterable {
 final class PlanCreationViewModel: ObservableObject {
     @Published var step: PlanCreationStep = .name
     @Published var draft = PlanCreationDraft()
+    /// Set by movement step views; returns true if a pending movement was saved (don't advance).
+    var flushPendingMovement: (() -> Bool)? = nil
     @Published var spotifyPlaylists: [SpotifySearchService.SpotifyPlaylist] = []
     @Published var isLoadingPlaylists = false
     @Published var playlistsError: String? = nil
@@ -77,7 +79,9 @@ final class PlanCreationViewModel: ObservableObject {
     var suggestedMainMinutes: Int { max(0, draft.durationMinutes - 10) }
 
     func advance() {
-        guard canAdvance, let next = PlanCreationStep(rawValue: step.rawValue + 1) else { return }
+        guard canAdvance else { return }
+        if let flush = flushPendingMovement, flush() { return }
+        guard let next = PlanCreationStep(rawValue: step.rawValue + 1) else { return }
         step = next
     }
 
