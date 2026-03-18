@@ -204,6 +204,14 @@ struct PlanRowCard: View {
         }
     }
 
+    private var lastRunLabel: String? {
+        guard let lastRunAt = plan.lastRunAt else { return nil }
+        let date = Date(timeIntervalSince1970: lastRunAt)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return "Last run: \(formatter.string(from: date))"
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -223,6 +231,12 @@ struct PlanRowCard: View {
                         .font(.system(size: 12, weight: .thin))
                 }
                 .foregroundStyle(.black)
+
+                if let lastRun = lastRunLabel {
+                    Text(lastRun)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
@@ -242,7 +256,6 @@ struct PlanRowCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .frame(height: 76)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(

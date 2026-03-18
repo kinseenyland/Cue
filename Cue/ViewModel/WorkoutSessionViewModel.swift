@@ -12,6 +12,7 @@ import SwiftUI
 @MainActor
 final class WorkoutSessionViewModel: ObservableObject {
     @Published var planTitle: String = "Workout"
+    @Published var planId: String? = nil
     @Published var movements: [Movement] = []
     @Published var currentIndex: Int = 0
     @Published var isRunning: Bool = false
@@ -146,6 +147,7 @@ final class WorkoutSessionViewModel: ObservableObject {
 
     func load(plan: WorkoutPlan) {
         planTitle = plan.title
+        planId = plan.id
         movements = plan.movements
         currentIndex = 0
         isRunning = true
@@ -232,6 +234,7 @@ final class WorkoutSessionViewModel: ObservableObject {
 
     func reset() {
         planTitle = "Workout"
+        planId = nil
         movements = []
         currentIndex = 0
         isRunning = false

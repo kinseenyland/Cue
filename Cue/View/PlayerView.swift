@@ -17,12 +17,19 @@ struct PlayerView: View {
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
-        if sessionVM.isComplete {
-            completionView
-        } else if sessionVM.movements.isEmpty {
-            planSelectionView
-        } else {
-            workoutPlayerView
+        Group {
+            if sessionVM.isComplete {
+                completionView
+            } else if sessionVM.movements.isEmpty {
+                planSelectionView
+            } else {
+                workoutPlayerView
+            }
+        }
+        .onChange(of: sessionVM.isComplete) { complete in
+            if complete, let planId = sessionVM.planId {
+                Task { await vm.markPlanAsRun(id: planId) }
+            }
         }
     }
 

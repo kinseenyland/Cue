@@ -66,7 +66,8 @@ class CueViewModel: ObservableObject {
                     movements: resolvedMovements,
                     warmUpPlaylistId: data["warmUpPlaylistId"] as? String,
                     mainPlaylistId: data["mainPlaylistId"] as? String,
-                    coolDownPlaylistId: data["coolDownPlaylistId"] as? String
+                    coolDownPlaylistId: data["coolDownPlaylistId"] as? String,
+                    lastRunAt: data["lastRunAt"] as? Double
                 )
             }
 
@@ -219,6 +220,18 @@ class CueViewModel: ObservableObject {
                 plans[idx].isFavorited = !isFavorited
             }
             errorMessage = "❌ Update failed: \(error.localizedDescription)"
+        }
+    }
+
+    func markPlanAsRun(id: String) async {
+        let now = Date().timeIntervalSince1970
+        if let idx = plans.firstIndex(where: { $0.id == id }) {
+            plans[idx].lastRunAt = now
+        }
+        do {
+            try await db.collection("plans").document(id).updateData(["lastRunAt": now])
+        } catch {
+            print("Failed to update lastRunAt: \(error.localizedDescription)")
         }
     }
 
