@@ -66,12 +66,24 @@ struct MovementListStepView: View {
 
     private var addForm: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("Movement name", text: $newName)
-                .font(.system(size: 16))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                .focused($nameFieldFocused)
+            HStack(spacing: 10) {
+                TextField("Movement name", text: $newName)
+                    .font(.system(size: 16))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                    .focused($nameFieldFocused)
+
+                Button {
+                    submitMovement()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 36))
+                        .foregroundStyle(canSubmit ? Color.black : Color(.systemGray4))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSubmit)
+            }
 
             if assigningGoal {
                 HStack(alignment: .center, spacing: 10) {
@@ -134,18 +146,6 @@ struct MovementListStepView: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            Button {
-                submitMovement()
-            } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 32))
-                    .foregroundStyle(canSubmit ? Color.black : Color(.systemGray4))
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSubmit)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.top, 4)
         }
     }
 
