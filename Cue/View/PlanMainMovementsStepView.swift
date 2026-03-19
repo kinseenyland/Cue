@@ -99,7 +99,7 @@ struct SectionMovementBlock: View {
                     submitMovement()
                 } label: {
                     Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 36))
+                        .font(.system(size: 26))
                         .foregroundStyle(canSubmit ? Color.black : Color(.systemGray4))
                 }
                 .buttonStyle(.plain)
