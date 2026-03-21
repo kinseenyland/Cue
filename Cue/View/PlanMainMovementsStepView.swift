@@ -7,6 +7,7 @@ import SwiftUI
 
 struct PlanMainMovementsStepView: View {
     @EnvironmentObject var vm: PlanCreationViewModel
+    @State private var sectionFlushers: [String: () -> Void] = [:]
 
     var body: some View {
         ScrollView {
@@ -20,19 +21,32 @@ struct PlanMainMovementsStepView: View {
                     SectionMovementBlock(
                         section: $section,
                         defaultGoalType: vm.draft.goalType
-                    )
+                    ) { flusher in
+                        sectionFlushers[section.id] = flusher
+                    }
                 }
             }
             .padding(.top, 4)
             .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear {
+            vm.flushPendingMovement = {
+                for (_, flusher) in sectionFlushers { flusher() }
+            }
+        }
+        .onDisappear {
+            vm.flushPendingMovement = nil
+            vm.hasPendingMovement = false
+        }
     }
 }
 
 struct SectionMovementBlock: View {
     @Binding var section: WorkoutSubSection
     let defaultGoalType: GoalType?
+    let flushRef: (@escaping () -> Void) -> Void
+    @EnvironmentObject private var creationVM: PlanCreationViewModel
 
     @State private var assigningGoal = false
     @State private var newName = ""
@@ -82,6 +96,10 @@ struct SectionMovementBlock: View {
         .onAppear {
             newGoalType = defaultGoalType ?? .reps
             assigningGoal = defaultGoalType != nil
+            flushRef { if canSubmit { submitMovement() } }
+        }
+        .onChange(of: newName) { _, name in
+            creationVM.hasPendingMovement = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 

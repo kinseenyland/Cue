@@ -10,6 +10,7 @@ struct MovementListStepView: View {
     let defaultGoalType: GoalType?
     @Binding var durationMinutes: Int
     @Binding var movements: [Movement]
+    @EnvironmentObject private var creationVM: PlanCreationViewModel
 
     @State private var assigningGoal = false
     @State private var newName = ""
@@ -61,6 +62,14 @@ struct MovementListStepView: View {
             newGoalType = defaultGoalType ?? .reps
             assigningGoal = defaultGoalType != nil
             nameFieldFocused = true
+            creationVM.flushPendingMovement = { if canSubmit { submitMovement() } }
+        }
+        .onDisappear {
+            creationVM.flushPendingMovement = nil
+            creationVM.hasPendingMovement = false
+        }
+        .onChange(of: newName) { _, name in
+            creationVM.hasPendingMovement = !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }
 
