@@ -257,7 +257,7 @@ private struct AccountPreferencesStepView: View {
                                 if selected { selectedClassTypes.remove(type) }
                                 else        { selectedClassTypes.insert(type) }
                             } label: {
-                                Text(type.rawValue.capitalized)
+                                Text(type.displayName)
                                     .font(.system(size: 13, weight: .medium))
                                     .foregroundStyle(selected ? .white : .black)
                                     .frame(maxWidth: .infinity)
