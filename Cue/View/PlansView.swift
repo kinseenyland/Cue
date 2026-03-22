@@ -50,7 +50,7 @@ struct PlansView: View {
                         }
                         ForEach(WorkoutType.allCases, id: \.self) { type in
                             PlanFilterChip(
-                                label: type.rawValue.capitalized,
+                                label: type.displayName,
                                 isSelected: selectedType == type
                             ) {
                                 selectedType = type

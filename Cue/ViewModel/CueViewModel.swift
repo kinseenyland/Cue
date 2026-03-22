@@ -40,7 +40,7 @@ class CueViewModel: ObservableObject {
                     let title = data["title"] as? String,
                     let typeRaw = data["type"] as? String,
                     let difficultyRaw = data["difficulty"] as? String,
-                    let type = WorkoutType(rawValue: typeRaw),
+                    let type = WorkoutType(legacy: typeRaw),
                     let difficulty = Difficulty(rawValue: difficultyRaw)
                 else { return nil }
 
@@ -88,7 +88,7 @@ class CueViewModel: ObservableObject {
             let plan = WorkoutPlan(
                 ownerId: Auth.auth().currentUser?.uid ?? "debug-user",
                 title: "Hot Pilates - Core",
-                type: .pilates,
+                type: .matPilates,
                 difficulty: .medium,
                 durationMinutes: 60,
                 isPublic: false,

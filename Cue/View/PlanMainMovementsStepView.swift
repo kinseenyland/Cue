@@ -17,7 +17,10 @@ struct PlanMainMovementsStepView: View {
                     .padding(.horizontal, 24)
 
                 ForEach($vm.draft.mainSections) { $section in
-                    SectionMovementBlock(section: $section, defaultGoalType: vm.draft.goalType)
+                    SectionMovementBlock(
+                        section: $section,
+                        defaultGoalType: vm.draft.goalType
+                    )
                 }
             }
             .padding(.top, 4)
@@ -31,7 +34,6 @@ struct SectionMovementBlock: View {
     @Binding var section: WorkoutSubSection
     let defaultGoalType: GoalType?
 
-    @State private var showAddForm = false
     @State private var assigningGoal = false
     @State private var newName = ""
     @State private var newGoalType: GoalType = .reps
@@ -43,7 +45,6 @@ struct SectionMovementBlock: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // Section header: name label + editable duration badge
             HStack(alignment: .center) {
                 Text(section.name.isEmpty ? "Unnamed Section" : section.name)
                     .font(.system(size: 13, weight: .semibold))
@@ -72,46 +73,38 @@ struct SectionMovementBlock: View {
                 .padding(.horizontal, 24)
             }
 
-            if showAddForm {
-                sectionAddForm
-                    .padding(.horizontal, 24)
-            } else {
-                Button {
-                    newGoalType = defaultGoalType ?? .reps
-                    assigningGoal = defaultGoalType != nil
-                    showAddForm = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("Add Movement")
-                            .font(.system(size: 14, weight: .medium))
-                    }
-                    .foregroundStyle(.black)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .overlay(Capsule().stroke(Color.black, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
+            sectionAddForm
                 .padding(.horizontal, 24)
-            }
 
             Divider()
                 .padding(.top, 8)
         }
-        .onChange(of: showAddForm) { _, isShowing in
-            if isShowing { nameFieldFocused = true }
+        .onAppear {
+            newGoalType = defaultGoalType ?? .reps
+            assigningGoal = defaultGoalType != nil
         }
     }
 
     private var sectionAddForm: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("Movement name", text: $newName)
-                .font(.system(size: 16))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                .focused($nameFieldFocused)
+            HStack(spacing: 10) {
+                TextField("Movement name", text: $newName)
+                    .font(.system(size: 16))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                    .focused($nameFieldFocused)
+
+                Button {
+                    submitMovement()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(canSubmit ? Color.black : Color(.systemGray4))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSubmit)
+            }
 
             if assigningGoal {
                 HStack(alignment: .center, spacing: 10) {
@@ -174,37 +167,11 @@ struct SectionMovementBlock: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            Button {
-                submitMovement()
-            } label: {
-                Text("+ Add")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(canSubmit ? .white : Color(.systemGray3))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(canSubmit ? Color.black : Color(.systemGray5))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSubmit)
-
-            Button("done with section") {
-                closeForm()
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
     private var canSubmit: Bool {
-        let nameOk = !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if assigningGoal {
-            return nameOk && (newGoalType == .reps ? !newReps.isEmpty : !newSeconds.isEmpty)
-        }
-        return nameOk
+        !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func submitMovement() {
@@ -223,16 +190,5 @@ struct SectionMovementBlock: View {
         showNoteField = false
         newNote = ""
         nameFieldFocused = true
-    }
-
-    private func closeForm() {
-        newName = ""
-        newGoalType = defaultGoalType ?? .reps
-        assigningGoal = defaultGoalType != nil
-        newReps = ""
-        newSeconds = ""
-        showNoteField = false
-        newNote = ""
-        showAddForm = false
     }
 }

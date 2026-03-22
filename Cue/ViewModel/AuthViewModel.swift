@@ -7,14 +7,13 @@
 
 import Combine
 import FirebaseAuth
+import FirebaseFirestore
 import Foundation
 import SwiftUI
 
 @MainActor
 final class AuthViewModel: ObservableObject {
     @Published var user: User? = nil
-    @Published var email = ""
-    @Published var password = ""
     @Published var statusMessage: String? = nil
     @Published var errorMessage: String? = nil
     @Published var isLoading = false
@@ -33,7 +32,7 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    func signIn() {
+    func signIn(email: String, password: String) {
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedEmail.isEmpty else {
             errorMessage = "Enter your email."
@@ -59,7 +58,7 @@ final class AuthViewModel: ObservableObject {
         }
     }
 
-    func signUp() {
+    func signUp(name: String, email: String, password: String, preferredClassTypes: [String] = [], workoutStructure: String = "", musicApproach: String = "") {
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedEmail.isEmpty else {
             errorMessage = "Enter your email."
@@ -78,13 +77,32 @@ final class AuthViewModel: ObservableObject {
         statusMessage = nil
         errorMessage = nil
 
-        Auth.auth().createUser(withEmail: trimmedEmail, password: password) { [weak self] _, error in
+        Auth.auth().createUser(withEmail: trimmedEmail, password: password) { [weak self] result, error in
             guard let self else { return }
-            self.isLoading = false
             if let error {
+                self.isLoading = false
                 self.errorMessage = "Sign up failed: \(error.localizedDescription)"
-            } else {
-                self.statusMessage = "Account created. Signed in."
+                return
+            }
+            let uid = result?.user.uid ?? ""
+            let changeRequest = result?.user.createProfileChangeRequest()
+            changeRequest?.displayName = name
+            changeRequest?.commitChanges { [weak self] _ in
+                guard let self else { return }
+                let profileData: [String: Any] = [
+                    "id": uid,
+                    "displayName": name,
+                    "classesTaught": 0,
+                    "topClassTypeRaw": preferredClassTypes.first ?? "pilates",
+                    "preferredClassTypes": preferredClassTypes,
+                    "workoutStructure": workoutStructure,
+                    "musicApproach": musicApproach
+                ]
+                Firestore.firestore()
+                    .collection("users")
+                    .document(uid)
+                    .setData(profileData)
+                self.isLoading = false
             }
         }
     }

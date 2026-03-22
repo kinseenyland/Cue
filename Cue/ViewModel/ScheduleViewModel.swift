@@ -53,7 +53,7 @@ final class ScheduleViewModel: ObservableObject {
                     let durationMinutes = data["durationMinutes"] as? Int
                 else { return nil }
 
-                let wt = (data["workoutType"] as? String).flatMap { WorkoutType(rawValue: $0) }
+                let wt = (data["workoutType"] as? String).flatMap { WorkoutType(legacy: $0) }
                 let diff = (data["difficulty"] as? String).flatMap { Difficulty(rawValue: $0) }
 
                 return ScheduleItem(

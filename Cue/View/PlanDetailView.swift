@@ -77,7 +77,7 @@ struct PlanDetailView: View {
 
     private var typeIcon: String {
         switch plan.type {
-        case .pilates: return "figure.pilates"
+        case .matPilates, .reformerPilates: return "figure.pilates"
         case .yoga: return "figure.yoga"
         case .cycle: return "bicycle"
         case .strength: return "dumbbell.fill"
@@ -128,7 +128,7 @@ struct PlanDetailView: View {
             // Details Snapshot: Type, Time, Intensity
             HStack(spacing: 10) {
                 Spacer()
-                PlanDetailCard(icon: typeIcon, label: "Type", value: plan.type.rawValue.capitalized)
+                PlanDetailCard(icon: typeIcon, label: "Type", value: plan.type.displayName)
                 PlanDetailCard(icon: "timer", label: "Time", value: "\(plan.durationMinutes) min")
                 PlanDetailCard(icon: "flame.fill", label: "Intensity", value: difficultyLabel)
                 Spacer()
@@ -510,7 +510,7 @@ private struct PlanDetailsEditSheet: View {
                                     Button {
                                         type = t
                                     } label: {
-                                        Text(t.rawValue.capitalized)
+                                        Text(t.displayName)
                                             .font(.system(size: 14, weight: .medium))
                                             .foregroundStyle(type == t ? .white : .black)
                                             .lineLimit(1)
@@ -816,7 +816,7 @@ private struct MovementDetailCard: View {
             plan: WorkoutPlan(
                 ownerId: "preview",
                 title: "Hot Pilates - Core",
-                type: .pilates,
+                type: .matPilates,
                 difficulty: .hard,
                 durationMinutes: 60,
                 movements: [

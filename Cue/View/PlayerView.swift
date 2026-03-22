@@ -63,7 +63,7 @@ struct PlayerView: View {
                                             .font(.body)
                                             .fontWeight(.semibold)
                                             .foregroundStyle(.primary)
-                                        Text("\(plan.type.rawValue.capitalized) · \(plan.difficulty.rawValue.capitalized) · \(plan.durationMinutes) min")
+                                        Text("\(plan.type.displayName) · \(plan.difficulty.rawValue.capitalized) · \(plan.durationMinutes) min")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
