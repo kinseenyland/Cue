@@ -142,6 +142,9 @@ struct PlansView: View {
                             navigationPath.removeLast()
                         }
                     },
+                    onDuplicate: { name in
+                        Task { await vm.duplicatePlan(plan, newName: name) }
+                    },
                     availableTypes: availableTypes
                 )
             }
