@@ -50,9 +50,11 @@ struct WorkoutPlanFormView: View {
     @State private var movements: [MovementDraft]
 
     let isEditing: Bool
+    let availableTypes: [WorkoutType]
     let onSave: (WorkoutPlanDraft) -> Void
 
-    init(draft: WorkoutPlanDraft? = nil, onSave: @escaping (WorkoutPlanDraft) -> Void) {
+    init(draft: WorkoutPlanDraft? = nil, availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (WorkoutPlanDraft) -> Void) {
+        self.availableTypes = availableTypes
         self.isEditing = draft != nil
         self.onSave = onSave
         _title = State(initialValue: draft?.title ?? "")
@@ -111,7 +113,7 @@ struct WorkoutPlanFormView: View {
                         placeholder: "Select Type",
                         selected: selectedType?.displayName
                     ) {
-                        ForEach(WorkoutType.allCases, id: \.self) { type in
+                        ForEach(availableTypes, id: \.self) { type in
                             Button(type.displayName) { selectedType = type }
                         }
                     }

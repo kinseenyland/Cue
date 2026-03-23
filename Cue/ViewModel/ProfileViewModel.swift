@@ -15,6 +15,7 @@ final class ProfileViewModel: ObservableObject {
     @Published var workoutStructure: WorkoutStructurePreference? = nil
     @Published var musicApproach: MusicApproach? = nil
     @Published var isLoading = false
+    @Published var isSaving = false
 
     private let db = Firestore.firestore()
 
@@ -33,7 +34,6 @@ final class ProfileViewModel: ObservableObject {
                     self.isLoading = false
                     return
                 }
-                print("ProfileViewModel: Loaded data — \(data)")
                 self.displayName = data["displayName"] as? String ?? ""
                 self.preferredClassTypes = (data["preferredClassTypes"] as? [String] ?? [])
                     .compactMap { WorkoutType(rawValue: $0) }
@@ -44,6 +44,40 @@ final class ProfileViewModel: ObservableObject {
                     rawValue: data["musicApproach"] as? String ?? ""
                 )
                 self.isLoading = false
+            }
+        }
+    }
+
+    func save(
+        uid: String,
+        name: String,
+        preferredClassTypes: [WorkoutType],
+        workoutStructure: WorkoutStructurePreference?,
+        musicApproach: MusicApproach?
+    ) {
+        guard !uid.isEmpty else {
+            print("ProfileViewModel: save called with empty uid")
+            return
+        }
+        isSaving = true
+        let data: [String: Any] = [
+            "displayName": name,
+            "preferredClassTypes": preferredClassTypes.map { $0.rawValue },
+            "workoutStructure": workoutStructure?.rawValue ?? "",
+            "musicApproach": musicApproach?.rawValue ?? ""
+        ]
+        db.collection("users").document(uid).setData(data, merge: true) { [weak self] error in
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.isSaving = false
+                if let error {
+                    print("ProfileViewModel: Save error — \(error.localizedDescription)")
+                    return
+                }
+                self.displayName = name
+                self.preferredClassTypes = preferredClassTypes
+                self.workoutStructure = workoutStructure
+                self.musicApproach = musicApproach
             }
         }
     }

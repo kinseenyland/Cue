@@ -17,7 +17,7 @@ struct SpotifySearchView: View {
     var onTrackSelected: (SpotifySearchService.SpotifyTrack) -> Void = { _ in }
 
     private var isAuthenticated: Bool {
-        (spotifyManager.accessToken != nil || spotifyManager.apiAccessToken != nil) && !spotifyManager.isFinishingAuth
+        spotifyManager.isAuthenticated
     }
 
     /// On device we need a separate API token (from browser) for playlist scopes. On simulator we use PKCE for connect so we already have scopes.

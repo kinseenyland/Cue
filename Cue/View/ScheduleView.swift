@@ -55,6 +55,23 @@ struct ScheduleView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
+                HStack {
+                    Text("Schedule")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.black)
+                    Spacer()
+                    Button {
+                        isPresentingCreateForm = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.black)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+
                 calendarStrip
                     .padding(.bottom, 8)
 
@@ -111,15 +128,7 @@ struct ScheduleView: View {
                     }
                 }
             }
-            .navigationTitle("Schedule")
-            .toolbar {
-                Button {
-                    isPresentingCreateForm = true
-                } label: {
-                    Image(systemName: "plus")
-                        .fontWeight(.medium)
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: WorkoutPlan.self) { plan in
                 PlanDetailView(
                     plan: plan,

@@ -12,6 +12,7 @@ struct PlanDetailView: View {
     @Binding var selectedTab: MainTab
     let onUpdate: (WorkoutPlanDraft) -> Void
     let onDelete: () -> Void
+    var availableTypes: [WorkoutType] = WorkoutType.allCases
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
 
@@ -207,7 +208,7 @@ struct PlanDetailView: View {
             Text("This action cannot be undone.")
         }
         .sheet(isPresented: $isShowingDetailsEdit) {
-            PlanDetailsEditSheet(plan: plan) { name, type, difficulty, duration in
+            PlanDetailsEditSheet(plan: plan, availableTypes: availableTypes) { name, type, difficulty, duration in
                 onUpdate(WorkoutPlanDraft(
                     title: name, type: type, difficulty: difficulty,
                     durationMinutes: duration, movements: localMovements
@@ -446,13 +447,15 @@ private struct PlanDetailsEditSheet: View {
     @State private var type: WorkoutType
     @State private var difficulty: Difficulty
     @State private var duration: Int
+    let availableTypes: [WorkoutType]
     let onSave: (String, WorkoutType, Difficulty, Int) -> Void
 
-    init(plan: WorkoutPlan, onSave: @escaping (String, WorkoutType, Difficulty, Int) -> Void) {
+    init(plan: WorkoutPlan, availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (String, WorkoutType, Difficulty, Int) -> Void) {
         _name = State(initialValue: plan.title)
         _type = State(initialValue: plan.type)
         _difficulty = State(initialValue: plan.difficulty)
         _duration = State(initialValue: plan.durationMinutes)
+        self.availableTypes = availableTypes
         self.onSave = onSave
     }
 
@@ -506,7 +509,7 @@ private struct PlanDetailsEditSheet: View {
                             .kerning(1.2)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                ForEach(WorkoutType.allCases, id: \.self) { t in
+                                ForEach(availableTypes, id: \.self) { t in
                                     Button {
                                         type = t
                                     } label: {
