@@ -116,14 +116,18 @@ struct PlanDetailView: View {
                 Spacer()
 
                 Menu {
-                    Button("Edit Plan Details") { isShowingDetailsEdit = true }
+                    Button { isShowingDetailsEdit = true } label: {
+                        Label("Edit Plan Details", systemImage: "pencil")
+                    }
                     Button {
                         duplicateName = "\(plan.title) (Copy)"
                         isShowingDuplicatePrompt = true
                     } label: {
                         Label("Duplicate Plan", systemImage: "doc.on.doc")
                     }
-                    Button("Delete Plan", role: .destructive) { isShowingDeleteConfirmation = true }
+                    Button(role: .destructive) { isShowingDeleteConfirmation = true } label: {
+                        Label("Delete Plan", systemImage: "trash")
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                         .rotationEffect(.degrees(90))
@@ -788,6 +792,7 @@ private struct MovementDetailCard: View {
     let movement: Movement
     let onEdit: () -> Void
     let onDelete: () -> Void
+    @State private var showDeleteConfirmation = false
 
     private var goalText: String {
         switch movement.goalType {
@@ -813,7 +818,7 @@ private struct MovementDetailCard: View {
                 }
             }
             Spacer()
-            Button(action: onDelete) {
+            Button { showDeleteConfirmation = true } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 13))
                     .foregroundStyle(Color(.systemGray3))
@@ -829,6 +834,12 @@ private struct MovementDetailCard: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { onEdit() }
+        .alert("Delete \"\(movement.name)\"?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) { onDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This movement will be removed from the plan.")
+        }
     }
 }
 
