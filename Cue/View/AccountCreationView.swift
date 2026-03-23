@@ -8,6 +8,7 @@ import SwiftUI
 struct AccountCreationView: View {
     @StateObject private var vm = AccountCreationViewModel()
     @EnvironmentObject var authVM: AuthViewModel
+    @EnvironmentObject private var spotifyManager: SpotifyManager
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -90,15 +91,18 @@ struct AccountCreationView: View {
         case .name:
             AccountNameStepView(displayName: $vm.displayName)
         case .email:
-            AccountEmailStepView(email: $vm.email)
+            AccountEmailStepView(email: $vm.email, displayName: vm.displayName)
         case .password:
             AccountPasswordStepView(password: $vm.password, confirmPassword: $vm.confirmPassword)
-        case .preferences:
-            AccountPreferencesStepView(
-                selectedClassTypes: $vm.preferredClassTypes,
-                structurePreference: $vm.workoutStructurePreference,
-                musicApproach: $vm.musicApproach
-            )
+        case .classTypes:
+            AccountClassTypesStepView(selectedClassTypes: $vm.preferredClassTypes)
+        case .workoutStructure:
+            AccountWorkoutStructureStepView(structurePreference: $vm.workoutStructurePreference)
+        case .musicApproach:
+            AccountMusicApproachStepView(musicApproach: $vm.musicApproach)
+        case .spotify:
+            AccountSpotifyStepView()
+                .environmentObject(spotifyManager)
         }
     }
 
@@ -147,7 +151,7 @@ private struct AccountNameStepView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Welcome to Cue.")
                     .font(.system(size: 26, weight: .semibold))
-                Text("We're excited to have you here!")
+                Text("We're excited to have you here.")
                     .font(.system(size: 14, weight: .thin))
                     .foregroundStyle(.secondary)
                 Text("Cue helps you build smarter workouts and pair the perfect music to every movement — so you can focus on teaching, not planning.")
@@ -156,9 +160,12 @@ private struct AccountNameStepView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text("What should we call you?")
                     .font(.system(size: 15, weight: .medium))
+                Text("Just your first name is okay!")
+                    .font(.system(size: 12, weight: .thin))
+                    .foregroundStyle(.secondary)
                 TextField("Your name", text: $displayName)
                     .font(.system(size: 14, weight: .thin))
                     .textInputAutocapitalization(.words)
@@ -176,20 +183,28 @@ private struct AccountNameStepView: View {
 
 private struct AccountEmailStepView: View {
     @Binding var email: String
+    let displayName: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("What's your email?")
-                .font(.system(size: 22, weight: .semibold))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Nice to meet you, \(displayName)!")
+                    .font(.system(size: 26, weight: .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            TextField("e-mail address", text: $email)
-                .font(.system(size: 14, weight: .thin))
-                .textInputAutocapitalization(.never)
-                .keyboardType(.emailAddress)
-                .autocorrectionDisabled()
-                .padding(.horizontal, 9)
-                .padding(.vertical, 10)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("What's your email address?")
+                    .font(.system(size: 15, weight: .medium))
+                TextField("e-mail address", text: $email)
+                    .font(.system(size: 14, weight: .thin))
+                    .textInputAutocapitalization(.never)
+                    .keyboardType(.emailAddress)
+                    .autocorrectionDisabled()
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 10)
+                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+            }
         }
         .padding(.horizontal, 24)
         .padding(.top, 16)
@@ -202,31 +217,38 @@ private struct AccountPasswordStepView: View {
     @Binding var confirmPassword: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Create a password")
-                .font(.system(size: 22, weight: .semibold))
-
-            SecureField("password", text: $password)
-                .font(.system(size: 14, weight: .thin))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 10)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-
-            SecureField("confirm password", text: $confirmPassword)
-                .font(.system(size: 14, weight: .thin))
-                .padding(.horizontal, 9)
-                .padding(.vertical, 10)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-
-            if !confirmPassword.isEmpty && password != confirmPassword {
-                Text("Passwords don't match.")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.red)
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Almost there.")
+                    .font(.system(size: 26, weight: .semibold))
+                Text("Create a password to secure your account.")
+                    .font(.system(size: 14, weight: .thin))
+                    .foregroundStyle(.secondary)
             }
 
-            Text("At least 6 characters")
-                .font(.system(size: 11, weight: .thin))
-                .foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 10) {
+                SecureField("password", text: $password)
+                    .font(.system(size: 14, weight: .thin))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 10)
+                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+
+                SecureField("confirm password", text: $confirmPassword)
+                    .font(.system(size: 14, weight: .thin))
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 10)
+                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+
+                if !confirmPassword.isEmpty && password != confirmPassword {
+                    Text("Passwords don't match.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                }
+
+                Text("At least 6 characters")
+                    .font(.system(size: 11, weight: .thin))
+                    .foregroundStyle(.secondary)
+            }
         }
         .padding(.horizontal, 24)
         .padding(.top, 16)
@@ -234,70 +256,33 @@ private struct AccountPasswordStepView: View {
     }
 }
 
-private struct AccountPreferencesStepView: View {
+private struct AccountClassTypesStepView: View {
     @Binding var selectedClassTypes: Set<WorkoutType>
-    @Binding var structurePreference: WorkoutStructurePreference?
-    @Binding var musicApproach: MusicApproach?
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-
-                // Q1: Class types
-                VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Let's set up your profile.")
+                        .font(.system(size: 26, weight: .semibold))
                     Text("What types of classes do you teach?")
                         .font(.system(size: 15, weight: .medium))
                     Text("Select all that apply.")
                         .font(.system(size: 12, weight: .thin))
                         .foregroundStyle(.secondary)
-                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                        ForEach(WorkoutType.allCases, id: \.self) { type in
-                            let selected = selectedClassTypes.contains(type)
-                            Button {
-                                if selected { selectedClassTypes.remove(type) }
-                                else        { selectedClassTypes.insert(type) }
-                            } label: {
-                                Text(type.displayName)
-                                    .font(.system(size: 13, weight: .medium))
-                                    .foregroundStyle(selected ? .white : .black)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 10)
-                                    .background(selected ? Color.black : Color.white)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .stroke(Color.black, lineWidth: 1)
-                                    )
-                                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
                 }
 
-                Divider()
-
-                // Q2: Workout structure
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("How do you usually build your workouts?")
-                        .font(.system(size: 15, weight: .medium))
-                    VStack(spacing: 8) {
-                        ForEach(WorkoutStructurePreference.allCases, id: \.self) { option in
-                            let selected = structurePreference == option
-                            Button {
-                                structurePreference = option
-                            } label: {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(option.label)
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundStyle(selected ? .white : .black)
-                                        Text(option.description)
-                                            .font(.system(size: 11, weight: .thin))
-                                            .foregroundStyle(selected ? .white.opacity(0.8) : .secondary)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 12)
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    ForEach(WorkoutType.allCases, id: \.self) { type in
+                        let selected = selectedClassTypes.contains(type)
+                        Button {
+                            if selected { selectedClassTypes.remove(type) }
+                            else        { selectedClassTypes.insert(type) }
+                        } label: {
+                            Text(type.displayName)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(selected ? .white : .black)
+                                .frame(maxWidth: .infinity)
                                 .padding(.vertical, 10)
                                 .background(selected ? Color.black : Color.white)
                                 .overlay(
@@ -305,46 +290,8 @@ private struct AccountPreferencesStepView: View {
                                         .stroke(Color.black, lineWidth: 1)
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
                         }
-                    }
-                }
-
-                Divider()
-
-                // Q3: Music approach
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("How does music fit into your planning?")
-                        .font(.system(size: 15, weight: .medium))
-                    VStack(spacing: 8) {
-                        ForEach(MusicApproach.allCases, id: \.self) { option in
-                            let selected = musicApproach == option
-                            Button {
-                                musicApproach = option
-                            } label: {
-                                HStack(spacing: 12) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(option.label)
-                                            .font(.system(size: 13, weight: .semibold))
-                                            .foregroundStyle(selected ? .white : .black)
-                                        Text(option.description)
-                                            .font(.system(size: 11, weight: .thin))
-                                            .foregroundStyle(selected ? .white.opacity(0.8) : .secondary)
-                                    }
-                                    Spacer()
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 10)
-                                .background(selected ? Color.black : Color.white)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .stroke(Color.black, lineWidth: 1)
-                                )
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                            }
-                            .buttonStyle(.plain)
-                        }
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -355,7 +302,153 @@ private struct AccountPreferencesStepView: View {
     }
 }
 
+private struct AccountWorkoutStructureStepView: View {
+    @Binding var structurePreference: WorkoutStructurePreference?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("How do you usually build your workouts?")
+                    .font(.system(size: 22, weight: .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(spacing: 8) {
+                    ForEach(WorkoutStructurePreference.allCases, id: \.self) { option in
+                        let selected = structurePreference == option
+                        Button {
+                            structurePreference = option
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(option.label)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(selected ? .white : .black)
+                                    Text(option.description)
+                                        .font(.system(size: 11, weight: .thin))
+                                        .foregroundStyle(selected ? .white.opacity(0.8) : .secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(selected ? Color.black : Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.black, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+        }
+    }
+}
+
+private struct AccountMusicApproachStepView: View {
+    @Binding var musicApproach: MusicApproach?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("How does music fit into your planning?")
+                    .font(.system(size: 22, weight: .semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(spacing: 8) {
+                    ForEach(MusicApproach.allCases, id: \.self) { option in
+                        let selected = musicApproach == option
+                        Button {
+                            musicApproach = option
+                        } label: {
+                            HStack(spacing: 12) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(option.label)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(selected ? .white : .black)
+                                    Text(option.description)
+                                        .font(.system(size: 11, weight: .thin))
+                                        .foregroundStyle(selected ? .white.opacity(0.8) : .secondary)
+                                }
+                                Spacer()
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(selected ? Color.black : Color.white)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.black, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 16)
+            .padding(.bottom, 8)
+        }
+    }
+}
+
+private struct AccountSpotifyStepView: View {
+    @EnvironmentObject var spotifyManager: SpotifyManager
+
+    private var isConnected: Bool {
+        spotifyManager.accessToken != nil || spotifyManager.apiAccessToken != nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Last step.")
+                    .font(.system(size: 26, weight: .semibold))
+                Text("Connect your Spotify account to get the most out of Cue.")
+                    .font(.system(size: 14, weight: .thin))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(spacing: 12) {
+                Button {
+                    spotifyManager.connect()
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: isConnected ? "checkmark.circle.fill" : "music.note")
+                            .font(.system(size: 16))
+                        Text(isConnected ? "Spotify Connected" : "Connect Spotify")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundStyle(isConnected ? .black : .white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(isConnected ? Color(.systemGray6) : Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .disabled(isConnected)
+
+                if !isConnected {
+                    Text("Skip for now")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 16)
+        Spacer()
+    }
+}
+
 #Preview {
     AccountCreationView()
         .environmentObject(AuthViewModel())
+        .environmentObject(SpotifyManager.shared)
 }

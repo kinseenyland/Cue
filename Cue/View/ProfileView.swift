@@ -26,31 +26,64 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 24) {
+                VStack(spacing: 20) {
+
+                    // MARK: Page Title
+                    HStack {
+                        Text("Profile")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(.black)
+                        Spacer()
+                    }
+                    .padding(.top, 8)
 
                     // MARK: Profile Header
-                    VStack(spacing: 10) {
+                    Text("My Info")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: 14) {
                         ZStack {
                             Circle()
                                 .fill(Color.black)
-                                .frame(width: 72, height: 72)
+                                .frame(width: 48, height: 48)
                             Text(initials.isEmpty ? "?" : initials)
-                                .font(.system(size: 26, weight: .semibold))
+                                .font(.system(size: 20, weight: .semibold))
                                 .foregroundColor(.white)
                         }
-                        if !displayName.isEmpty {
-                            Text(displayName)
-                                .font(.system(size: 22, weight: .semibold))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(displayName.isEmpty ? "Your Name" : displayName)
+                                .font(.system(size: 18, weight: .semibold))
                                 .foregroundColor(.black)
+                            if !email.isEmpty {
+                                Text(email)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
-                        if !email.isEmpty {
-                            Text(email)
-                                .font(.system(size: 13))
-                                .foregroundStyle(.secondary)
+                        Spacer()
+                        Button {
+                            authVM.signOut()
+                        } label: {
+                            Text("Sign Out")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.black)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .stroke(Color.black, lineWidth: 0.5)
+                                )
                         }
+                        .buttonStyle(.plain)
                     }
+                    .padding(12)
                     .frame(maxWidth: .infinity)
-                    .padding(.top, 16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.black, lineWidth: 0.5)
+                    )
 
                     // MARK: Teaching Preferences
                     if !profileVM.isLoading {
@@ -60,25 +93,6 @@ struct ProfileView: View {
                     // MARK: Music
                     musicSection
 
-                    Spacer(minLength: 24)
-
-                    // MARK: Sign Out
-                    Button {
-                        authVM.signOut()
-                    } label: {
-                        Text("Sign Out")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.black)
-                            .frame(maxWidth: .infinity)
-                            .padding(12)
-                            .background(Color.white)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.black, lineWidth: 0.5)
-                            )
-                            .cornerRadius(10)
-                    }
-                    .buttonStyle(.plain)
                 }
                 .padding(EdgeInsets(top: 0, leading: 16, bottom: 60, trailing: 16))
             }
@@ -163,12 +177,13 @@ struct ProfileView: View {
     }
 
     private func profileDataRow(label: String, value: String?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
+        HStack {
             Text(label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(.secondary)
+            Spacer()
             Text(value ?? "Not set")
-                .font(.system(size: 14, weight: value == nil ? .regular : .semibold))
+                .font(.system(size: 13, weight: value == nil ? .regular : .semibold))
                 .foregroundColor(value == nil ? .secondary : .black)
         }
     }
@@ -190,24 +205,18 @@ struct ProfileView: View {
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.black)
                 Spacer()
-                if spotifyManager.isConnected {
-                    Text("Connected")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.black)
-                } else {
-                    Button {
-                        showSpotifyPopup = true
-                    } label: {
-                        Text("Connect Your Account")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(10)
-                            .frame(height: 38)
-                            .background(.black)
-                            .cornerRadius(10)
-                    }
-                    .buttonStyle(.plain)
+                Button {
+                    showSpotifyPopup = true
+                } label: {
+                    Text(spotifyManager.isAuthenticated ? "Manage" : "Connect Spotify")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(10)
+                        .frame(height: 38)
+                        .background(.black)
+                        .cornerRadius(10)
                 }
+                .buttonStyle(.plain)
             }
             .padding(12)
             .frame(maxWidth: .infinity)
@@ -240,9 +249,9 @@ struct ProfileView: View {
 private struct EditProfileSheet: View {
     @ObservedObject var profileVM: ProfileViewModel
     let uid: String
+    let currentName: String
 
     @Environment(\.dismiss) private var dismiss
-    @State private var name: String
     @State private var selectedClassTypes: Set<WorkoutType>
     @State private var structurePreference: WorkoutStructurePreference?
     @State private var musicApproach: MusicApproach?
@@ -250,7 +259,7 @@ private struct EditProfileSheet: View {
     init(profileVM: ProfileViewModel, uid: String, currentName: String) {
         self.profileVM = profileVM
         self.uid = uid
-        _name = State(initialValue: currentName)
+        self.currentName = currentName
         _selectedClassTypes = State(initialValue: Set(profileVM.preferredClassTypes))
         _structurePreference = State(initialValue: profileVM.workoutStructure)
         _musicApproach = State(initialValue: profileVM.musicApproach)
@@ -260,19 +269,6 @@ private struct EditProfileSheet: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
-
-                    // Name
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Name")
-                            .font(.system(size: 15, weight: .medium))
-                        TextField("Your name", text: $name)
-                            .font(.system(size: 14))
-                            .padding(10)
-                            .background(Color(UIColor.systemGray6))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                    }
-
-                    Divider()
 
                     // Class types
                     VStack(alignment: .leading, spacing: 12) {
@@ -394,7 +390,7 @@ private struct EditProfileSheet: View {
                         let ordered = WorkoutType.allCases.filter { selectedClassTypes.contains($0) }
                         profileVM.save(
                             uid: uid,
-                            name: name.trimmingCharacters(in: .whitespaces),
+                            name: currentName,
                             preferredClassTypes: ordered,
                             workoutStructure: structurePreference,
                             musicApproach: musicApproach
@@ -403,7 +399,6 @@ private struct EditProfileSheet: View {
                     }
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.black)
-                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
         }
