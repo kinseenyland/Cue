@@ -12,6 +12,7 @@ struct PlanDetailView: View {
     @Binding var selectedTab: MainTab
     let onUpdate: (WorkoutPlanDraft) -> Void
     let onDelete: () -> Void
+    let onDuplicate: (String) -> Void
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
 
@@ -19,6 +20,8 @@ struct PlanDetailView: View {
     @State private var editingMovement: Movement? = nil
     @State private var isShowingDetailsEdit = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var isShowingDuplicatePrompt = false
+    @State private var duplicateName = ""
     @State private var warmUpPlaylistIdLocal: String?
     @State private var mainPlaylistIdLocal: String?
     @State private var coolDownPlaylistIdLocal: String?
@@ -26,11 +29,12 @@ struct PlanDetailView: View {
     @State private var isLoadingPlaylists = false
     @State private var playlistsError: String? = nil
 
-    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void) {
+    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void, onDuplicate: @escaping (String) -> Void) {
         self.plan = plan
         self._selectedTab = selectedTab
         self.onUpdate = onUpdate
         self.onDelete = onDelete
+        self.onDuplicate = onDuplicate
         self._localMovements = State(initialValue: plan.movements)
         self._warmUpPlaylistIdLocal = State(initialValue: plan.warmUpPlaylistId)
         self._mainPlaylistIdLocal = State(initialValue: plan.mainPlaylistId)
@@ -113,6 +117,12 @@ struct PlanDetailView: View {
 
                 Menu {
                     Button("Edit Plan Details") { isShowingDetailsEdit = true }
+                    Button {
+                        duplicateName = "\(plan.title) (Copy)"
+                        isShowingDuplicatePrompt = true
+                    } label: {
+                        Label("Duplicate Plan", systemImage: "doc.on.doc")
+                    }
                     Button("Delete Plan", role: .destructive) { isShowingDeleteConfirmation = true }
                 } label: {
                     Image(systemName: "ellipsis")
@@ -205,6 +215,18 @@ struct PlanDetailView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This action cannot be undone.")
+        }
+        .alert("Duplicate Plan", isPresented: $isShowingDuplicatePrompt) {
+            TextField("Plan name", text: $duplicateName)
+            Button("Duplicate") {
+                let name = duplicateName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                onDuplicate(name)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter a name for the duplicated plan.")
         }
         .sheet(isPresented: $isShowingDetailsEdit) {
             PlanDetailsEditSheet(plan: plan) { name, type, difficulty, duration in
@@ -827,7 +849,8 @@ private struct MovementDetailCard: View {
             ),
             selectedTab: .constant(.plans),
             onUpdate: { _ in },
-            onDelete: {}
+            onDelete: {},
+            onDuplicate: { _ in }
         )
         .environmentObject(WorkoutSessionViewModel())
     }
