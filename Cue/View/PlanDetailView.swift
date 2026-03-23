@@ -191,7 +191,9 @@ struct PlanDetailView: View {
             HStack {
                 Spacer()
                 Button {
-                    sessionVM.load(plan: plan)
+                    var updatedPlan = plan
+                    updatedPlan.movements = localMovements
+                    sessionVM.load(plan: updatedPlan)
                     selectedTab = .workout
                     dismiss()
                 } label: {
