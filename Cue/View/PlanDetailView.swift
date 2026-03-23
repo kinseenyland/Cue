@@ -12,7 +12,7 @@ struct PlanDetailView: View {
     @Binding var selectedTab: MainTab
     let onUpdate: (WorkoutPlanDraft) -> Void
     let onDelete: () -> Void
-    var availableTypes: [WorkoutType] = WorkoutType.allCases
+    let availableTypes: [WorkoutType]
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
 
@@ -27,11 +27,12 @@ struct PlanDetailView: View {
     @State private var isLoadingPlaylists = false
     @State private var playlistsError: String? = nil
 
-    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void) {
+    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void, availableTypes: [WorkoutType] = WorkoutType.allCases) {
         self.plan = plan
         self._selectedTab = selectedTab
         self.onUpdate = onUpdate
         self.onDelete = onDelete
+        self.availableTypes = availableTypes
         self._localMovements = State(initialValue: plan.movements)
         self._warmUpPlaylistIdLocal = State(initialValue: plan.warmUpPlaylistId)
         self._mainPlaylistIdLocal = State(initialValue: plan.mainPlaylistId)
