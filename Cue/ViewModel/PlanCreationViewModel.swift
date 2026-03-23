@@ -41,6 +41,13 @@ final class PlanCreationViewModel: ObservableObject {
     @Published var isLoadingPlaylists = false
     @Published var playlistsError: String? = nil
 
+    /// Workout types shown in the type-selection step. Defaults to all types; set to the user's taught class types when available.
+    var availableTypes: [WorkoutType] = WorkoutType.allCases
+
+    init(availableTypes: [WorkoutType] = WorkoutType.allCases) {
+        self.availableTypes = availableTypes
+    }
+
     var canAdvance: Bool {
         switch step {
         case .name:

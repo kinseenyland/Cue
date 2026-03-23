@@ -13,6 +13,7 @@ struct PlanDetailView: View {
     let onUpdate: (WorkoutPlanDraft) -> Void
     let onDelete: () -> Void
     let onDuplicate: (String) -> Void
+    let availableTypes: [WorkoutType]
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
 
@@ -29,12 +30,13 @@ struct PlanDetailView: View {
     @State private var isLoadingPlaylists = false
     @State private var playlistsError: String? = nil
 
-    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void, onDuplicate: @escaping (String) -> Void) {
+    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void, onDuplicate: @escaping (String) -> Void, availableTypes: [WorkoutType] = WorkoutType.allCases) {
         self.plan = plan
         self._selectedTab = selectedTab
         self.onUpdate = onUpdate
         self.onDelete = onDelete
         self.onDuplicate = onDuplicate
+        self.availableTypes = availableTypes
         self._localMovements = State(initialValue: plan.movements)
         self._warmUpPlaylistIdLocal = State(initialValue: plan.warmUpPlaylistId)
         self._mainPlaylistIdLocal = State(initialValue: plan.mainPlaylistId)
@@ -235,7 +237,7 @@ struct PlanDetailView: View {
             Text("Enter a name for the duplicated plan.")
         }
         .sheet(isPresented: $isShowingDetailsEdit) {
-            PlanDetailsEditSheet(plan: plan) { name, type, difficulty, duration in
+            PlanDetailsEditSheet(plan: plan, availableTypes: availableTypes) { name, type, difficulty, duration in
                 onUpdate(WorkoutPlanDraft(
                     title: name, type: type, difficulty: difficulty,
                     durationMinutes: duration, movements: localMovements
@@ -474,13 +476,15 @@ private struct PlanDetailsEditSheet: View {
     @State private var type: WorkoutType
     @State private var difficulty: Difficulty
     @State private var duration: Int
+    let availableTypes: [WorkoutType]
     let onSave: (String, WorkoutType, Difficulty, Int) -> Void
 
-    init(plan: WorkoutPlan, onSave: @escaping (String, WorkoutType, Difficulty, Int) -> Void) {
+    init(plan: WorkoutPlan, availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (String, WorkoutType, Difficulty, Int) -> Void) {
         _name = State(initialValue: plan.title)
         _type = State(initialValue: plan.type)
         _difficulty = State(initialValue: plan.difficulty)
         _duration = State(initialValue: plan.durationMinutes)
+        self.availableTypes = availableTypes
         self.onSave = onSave
     }
 
@@ -534,7 +538,7 @@ private struct PlanDetailsEditSheet: View {
                             .kerning(1.2)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                ForEach(WorkoutType.allCases, id: \.self) { t in
+                                ForEach(availableTypes, id: \.self) { t in
                                     Button {
                                         type = t
                                     } label: {

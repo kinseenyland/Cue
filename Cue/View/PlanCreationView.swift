@@ -6,10 +6,15 @@
 import SwiftUI
 
 struct PlanCreationView: View {
-    @StateObject private var vm = PlanCreationViewModel()
+    @StateObject private var vm: PlanCreationViewModel
     let onSave: (WorkoutPlanDraft) -> Void
     @Environment(\.dismiss) private var dismiss
     @State private var showExitConfirmation = false
+
+    init(availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (WorkoutPlanDraft) -> Void) {
+        _vm = StateObject(wrappedValue: PlanCreationViewModel(availableTypes: availableTypes))
+        self.onSave = onSave
+    }
 
     var body: some View {
         VStack(spacing: 0) {

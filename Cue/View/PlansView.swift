@@ -5,6 +5,7 @@
 //  Created by Kinsee Nyland on 2/10/26.
 //
 
+import FirebaseAuth
 import SwiftUI
 
 struct PlansView: View {
@@ -16,7 +17,14 @@ struct PlansView: View {
     @State private var alertMessage = ""
     @State private var selectedType: WorkoutType? = nil
     @StateObject private var vm = CueViewModel()
+    @StateObject private var profileVM = ProfileViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
+    @EnvironmentObject private var authVM: AuthViewModel
+
+    /// Class types to show in filter chips and plan creation. Falls back to all types if profile not loaded.
+    private var availableTypes: [WorkoutType] {
+        profileVM.preferredClassTypes.isEmpty ? WorkoutType.allCases : profileVM.preferredClassTypes
+    }
 
     var filteredPlans: [WorkoutPlan] {
         guard let type = selectedType else { return vm.plans }
@@ -48,7 +56,7 @@ struct PlansView: View {
                         PlanFilterChip(label: "All", isSelected: selectedType == nil) {
                             selectedType = nil
                         }
-                        ForEach(WorkoutType.allCases, id: \.self) { type in
+                        ForEach(availableTypes, id: \.self) { type in
                             PlanFilterChip(
                                 label: type.displayName,
                                 isSelected: selectedType == type
@@ -136,20 +144,22 @@ struct PlansView: View {
                     },
                     onDuplicate: { name in
                         Task { await vm.duplicatePlan(plan, newName: name) }
-                    }
+                    },
+                    availableTypes: availableTypes
                 )
             }
         }
         .task {
             await vm.fetchPlans()
+            if let uid = authVM.user?.uid { profileVM.load(uid: uid) }
         }
         .sheet(isPresented: $isPresentingCreateForm) {
-            PlanCreationView { newPlan in
+            PlanCreationView(availableTypes: availableTypes) { newPlan in
                 Task { await vm.createPlan(from: newPlan) }
             }
         }
         .sheet(item: $editingPlan) { plan in
-            WorkoutPlanFormView(draft: draft(from: plan)) { updated in
+            WorkoutPlanFormView(draft: draft(from: plan), availableTypes: availableTypes) { updated in
                 Task { await vm.updatePlan(id: plan.id, from: updated) }
             }
         }
