@@ -120,7 +120,7 @@ struct MovementListStepView: View {
                     assigningGoal = true
                     newGoalType = .reps
                 } label: {
-                    Text("Want to assign reps or time?")
+                    Text("Assign reps/time")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                         .underline()
@@ -243,7 +243,7 @@ struct MovementAddFormView: View {
                     assigningGoal = true
                     newGoalType = .reps
                 } label: {
-                    Text("Want to assign reps or time?")
+                    Text("Assign reps/time")
                         .font(.system(size: 13))
                         .foregroundStyle(.secondary)
                         .underline()

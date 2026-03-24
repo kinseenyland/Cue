@@ -11,8 +11,17 @@ struct PlanCreationView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showExitConfirmation = false
 
-    init(availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (WorkoutPlanDraft) -> Void) {
-        _vm = StateObject(wrappedValue: PlanCreationViewModel(availableTypes: availableTypes))
+    init(
+        availableTypes: [WorkoutType] = WorkoutType.allCases,
+        workoutStructure: WorkoutStructurePreference? = nil,
+        musicApproach: MusicApproach? = nil,
+        onSave: @escaping (WorkoutPlanDraft) -> Void
+    ) {
+        _vm = StateObject(wrappedValue: PlanCreationViewModel(
+            availableTypes: availableTypes,
+            workoutStructure: workoutStructure,
+            musicApproach: musicApproach
+        ))
         self.onSave = onSave
     }
 
@@ -160,6 +169,10 @@ struct PlanCreationView: View {
             PlanTypeStepView()
         case .duration:
             PlanDurationStepView()
+        case .musicApproachChoice:
+            MusicApproachChoiceStepView()
+        case .pickMusic:
+            PlanPickMusicStepView()
         case .warmUpMovements:
             VStack(alignment: .leading, spacing: 12) {
                 MovementListStepView(
@@ -168,18 +181,28 @@ struct PlanCreationView: View {
                     durationMinutes: $vm.draft.warmUpDurationMinutes,
                     movements: $vm.draft.warmUpMovements
                 )
-                PlanSectionPlaylistPicker(
-                    title: "Warm-up playlist",
-                    selectedPlaylistId: $vm.draft.warmUpPlaylistId
-                )
+                if vm.showInlinePlaylistPickers {
+                    PlanSectionPlaylistPicker(
+                        title: "Warm-up playlist",
+                        selectedPlaylistId: $vm.draft.warmUpPlaylistId
+                    )
+                } else if let name = vm.playlistName(for: vm.draft.warmUpPlaylistId) {
+                    AssignedPlaylistLabel(name: name)
+                        .padding(.horizontal, 24)
+                }
             }
         case .mainSections:
             VStack(alignment: .leading, spacing: 12) {
                 PlanMainSectionsStepView()
-                PlanSectionPlaylistPicker(
-                    title: "Main workout playlist",
-                    selectedPlaylistId: $vm.draft.mainPlaylistId
-                )
+                if vm.showInlinePlaylistPickers {
+                    PlanSectionPlaylistPicker(
+                        title: "Main workout playlist",
+                        selectedPlaylistId: $vm.draft.mainPlaylistId
+                    )
+                } else if let name = vm.playlistName(for: vm.draft.mainPlaylistId) {
+                    AssignedPlaylistLabel(name: name)
+                        .padding(.horizontal, 24)
+                }
             }
         case .mainMovements:
             PlanMainMovementsStepView()
@@ -191,10 +214,15 @@ struct PlanCreationView: View {
                     durationMinutes: $vm.draft.coolDownDurationMinutes,
                     movements: $vm.draft.coolDownMovements
                 )
-                PlanSectionPlaylistPicker(
-                    title: "Cool-down playlist",
-                    selectedPlaylistId: $vm.draft.coolDownPlaylistId
-                )
+                if vm.showInlinePlaylistPickers {
+                    PlanSectionPlaylistPicker(
+                        title: "Cool-down playlist",
+                        selectedPlaylistId: $vm.draft.coolDownPlaylistId
+                    )
+                } else if let name = vm.playlistName(for: vm.draft.coolDownPlaylistId) {
+                    AssignedPlaylistLabel(name: name)
+                        .padding(.horizontal, 24)
+                }
             }
         case .review:
             PlanReviewStepView()
@@ -225,9 +253,7 @@ struct PlanCreationView: View {
 
     // MARK: - Helpers
 
-    private var progress: Double {
-        Double(vm.step.rawValue + 1) / Double(PlanCreationStep.total)
-    }
+    private var progress: Double { vm.progress }
 }
 
 // MARK: - Playlist picker per section

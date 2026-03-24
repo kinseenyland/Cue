@@ -7,45 +7,82 @@ import Combine
 import Foundation
 import SwiftUI
 
-enum PlanCreationStep: Int, CaseIterable {
-    case name               = 0
-    case type               = 1
-    case duration           = 2
-    case warmUpMovements    = 3
-    case mainSections       = 4
-    case mainMovements      = 5
-    case coolDownMovements  = 6
-    case review             = 7
-
-    static let total = Self.allCases.count
+enum PlanCreationStep: Hashable {
+    case name, type, duration
+    case musicApproachChoice
+    case pickMusic
+    case warmUpMovements, mainSections, mainMovements
+    case coolDownMovements, review
 
     var title: String {
         switch self {
-        case .name:             return "Name Your Plan"
-        case .type:             return "Workout Type"
-        case .duration:         return "Duration"
-        case .warmUpMovements:  return "Warm-Up Movements"
-        case .mainSections:     return "Main Workout"
-        case .mainMovements:    return "Main Movements"
-        case .coolDownMovements: return "Cool-Down Movements"
-        case .review:           return "Review"
+        case .name:                return "Name Your Plan"
+        case .type:                return "Workout Type"
+        case .duration:            return "Duration"
+        case .musicApproachChoice: return "Music Approach"
+        case .pickMusic:           return "Pick Your Music"
+        case .warmUpMovements:     return "Warm-Up Movements"
+        case .mainSections:        return "Main Workout"
+        case .mainMovements:       return "Main Movements"
+        case .coolDownMovements:   return "Cool-Down Movements"
+        case .review:              return "Review"
         }
     }
 }
 
 @MainActor
 final class PlanCreationViewModel: ObservableObject {
-    @Published var step: PlanCreationStep = .name
+    @Published private(set) var currentStepIndex: Int = 0
     @Published var draft = PlanCreationDraft()
     @Published var spotifyPlaylists: [SpotifySearchService.SpotifyPlaylist] = []
     @Published var isLoadingPlaylists = false
     @Published var playlistsError: String? = nil
+    @Published var musicFlowChoice: MusicApproach? = nil {
+        didSet { currentStepIndex = min(currentStepIndex, steps.count - 1) }
+    }
+
+    var step: PlanCreationStep { steps[currentStepIndex] }
 
     /// Workout types shown in the type-selection step. Defaults to all types; set to the user's taught class types when available.
     var availableTypes: [WorkoutType] = WorkoutType.allCases
 
-    init(availableTypes: [WorkoutType] = WorkoutType.allCases) {
+    private let workoutStructure: WorkoutStructurePreference?
+    private let musicApproach: MusicApproach?
+
+    var resolvedMusicApproach: MusicApproach? {
+        if musicApproach == .flexible, let choice = musicFlowChoice { return choice }
+        return musicApproach
+    }
+
+    var showInlinePlaylistPickers: Bool {
+        resolvedMusicApproach != .musicFirst
+    }
+
+    var steps: [PlanCreationStep] {
+        var s: [PlanCreationStep] = [.name, .type, .duration]
+        if musicApproach == .flexible {
+            s.append(.musicApproachChoice)
+        }
+        if resolvedMusicApproach == .musicFirst {
+            s.append(.pickMusic)
+        }
+        s += [.warmUpMovements, .mainSections, .mainMovements, .coolDownMovements, .review]
+        return s
+    }
+
+    init(
+        availableTypes: [WorkoutType] = WorkoutType.allCases,
+        workoutStructure: WorkoutStructurePreference? = nil,
+        musicApproach: MusicApproach? = nil
+    ) {
         self.availableTypes = availableTypes
+        self.workoutStructure = workoutStructure
+        self.musicApproach = musicApproach
+        switch workoutStructure {
+        case .timeBased: draft.goalType = .timed
+        case .repBased:  draft.goalType = .reps
+        default:         break
+        }
     }
 
     /// Initializes pre-populated from an existing `WorkoutPlan` for editing.
@@ -53,6 +90,8 @@ final class PlanCreationViewModel: ObservableObject {
     /// the plan's flat `movements` array.
     init(editingPlan plan: WorkoutPlan, availableTypes: [WorkoutType] = WorkoutType.allCases) {
         self.availableTypes = availableTypes
+        self.workoutStructure = nil
+        self.musicApproach = nil
         draft.name = plan.title
         draft.type = plan.type
         draft.difficulty = plan.difficulty
@@ -109,6 +148,10 @@ final class PlanCreationViewModel: ObservableObject {
             return draft.type != nil && draft.difficulty != nil
         case .duration:
             return draft.durationMinutes > 0
+        case .musicApproachChoice:
+            return musicFlowChoice != nil
+        case .pickMusic:
+            return true
         case .warmUpMovements:
             return !draft.warmUpMovements.isEmpty
         case .mainSections:
@@ -123,19 +166,25 @@ final class PlanCreationViewModel: ObservableObject {
         }
     }
 
-    var isOnFirstStep: Bool { step == .name }
-    var isOnLastStep: Bool { step == .review }
+    var isOnFirstStep: Bool { currentStepIndex == 0 }
+    var isOnLastStep: Bool { currentStepIndex == steps.count - 1 }
+    var progress: Double { Double(currentStepIndex + 1) / Double(steps.count) }
 
     var suggestedMainMinutes: Int { max(0, draft.durationMinutes - 10) }
 
     func advance() {
-        guard canAdvance, let next = PlanCreationStep(rawValue: step.rawValue + 1) else { return }
-        step = next
+        guard canAdvance, currentStepIndex < steps.count - 1 else { return }
+        currentStepIndex += 1
     }
 
     func back() {
-        guard let prev = PlanCreationStep(rawValue: step.rawValue - 1) else { return }
-        step = prev
+        guard currentStepIndex > 0 else { return }
+        currentStepIndex -= 1
+    }
+
+    func playlistName(for uri: String?) -> String? {
+        guard let uri else { return nil }
+        return spotifyPlaylists.first(where: { $0.uri == uri })?.name
     }
 
     /// Converts the finished draft into a WorkoutPlanDraft for persisting to Firestore.

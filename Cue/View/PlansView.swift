@@ -11,7 +11,8 @@ import SwiftUI
 struct PlansView: View {
     @Binding var selectedTab: MainTab
     @State private var navigationPath = NavigationPath()
-    @State private var isPresentingCreateForm = false
+    @State private var isPresentingCreateChoice = false
+    @State private var presentedCreationMode: PlanCreationMode? = nil
     @State private var editingPlan: WorkoutPlan? = nil
     @State private var isShowingAlert = false
     @State private var alertMessage = ""
@@ -40,7 +41,11 @@ struct PlansView: View {
                         .foregroundStyle(.black)
                     Spacer()
                     Button {
-                        isPresentingCreateForm = true
+                        if vm.plans.isEmpty {
+                            presentedCreationMode = .guided
+                        } else {
+                            isPresentingCreateChoice = true
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 20))
@@ -153,9 +158,28 @@ struct PlansView: View {
             await vm.fetchPlans()
             if let uid = authVM.user?.uid { profileVM.load(uid: uid) }
         }
-        .sheet(isPresented: $isPresentingCreateForm) {
-            PlanCreationView(availableTypes: availableTypes) { newPlan in
-                Task { await vm.createPlan(from: newPlan) }
+        .sheet(isPresented: $isPresentingCreateChoice) {
+            PlanCreationChoiceView { mode in
+                presentedCreationMode = mode
+            }
+        }
+        .sheet(item: $presentedCreationMode) { mode in
+            switch mode {
+            case .guided:
+                PlanCreationView(
+                    availableTypes: availableTypes,
+                    workoutStructure: profileVM.workoutStructure,
+                    musicApproach: profileVM.musicApproach
+                ) { newPlan in
+                    Task { await vm.createPlan(from: newPlan) }
+                }
+            case .quick:
+                QuickCreateView(
+                    availableTypes: availableTypes,
+                    workoutStructure: profileVM.workoutStructure
+                ) { newPlan in
+                    Task { await vm.createPlan(from: newPlan) }
+                }
             }
         }
         .sheet(item: $editingPlan) { plan in
