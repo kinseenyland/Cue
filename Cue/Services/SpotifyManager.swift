@@ -30,6 +30,9 @@ class SpotifyManager: NSObject, ObservableObject {
     @Published var currentArtistName = ""
     @Published var currentArtwork: UIImage?
     @Published var isPaused = true
+    @Published var nextTrackTitle = ""
+    @Published var currentTrackRemainingSeconds = 0
+    @Published var currentTrackURI = ""
     /// True while exchanging auth code for token (user returned from browser but token not ready yet)
     @Published var isFinishingAuth = false
     @Published var accessToken: String? {
@@ -117,12 +120,52 @@ class SpotifyManager: NSObject, ObservableObject {
         print("[Spotify] Simulator: using web PKCE (search only; no playback).")
         return connectWithWebAuth()
         #else
+        // If we already have a token, prefer a direct App Remote connect.
+        // This matches the expected "Link Spotify app" behavior and avoids unnecessary re-authorization.
+        if accessToken != nil {
+            let didConnect = connectAppRemoteIfNeeded()
+            if didConnect { return true }
+        }
+
         print("[Spotify] Opening Spotify app to connect (playback). For creating playlists, tap \"Allow creating playlists\" after connecting.")
         // App Remote playback/control needs app-remote-control. We also request playback scopes for state/control.
         let scopes = ["app-remote-control", "user-read-playback-state", "user-modify-playback-state", "user-read-private"]
         appRemote.authorizeAndPlayURI("", asRadio: false, additionalScopes: scopes, sessionIdentifier: nil)
         return true
         #endif
+    }
+
+    /// Device-only: open Spotify app and immediately start playing the given URI.
+    /// This matches the "Link Spotify app" flow and avoids Web API "No active device found".
+    @MainActor
+    @discardableResult
+    func connectAndPlay(uri: String) -> Bool {
+        guard let normalizedURI = normalizedContextURI(from: uri) else { return connect() }
+        #if targetEnvironment(simulator)
+        print("[Spotify] Simulator: playback requires a physical device.")
+        playbackError = "Playback requires a physical device with the Spotify app installed."
+        return false
+        #else
+        print("[Spotify] Opening Spotify app to play URI: \(normalizedURI)")
+        let scopes = ["app-remote-control", "user-read-playback-state", "user-modify-playback-state", "user-read-private"]
+        appRemote.authorizeAndPlayURI(normalizedURI, asRadio: false, additionalScopes: scopes, sessionIdentifier: nil)
+        return true
+        #endif
+    }
+
+    /// Start a workout playlist. If App Remote is not connected yet, we open Spotify and start playback via App Remote.
+    func startWorkoutPlaylist(playlistUri: String) {
+        guard !playlistUri.isEmpty else { return }
+        #if targetEnvironment(simulator)
+        playbackError = "Playback requires a physical device with the Spotify app installed."
+        return
+        #endif
+
+        if appRemote.isConnected {
+            playPlaylistFromStart(playlistUri: playlistUri)
+        } else {
+            Task { @MainActor in _ = connectAndPlay(uri: playlistUri) }
+        }
     }
 
     /// Run Web PKCE and store token as API token (playlist scopes). Call this on device after connect() to enable create playlist. On simulator we already use PKCE for connect() so this is no-op.
@@ -413,6 +456,9 @@ class SpotifyManager: NSObject, ObservableObject {
             Task { @MainActor in
                 if let error { self?.playbackError = error.localizedDescription }
             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                self?.requestAppRemotePlayerStateNow()
+            }
         })
     }
 
@@ -430,6 +476,9 @@ class SpotifyManager: NSObject, ObservableObject {
         appRemote.playerAPI?.skip(toPrevious: { [weak self] _, error in
             Task { @MainActor in
                 if let error { self?.playbackError = error.localizedDescription }
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                self?.requestAppRemotePlayerStateNow()
             }
         })
     }
@@ -451,6 +500,9 @@ class SpotifyManager: NSObject, ObservableObject {
                     if let error { self?.playbackError = error.localizedDescription }
                     else { self?.playbackError = nil }
                 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    self?.requestAppRemotePlayerStateNow()
+                }
             })
         } else {
             appRemote.playerAPI?.pause({ [weak self] _, error in
@@ -458,13 +510,16 @@ class SpotifyManager: NSObject, ObservableObject {
                     if let error { self?.playbackError = error.localizedDescription }
                     else { self?.playbackError = nil }
                 }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                    self?.requestAppRemotePlayerStateNow()
+                }
             })
         }
     }
 
     /// Play a playlist from the beginning. Prefers Web API (supports offset position 0), falls back to App Remote play(uri).
     func playPlaylistFromStart(playlistUri: String) {
-        guard !playlistUri.isEmpty else { return }
+        guard let normalizedURI = normalizedContextURI(from: playlistUri) else { return }
         #if targetEnvironment(simulator)
         playbackError = "Playback requires a physical device with the Spotify app installed."
         return
@@ -474,13 +529,66 @@ class SpotifyManager: NSObject, ObservableObject {
             do {
                 // Spotify remembers shuffle state per device; explicitly disable it so order matches the playlist.
                 try? await setShuffleViaWebAPI(false)
-                try await playContextFromStartViaWebAPI(contextUri: playlistUri)
+                try await playContextFromStartViaWebAPI(contextUri: normalizedURI)
                 playbackError = nil
             } catch {
-                // If Web API playback fails (e.g. no active device), fall back to App Remote.
+                // If Web API playback fails (e.g. no active device), explicitly open/link Spotify app and play context.
                 print("[Spotify] Web API play failed, falling back to App Remote: \(error)")
-                self.play(trackUri: playlistUri)
+                _ = self.connectAndPlay(uri: normalizedURI)
             }
+        }
+    }
+
+    /// Fetch the next track in the user's playback queue via Web API and update `nextTrackTitle`.
+    func refreshNextTrackFromQueue() {
+        Task {
+            guard let token = tokenForWebAPI else { return }
+            var request = URLRequest(url: URL(string: "\(webAPIBaseURL)/me/player/queue")!)
+            request.httpMethod = "GET"
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+
+                if statusCode == 401 {
+                    let refreshed = await refreshWebAPITokenIfNeeded()
+                    if refreshed {
+                        refreshNextTrackFromQueue()
+                        return
+                    }
+                    await MainActor.run { self.clearWebAPICredentialsOnRefreshFailure() }
+                    return
+                }
+
+                guard statusCode == 200 else {
+                    return
+                }
+
+                let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+                let queue = json?["queue"] as? [[String: Any]]
+                let next = queue?.first
+                let name = next?["name"] as? String ?? ""
+
+                await MainActor.run {
+                    self.nextTrackTitle = name
+                }
+            } catch {
+                // Ignore errors; UI will simply not show an up-next title.
+            }
+        }
+    }
+
+    /// Queue can lag briefly right after track/context changes; refresh a few times.
+    func refreshQueueWithBurst() {
+        queueRefreshBurstTask?.cancel()
+        queueRefreshBurstTask = Task { [weak self] in
+            guard let self else { return }
+            self.refreshNextTrackFromQueue()
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            self.refreshNextTrackFromQueue()
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            self.refreshNextTrackFromQueue()
         }
     }
 
@@ -508,6 +616,29 @@ class SpotifyManager: NSObject, ObservableObject {
             let message = (json?["error"] as? [String: Any])?["message"] as? String
             throw NSError(domain: "Spotify", code: statusCode, userInfo: [NSLocalizedDescriptionKey: message ?? "HTTP \(statusCode)"])
         }
+    }
+
+    /// Accepts spotify URI, playlist ID, or open.spotify.com playlist URL and returns context URI.
+    private func normalizedContextURI(from value: String) -> String? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.hasPrefix("spotify:playlist:") {
+            return trimmed
+        }
+
+        if let url = URL(string: trimmed), let host = url.host?.lowercased(), host.contains("spotify.com") {
+            let components = url.pathComponents.filter { $0 != "/" }
+            if let idx = components.firstIndex(of: "playlist"), idx + 1 < components.count {
+                return "spotify:playlist:\(components[idx + 1])"
+            }
+        }
+
+        if !trimmed.contains(":") && !trimmed.contains("/") {
+            return "spotify:playlist:\(trimmed)"
+        }
+
+        return nil
     }
 
     private func playContextFromStartViaWebAPI(contextUri: String) async throws {
@@ -556,6 +687,13 @@ class SpotifyManager: NSObject, ObservableObject {
 
     /// Last playback error message for UI
     @Published var playbackError: String?
+    private var playbackSyncTask: Task<Void, Never>?
+    private var lastProgressMS: Int = 0
+    private var lastDurationMS: Int = 0
+    private var isRefreshingPlaybackSnapshot = false
+    private var lastArtworkTrackURI: String?
+    private var queueRefreshBurstTask: Task<Void, Never>?
+    private var lastLocalProgressUpdateAt: Date?
 
     /// Explicitly disconnect Spotify — clears Keychain tokens for this user.
     /// Called when the user intentionally wants to unlink Spotify from their account.
@@ -618,6 +756,143 @@ class SpotifyManager: NSObject, ObservableObject {
             appRemote.disconnect()
         }
         isAppRemoteConnecting = false
+        stopPlaybackSyncLoop()
+    }
+
+    func startPlaybackSyncLoop() {
+        if playbackSyncTask != nil { return }
+        playbackSyncTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                await self.refreshPlaybackSnapshot()
+                // Periodic correction from Spotify Web API.
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+            }
+        }
+    }
+
+    func stopPlaybackSyncLoop() {
+        playbackSyncTask?.cancel()
+        playbackSyncTask = nil
+    }
+
+    func tickPlaybackProgress() {
+        // Lightweight in-app ticking for smoother UI while the workout screen is visible.
+        // Source of truth still comes from Spotify snapshots and App Remote events.
+        guard !isPaused else { return }
+        guard currentTrackRemainingSeconds > 0 else { return }
+        let now = Date()
+        let lastTick = lastLocalProgressUpdateAt ?? now
+        let elapsed = max(0, now.timeIntervalSince(lastTick))
+        // Use real elapsed time instead of assuming perfect 1s timer cadence.
+        let elapsedMS = Int(elapsed * 1000)
+        guard elapsedMS > 0 else { return }
+        lastLocalProgressUpdateAt = now
+
+        lastProgressMS = min(lastDurationMS, lastProgressMS + elapsedMS)
+        // Round up so we don't look behind Spotify near second boundaries.
+        let remaining = max(0, Int(ceil(Double(lastDurationMS - lastProgressMS) / 1000.0)))
+        currentTrackRemainingSeconds = remaining
+
+        if currentTrackRemainingSeconds == 0 {
+            // Force immediate rollover sync when a track ends.
+            requestAppRemotePlayerStateNow()
+            refreshQueueWithBurst()
+            refreshPlaybackStateNow()
+        }
+    }
+
+    func refreshPlaybackStateNow() {
+        Task { [weak self] in
+            await self?.refreshPlaybackSnapshot()
+        }
+    }
+
+    func requestAppRemotePlayerStateNow() {
+        appRemote.playerAPI?.getPlayerState({ [weak self] result, error in
+            if let error {
+                print("[Spotify] getPlayerState failed: \(error.localizedDescription)")
+                return
+            }
+            if let state = result as? SPTAppRemotePlayerState {
+                self?.updateFromPlayerState(state)
+                self?.refreshQueueWithBurst()
+            }
+        })
+    }
+
+    private func refreshPlaybackSnapshot() async {
+        if isRefreshingPlaybackSnapshot { return }
+        isRefreshingPlaybackSnapshot = true
+        defer { isRefreshingPlaybackSnapshot = false }
+        guard let token = tokenForWebAPI else { return }
+        var request = URLRequest(url: URL(string: "\(webAPIBaseURL)/me/player")!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+
+            if statusCode == 401 {
+                let refreshed = await refreshWebAPITokenIfNeeded()
+                if refreshed {
+                    await refreshPlaybackSnapshot()
+                    return
+                }
+                await MainActor.run { self.clearWebAPICredentialsOnRefreshFailure() }
+                return
+            }
+
+            guard statusCode == 200 else { return }
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+
+            let isPlaying = (json["is_playing"] as? Bool) ?? false
+            let progressMS = (json["progress_ms"] as? Int) ?? 0
+            let item = json["item"] as? [String: Any]
+            let trackName = item?["name"] as? String ?? ""
+            let trackURI = item?["uri"] as? String ?? ""
+            let durationMS = item?["duration_ms"] as? Int ?? 0
+            let artists = item?["artists"] as? [[String: Any]]
+            let artistName = artists?.first?["name"] as? String ?? ""
+            let album = item?["album"] as? [String: Any]
+            let images = album?["images"] as? [[String: Any]]
+            let artworkURLString = images?.first?["url"] as? String
+
+            let remaining = max(0, Int(ceil(Double(durationMS - progressMS) / 1000.0)))
+
+            await MainActor.run {
+                let trackDidChange = self.currentTrackURI != trackURI && !trackURI.isEmpty
+                self.currentTrackName = trackName
+                self.currentTrackURI = trackURI
+                self.currentArtistName = artistName
+                self.isPaused = !isPlaying
+                self.currentTrackRemainingSeconds = remaining
+                self.lastProgressMS = progressMS
+                self.lastDurationMS = durationMS
+                self.lastLocalProgressUpdateAt = Date()
+                if trackDidChange {
+                    self.refreshQueueWithBurst()
+                }
+            }
+
+            if let artworkURLString, let url = URL(string: artworkURLString) {
+                do {
+                    let (imgData, _) = try await URLSession.shared.data(from: url)
+                    if let image = UIImage(data: imgData) {
+                        await MainActor.run {
+                            self.currentArtwork = image
+                        }
+                    }
+                } catch {
+                    // Ignore artwork fetch errors.
+                }
+            }
+
+            refreshQueueWithBurst()
+        } catch {
+            // Ignore snapshot errors; next loop tick can recover.
+        }
     }
     
     func handleURL(_ url: URL) {
@@ -662,6 +937,7 @@ extension SpotifyManager: SPTAppRemoteDelegate {
                 self?.updateFromPlayerState(state)
             }
         })
+        startPlaybackSyncLoop()
 
         if let cmd = pendingPlaybackCommand {
             pendingPlaybackCommand = nil
@@ -690,6 +966,7 @@ extension SpotifyManager: SPTAppRemoteDelegate {
         Task { @MainActor in
             self.isConnected = false
         }
+        stopPlaybackSyncLoop()
     }
     
     func appRemote(_ appRemote: SPTAppRemote, didFailConnectionAttemptWithError error: Error?) {
@@ -713,16 +990,29 @@ extension SpotifyManager: SPTAppRemotePlayerStateDelegate {
     func playerStateDidChange(_ playerState: SPTAppRemotePlayerState) {
         debugPrint("Track name: \(playerState.track.name)")
         updateFromPlayerState(playerState)
+        refreshNextTrackFromQueue()
     }
 }
 
 private extension SpotifyManager {
     func updateFromPlayerState(_ state: SPTAppRemotePlayerState) {
+        // Placeholder states can appear briefly around transitions; pull a fresh snapshot instead.
+        if state.track.name == "--" {
+            refreshPlaybackStateNow()
+            return
+        }
+
         Task { @MainActor in
             self.currentTrackName = state.track.name
+            self.currentTrackURI = state.track.uri
             self.currentArtistName = state.track.artist.name
             self.isPaused = state.isPaused
         }
+
+        // Avoid repeated image fetches for duplicate player-state events on same track.
+        guard lastArtworkTrackURI != state.track.uri else { return }
+        lastArtworkTrackURI = state.track.uri
+
         appRemote.imageAPI?.fetchImage(forItem: state.track, with: CGSize(width: 64, height: 64), callback: { [weak self] image, error in
             if let error {
                 print("[Spotify] fetchImage failed: \(error.localizedDescription)")

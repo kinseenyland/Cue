@@ -14,6 +14,7 @@ struct PlayerView: View {
     @EnvironmentObject private var spotifyManager: SpotifyManager
     @StateObject private var vm = CueViewModel()
     @State private var showExitConfirmation = false
+    @State private var lastSpotifyHardSyncAt = Date.distantPast
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -141,12 +142,60 @@ struct PlayerView: View {
                 }
             }
 
-            spotifyBar
-                .padding(.horizontal)
-                .padding(.bottom, 8)
+            VStack(spacing: 6) {
+                spotifyBar
+
+                if !spotifyManager.nextTrackTitle.isEmpty {
+                    HStack {
+                        Text("Up next:")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(spotifyManager.nextTrackTitle)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .lineLimit(1)
+                        Spacer()
+                    }
+                    .padding(10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemGray6))
+                    )
+                }
+            }
+            .padding(.horizontal)
+            .padding(.bottom, 8)
         }
         .onReceive(timer) { _ in
             sessionVM.tick()
+            spotifyManager.tickPlaybackProgress()
+
+            // Guaranteed periodic correction from Spotify every 30 seconds.
+            if Date().timeIntervalSince(lastSpotifyHardSyncAt) >= 30 {
+                spotifyManager.requestAppRemotePlayerStateNow()
+                spotifyManager.refreshPlaybackStateNow()
+                spotifyManager.refreshQueueWithBurst()
+                lastSpotifyHardSyncAt = Date()
+            }
+        }
+        .onAppear {
+            #if !targetEnvironment(simulator)
+            spotifyManager.connectAppRemoteIfNeeded()
+            #endif
+            spotifyManager.startPlaybackSyncLoop()
+            spotifyManager.requestAppRemotePlayerStateNow()
+            spotifyManager.refreshNextTrackFromQueue()
+            lastSpotifyHardSyncAt = Date()
+        }
+        .onChange(of: sessionVM.currentIndex) { _ in
+            // Move/section transitions should refresh now-playing + queue immediately.
+            spotifyManager.requestAppRemotePlayerStateNow()
+            spotifyManager.refreshPlaybackStateNow()
+            spotifyManager.refreshQueueWithBurst()
+            lastSpotifyHardSyncAt = Date()
+        }
+        .onDisappear {
+            spotifyManager.stopPlaybackSyncLoop()
         }
         .alert("End Workout?", isPresented: $showExitConfirmation) {
             Button("Keep Going", role: .cancel) { }
@@ -373,6 +422,12 @@ struct PlayerView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
+                if spotifyManager.currentTrackRemainingSeconds > 0 {
+                    Text("Time left: \(formatTimeLeft(spotifyManager.currentTrackRemainingSeconds))")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer()
@@ -411,6 +466,12 @@ struct PlayerView: View {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color(.systemGray4), lineWidth: 1)
         )
+    }
+
+    private func formatTimeLeft(_ seconds: Int) -> String {
+        let mins = seconds / 60
+        let secs = seconds % 60
+        return "\(mins):" + String(format: "%02d", secs)
     }
 }
 

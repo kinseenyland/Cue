@@ -9,8 +9,8 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject private var spotifyManager: SpotifyManager
     @EnvironmentObject private var authVM: AuthViewModel
+    @State private var isShowingSpotifyPage = false
     @StateObject private var profileVM = ProfileViewModel()
-    @State private var showSpotifyPopup = false
     @State private var showEditSheet = false
 
     private var displayName: String {
@@ -27,7 +27,6 @@ struct ProfileView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 20) {
-
                     // MARK: Page Title
                     HStack {
                         Text("Profile")
@@ -99,6 +98,10 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.white)
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $isShowingSpotifyPage) {
+                SpotifySearchView(onTrackSelected: { _ in })
+                    .environmentObject(spotifyManager)
+            }
         }
         .onAppear {
             if let uid = authVM.user?.uid {
@@ -206,9 +209,10 @@ struct ProfileView: View {
                     .foregroundColor(.black)
                 Spacer()
                 Button {
-                    showSpotifyPopup = true
+                    _ = spotifyManager.connect()
+                    isShowingSpotifyPage = true
                 } label: {
-                    Text(spotifyManager.isAuthenticated ? "Manage" : "Connect Spotify")
+                    Text("Manage Playlists")
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.white)
                         .padding(10)
@@ -227,19 +231,6 @@ struct ProfileView: View {
                     .inset(by: 0.50)
                     .stroke(.black, lineWidth: 0.50)
             )
-            .sheet(isPresented: $showSpotifyPopup) {
-                NavigationStack {
-                    SpotifySearchView(onTrackSelected: { _ in })
-                        .environmentObject(spotifyManager)
-                        .navigationTitle("Spotify")
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("Done") { showSpotifyPopup = false }
-                            }
-                        }
-                }
-            }
         }
     }
 }
