@@ -39,7 +39,7 @@ struct PlanTypeStepView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("LEVEL")
+                Text("INTENSITY")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .kerning(1.2)

@@ -269,6 +269,8 @@ struct PlanRowCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
+        .frame(height: 76)
+        .frame(maxWidth: .infinity)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(

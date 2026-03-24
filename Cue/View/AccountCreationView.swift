@@ -5,11 +5,16 @@
 
 import SwiftUI
 
+private enum AccountFocusField {
+    case name, email, password, confirmPassword
+}
+
 struct AccountCreationView: View {
     @StateObject private var vm = AccountCreationViewModel()
     @EnvironmentObject var authVM: AuthViewModel
     @EnvironmentObject private var spotifyManager: SpotifyManager
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var focusedField: AccountFocusField?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,6 +38,20 @@ struct AccountCreationView: View {
                 .padding(.bottom, 32)
         }
         .background(Color.white.ignoresSafeArea())
+        .toolbar(.hidden, for: .navigationBar)
+        .onChange(of: vm.step) { step in
+            switch step {
+            case .name:     focusedField = .name
+            case .email:    focusedField = .email
+            case .password: focusedField = .password
+            default:        focusedField = nil
+            }
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                focusedField = .name
+            }
+        }
     }
 
     // MARK: - Header
@@ -41,9 +60,17 @@ struct AccountCreationView: View {
         ZStack {
             HStack {
                 if vm.isOnFirstStep {
-                    Button("Cancel") { dismiss() }
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
+                    Button {
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 14, weight: .medium))
+                            Text("Welcome")
+                                .font(.system(size: 16))
+                        }
+                        .foregroundStyle(.black)
+                    }
                 } else {
                     Button {
                         vm.back()
@@ -87,22 +114,31 @@ struct AccountCreationView: View {
 
     @ViewBuilder
     private var stepContent: some View {
-        switch vm.step {
-        case .name:
-            AccountNameStepView(displayName: $vm.displayName)
-        case .email:
-            AccountEmailStepView(email: $vm.email, displayName: vm.displayName)
-        case .password:
-            AccountPasswordStepView(password: $vm.password, confirmPassword: $vm.confirmPassword)
-        case .classTypes:
-            AccountClassTypesStepView(selectedClassTypes: $vm.preferredClassTypes)
-        case .workoutStructure:
-            AccountWorkoutStructureStepView(structurePreference: $vm.workoutStructurePreference)
-        case .musicApproach:
-            AccountMusicApproachStepView(musicApproach: $vm.musicApproach)
-        case .spotify:
-            AccountSpotifyStepView()
-                .environmentObject(spotifyManager)
+        ZStack {
+            // Text-field steps stay permanently in hierarchy so keyboard never drops
+            AccountNameStepView(displayName: $vm.displayName, focusedField: $focusedField)
+                .opacity(vm.step == .name ? 1 : 0)
+                .allowsHitTesting(vm.step == .name)
+
+            AccountEmailStepView(email: $vm.email, displayName: vm.displayName, focusedField: $focusedField)
+                .opacity(vm.step == .email ? 1 : 0)
+                .allowsHitTesting(vm.step == .email)
+
+            AccountPasswordStepView(password: $vm.password, confirmPassword: $vm.confirmPassword, focusedField: $focusedField)
+                .opacity(vm.step == .password ? 1 : 0)
+                .allowsHitTesting(vm.step == .password)
+
+            // Selection steps only need to exist when active
+            if vm.step == .classTypes {
+                AccountClassTypesStepView(selectedClassTypes: $vm.preferredClassTypes)
+            } else if vm.step == .workoutStructure {
+                AccountWorkoutStructureStepView(structurePreference: $vm.workoutStructurePreference)
+            } else if vm.step == .musicApproach {
+                AccountMusicApproachStepView(musicApproach: $vm.musicApproach)
+            } else if vm.step == .spotify {
+                AccountSpotifyStepView()
+                    .environmentObject(spotifyManager)
+            }
         }
     }
 
@@ -145,6 +181,7 @@ struct AccountCreationView: View {
 
 private struct AccountNameStepView: View {
     @Binding var displayName: String
+    var focusedField: FocusState<AccountFocusField?>.Binding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -170,8 +207,11 @@ private struct AccountNameStepView: View {
                     .font(.system(size: 14, weight: .thin))
                     .textInputAutocapitalization(.words)
                     .autocorrectionDisabled()
+                    .focused(focusedField, equals: .name)
+                    .submitLabel(.done)
+                    .onSubmit { focusedField.wrappedValue = nil }
                     .padding(.horizontal, 9)
-                    .padding(.vertical, 10)
+                    .frame(height: 44)
                     .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
             }
         }
@@ -184,6 +224,7 @@ private struct AccountNameStepView: View {
 private struct AccountEmailStepView: View {
     @Binding var email: String
     let displayName: String
+    var focusedField: FocusState<AccountFocusField?>.Binding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -201,8 +242,11 @@ private struct AccountEmailStepView: View {
                     .textInputAutocapitalization(.never)
                     .keyboardType(.emailAddress)
                     .autocorrectionDisabled()
+                    .focused(focusedField, equals: .email)
+                    .submitLabel(.done)
+                    .onSubmit { focusedField.wrappedValue = nil }
                     .padding(.horizontal, 9)
-                    .padding(.vertical, 10)
+                    .frame(height: 44)
                     .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
             }
         }
@@ -215,6 +259,7 @@ private struct AccountEmailStepView: View {
 private struct AccountPasswordStepView: View {
     @Binding var password: String
     @Binding var confirmPassword: String
+    var focusedField: FocusState<AccountFocusField?>.Binding
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -229,14 +274,20 @@ private struct AccountPasswordStepView: View {
             VStack(alignment: .leading, spacing: 10) {
                 SecureField("password", text: $password)
                     .font(.system(size: 14, weight: .thin))
+                    .focused(focusedField, equals: .password)
+                    .submitLabel(.next)
+                    .onSubmit { focusedField.wrappedValue = .confirmPassword }
                     .padding(.horizontal, 9)
-                    .padding(.vertical, 10)
+                    .frame(height: 44)
                     .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
 
                 SecureField("confirm password", text: $confirmPassword)
                     .font(.system(size: 14, weight: .thin))
+                    .focused(focusedField, equals: .confirmPassword)
+                    .submitLabel(.done)
+                    .onSubmit { focusedField.wrappedValue = nil }
                     .padding(.horizontal, 9)
-                    .padding(.vertical, 10)
+                    .frame(height: 44)
                     .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
 
                 if !confirmPassword.isEmpty && password != confirmPassword {

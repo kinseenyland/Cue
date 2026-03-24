@@ -19,6 +19,9 @@ final class WorkoutSessionViewModel: ObservableObject {
     @Published var sectionRemainingSeconds: Int = 0
     @Published var moveRemainingSeconds: Int = 0
     @Published var isComplete: Bool = false
+    @Published var elapsedSeconds: Int = 0
+    var planType: WorkoutType?
+    var planDifficulty: Difficulty?
 
     var warmUpPlaylistId: String?
     var mainPlaylistId: String?
@@ -151,6 +154,9 @@ final class WorkoutSessionViewModel: ObservableObject {
         movements = plan.movements
         currentIndex = 0
         isRunning = true
+        elapsedSeconds = 0
+        planType = plan.type
+        planDifficulty = plan.difficulty
         warmUpPlaylistId = plan.warmUpPlaylistId
         mainPlaylistId = plan.mainPlaylistId
         coolDownPlaylistId = plan.coolDownPlaylistId
@@ -223,6 +229,7 @@ final class WorkoutSessionViewModel: ObservableObject {
 
     func tick() {
         guard isRunning else { return }
+        elapsedSeconds += 1
         if sectionRemainingSeconds > 0 {
             sectionRemainingSeconds -= 1
         }
@@ -241,9 +248,20 @@ final class WorkoutSessionViewModel: ObservableObject {
         currentIndex = 0
         isRunning = false
         isComplete = false
+        elapsedSeconds = 0
+        planType = nil
+        planDifficulty = nil
         sectionRemainingSeconds = 0
         moveRemainingSeconds = 0
     }
+
+    var elapsedTimeFormatted: String {
+        formatTime(elapsedSeconds)
+    }
+
+    var warmUpCount: Int { movements.filter { $0.section == .warmUp }.count }
+    var mainCount: Int { movements.filter { $0.section == .main }.count }
+    var coolDownCount: Int { movements.filter { $0.section == .coolDown }.count }
 
     // MARK: - Helpers
 

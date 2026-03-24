@@ -119,7 +119,7 @@ struct WorkoutPlanFormView: View {
                     }
 
                     FormDropdown(
-                        placeholder: "Select Difficulty",
+                        placeholder: "Select Intensity",
                         selected: selectedDifficulty?.rawValue.capitalized
                     ) {
                         ForEach(Difficulty.allCases, id: \.self) { diff in

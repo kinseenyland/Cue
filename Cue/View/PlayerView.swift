@@ -14,6 +14,8 @@ struct PlayerView: View {
     @EnvironmentObject private var spotifyManager: SpotifyManager
     @StateObject private var vm = CueViewModel()
     @State private var showExitConfirmation = false
+    @State private var showCheckmark = false
+    @State private var showStats = false
     @State private var lastSpotifyHardSyncAt = Date.distantPast
     private let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
 
@@ -358,27 +360,61 @@ struct PlayerView: View {
     // MARK: - Completion
 
     private var completionView: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 0) {
             Spacer()
 
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 80))
                 .foregroundStyle(.black)
+                .scaleEffect(showCheckmark ? 1.0 : 0.3)
+                .opacity(showCheckmark ? 1.0 : 0.0)
+                .animation(.spring(response: 0.5, dampingFraction: 0.6), value: showCheckmark)
 
             Text("Workout Complete!")
                 .font(.system(size: 28, weight: .bold))
+                .padding(.top, 16)
+                .opacity(showCheckmark ? 1.0 : 0.0)
+                .animation(.easeOut(duration: 0.4).delay(0.15), value: showCheckmark)
 
             Text(sessionVM.planTitle)
                 .font(.title3)
                 .foregroundStyle(.secondary)
+                .padding(.top, 4)
 
-            Text("\(sessionVM.movements.count) movements finished")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            // Stats grid
+            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                statCard(label: "Duration", value: sessionVM.elapsedTimeFormatted, icon: "timer")
+                statCard(label: "Movements", value: "\(sessionVM.movements.count)", icon: "figure.run")
+                statCard(label: "Type", value: sessionVM.planType?.displayName ?? "—", icon: "tag")
+                statCard(label: "Difficulty", value: sessionVM.planDifficulty?.rawValue.capitalized ?? "—", icon: "flame")
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 28)
+            .opacity(showStats ? 1 : 0)
+            .offset(y: showStats ? 0 : 20)
+            .animation(.easeOut(duration: 0.4).delay(0.35), value: showStats)
+
+            // Section breakdown
+            if sessionVM.warmUpCount > 0 || sessionVM.coolDownCount > 0 {
+                HStack(spacing: 8) {
+                    if sessionVM.warmUpCount > 0 {
+                        sectionPill("Warm-up", count: sessionVM.warmUpCount)
+                    }
+                    sectionPill("Main", count: sessionVM.mainCount)
+                    if sessionVM.coolDownCount > 0 {
+                        sectionPill("Cool-down", count: sessionVM.coolDownCount)
+                    }
+                }
+                .padding(.top, 16)
+                .opacity(showStats ? 1 : 0)
+                .animation(.easeOut(duration: 0.4).delay(0.5), value: showStats)
+            }
 
             Spacer()
 
             Button {
+                showCheckmark = false
+                showStats = false
                 sessionVM.reset()
                 selectedTab = .plans
             } label: {
@@ -395,6 +431,40 @@ struct PlayerView: View {
             .padding(.horizontal, 24)
             .padding(.bottom, 32)
         }
+        .onAppear {
+            showCheckmark = true
+            showStats = true
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        }
+    }
+
+    private func statCard(label: String, value: String, icon: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.system(size: 20, weight: .semibold))
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+    }
+
+    private func sectionPill(_ title: String, count: Int) -> some View {
+        Text("\(title) \(count)")
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color(.systemGray4), lineWidth: 1)
+            )
     }
 
     // MARK: - Music Card (placeholder for coworker)

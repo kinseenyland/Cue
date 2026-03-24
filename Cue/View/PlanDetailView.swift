@@ -18,6 +18,10 @@ struct PlanDetailView: View {
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
     @EnvironmentObject private var spotifyManager: SpotifyManager
 
+    @State private var localTitle: String
+    @State private var localType: WorkoutType
+    @State private var localDifficulty: Difficulty
+    @State private var localDuration: Int
     @State private var localMovements: [Movement]
     @State private var editingMovement: Movement? = nil
     @State private var isShowingDetailsEdit = false
@@ -39,6 +43,10 @@ struct PlanDetailView: View {
         self.onDelete = onDelete
         self.onDuplicate = onDuplicate
         self.availableTypes = availableTypes
+        self._localTitle = State(initialValue: plan.title)
+        self._localType = State(initialValue: plan.type)
+        self._localDifficulty = State(initialValue: plan.difficulty)
+        self._localDuration = State(initialValue: plan.durationMinutes)
         self._localMovements = State(initialValue: plan.movements)
         self._warmUpPlaylistIdLocal = State(initialValue: plan.warmUpPlaylistId)
         self._mainPlaylistIdLocal = State(initialValue: plan.mainPlaylistId)
@@ -76,7 +84,7 @@ struct PlanDetailView: View {
     }
 
     private var difficultyLabel: String {
-        switch plan.difficulty {
+        switch localDifficulty {
         case .easy: return "Low"
         case .medium: return "Medium"
         case .hard: return "High"
@@ -84,7 +92,7 @@ struct PlanDetailView: View {
     }
 
     private var typeIcon: String {
-        switch plan.type {
+        switch localType {
         case .matPilates, .reformerPilates: return "figure.pilates"
         case .yoga: return "figure.yoga"
         case .cycle: return "bicycle"
@@ -115,7 +123,7 @@ struct PlanDetailView: View {
 
             // Title + menu row
             HStack(alignment: .center, spacing: 10) {
-                Text(plan.title)
+                Text(localTitle)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(.black)
                     .lineLimit(1)
@@ -150,8 +158,8 @@ struct PlanDetailView: View {
             // Details Snapshot: Type, Time, Intensity
             HStack(spacing: 10) {
                 Spacer()
-                PlanDetailCard(icon: typeIcon, label: "Type", value: plan.type.displayName)
-                PlanDetailCard(icon: "timer", label: "Time", value: "\(plan.durationMinutes) min")
+                PlanDetailCard(icon: typeIcon, label: "Type", value: localType.displayName)
+                PlanDetailCard(icon: "timer", label: "Time", value: "\(localDuration) min")
                 PlanDetailCard(icon: "flame.fill", label: "Intensity", value: difficultyLabel)
                 Spacer()
             }
@@ -260,10 +268,20 @@ struct PlanDetailView: View {
             Text("Enter a name for the duplicated plan.")
         }
         .sheet(isPresented: $isShowingDetailsEdit) {
-            PlanDetailsEditSheet(plan: plan, availableTypes: availableTypes) { name, type, difficulty, duration in
+            PlanDetailsEditSheet(
+                title: localTitle, type: localType, difficulty: localDifficulty,
+                duration: localDuration, availableTypes: availableTypes
+            ) { name, type, difficulty, duration in
+                localTitle = name
+                localType = type
+                localDifficulty = difficulty
+                localDuration = duration
                 onUpdate(WorkoutPlanDraft(
                     title: name, type: type, difficulty: difficulty,
-                    durationMinutes: duration, movements: localMovements
+                    durationMinutes: duration, movements: localMovements,
+                    warmUpPlaylistId: warmUpPlaylistIdLocal,
+                    mainPlaylistId: mainPlaylistIdLocal,
+                    coolDownPlaylistId: coolDownPlaylistIdLocal
                 ))
             }
         }
@@ -431,8 +449,8 @@ struct PlanDetailView: View {
 
     private func saveMovements() {
         onUpdate(WorkoutPlanDraft(
-            title: plan.title, type: plan.type, difficulty: plan.difficulty,
-            durationMinutes: plan.durationMinutes,
+            title: localTitle, type: localType, difficulty: localDifficulty,
+            durationMinutes: localDuration,
             movements: localMovements,
             warmUpPlaylistId: warmUpPlaylistIdLocal,
             mainPlaylistId: mainPlaylistIdLocal,
@@ -501,20 +519,31 @@ private struct PlanDetailsEditSheet: View {
     @State private var type: WorkoutType
     @State private var difficulty: Difficulty
     @State private var duration: Int
+    @State private var durationText: String
+    @FocusState private var durationFocused: Bool
+    @State private var isDurationEditing: Bool = false
     let availableTypes: [WorkoutType]
     let onSave: (String, WorkoutType, Difficulty, Int) -> Void
 
-    init(plan: WorkoutPlan, availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (String, WorkoutType, Difficulty, Int) -> Void) {
-        _name = State(initialValue: plan.title)
-        _type = State(initialValue: plan.type)
-        _difficulty = State(initialValue: plan.difficulty)
-        _duration = State(initialValue: plan.durationMinutes)
+    init(title: String, type: WorkoutType, difficulty: Difficulty, duration: Int, availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (String, WorkoutType, Difficulty, Int) -> Void) {
+        _name = State(initialValue: title)
+        _type = State(initialValue: type)
+        _difficulty = State(initialValue: difficulty)
+        _duration = State(initialValue: duration)
+        _durationText = State(initialValue: "\(duration)")
         self.availableTypes = availableTypes
         self.onSave = onSave
     }
 
     private var canSave: Bool {
         !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private func commitDuration() {
+        if let val = Int(durationText), val > 0 { duration = val }
+        durationText = "\(duration)"
+        isDurationEditing = false
+        durationFocused = false
     }
 
     var body: some View {
@@ -529,6 +558,7 @@ private struct PlanDetailsEditSheet: View {
                     .font(.system(size: 17, weight: .semibold))
                 Spacer()
                 Button("Save") {
+                    commitDuration()
                     onSave(name.trimmingCharacters(in: .whitespacesAndNewlines), type, difficulty, duration)
                     dismiss()
                 }
@@ -543,6 +573,7 @@ private struct PlanDetailsEditSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 28) {
                     // Name
+
                     VStack(alignment: .leading, spacing: 8) {
                         Text("PLAN NAME")
                             .font(.system(size: 11, weight: .semibold))
@@ -585,7 +616,7 @@ private struct PlanDetailsEditSheet: View {
 
                     // Difficulty
                     VStack(alignment: .leading, spacing: 12) {
-                        Text("DIFFICULTY")
+                        Text("INTENSITY")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .kerning(1.2)
@@ -616,7 +647,9 @@ private struct PlanDetailsEditSheet: View {
                             .kerning(1.2)
                         HStack(spacing: 16) {
                             Button {
+                                commitDuration()
                                 if duration > 5 { duration -= 5 }
+                                durationText = "\(duration)"
                             } label: {
                                 Image(systemName: "minus")
                                     .font(.system(size: 16, weight: .medium))
@@ -626,12 +659,24 @@ private struct PlanDetailsEditSheet: View {
                             }
                             .buttonStyle(.plain)
 
-                            Text("\(duration) min")
-                                .font(.system(size: 18, weight: .semibold))
-                                .frame(minWidth: 80, alignment: .center)
+                            HStack(spacing: 4) {
+                                TextField("", text: $durationText)
+                                    .keyboardType(.numberPad)
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .multilineTextAlignment(.center)
+                                    .focused($durationFocused)
+                                    .frame(width: 52)
+                                    .padding(.vertical, 6)
+                                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                                Text("min")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundStyle(.black)
+                            }
 
                             Button {
+                                commitDuration()
                                 duration += 5
+                                durationText = "\(duration)"
                             } label: {
                                 Image(systemName: "plus")
                                     .font(.system(size: 16, weight: .medium))
@@ -648,6 +693,10 @@ private struct PlanDetailsEditSheet: View {
             }
         }
         .background(Color.white.ignoresSafeArea())
+        .scrollDismissesKeyboard(.immediately)
+        .onChange(of: durationFocused) { _, focused in
+            if !focused { commitDuration() }
+        }
     }
 }
 
