@@ -162,6 +162,8 @@ final class WorkoutSessionViewModel: ObservableObject {
         coolDownPlaylistId = plan.coolDownPlaylistId
         resetSectionTimer()
         resetMoveTimer()
+        // Ensure App Remote is connected so UI receives live now-playing updates.
+        _ = SpotifyManager.shared.connectAppRemoteIfNeeded()
         startPlaylistForCurrentSectionIfAny()
     }
 
@@ -302,6 +304,16 @@ final class WorkoutSessionViewModel: ObservableObject {
         }
         guard let pid = playlistId, !pid.isEmpty else { return }
         SpotifyManager.shared.playPlaylistFromStart(playlistUri: pid)
+        // Force now-playing/queue refresh on section playlist changes.
+        SpotifyManager.shared.requestAppRemotePlayerStateNow()
+        SpotifyManager.shared.refreshPlaybackStateNow()
+        SpotifyManager.shared.refreshQueueWithBurst()
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            SpotifyManager.shared.requestAppRemotePlayerStateNow()
+            SpotifyManager.shared.refreshPlaybackStateNow()
+            SpotifyManager.shared.refreshQueueWithBurst()
+        }
     }
 
     private func formatTime(_ seconds: Int) -> String {

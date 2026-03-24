@@ -138,6 +138,9 @@ struct ScheduleView: View {
                     },
                     onDelete: {
                         Task { await plansVM.deletePlan(id: plan.id) }
+                    },
+                    onDuplicate: { name in
+                        Task { await plansVM.duplicatePlan(plan, newName: name) }
                     }
                 )
             }

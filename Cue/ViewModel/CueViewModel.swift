@@ -235,6 +235,20 @@ class CueViewModel: ObservableObject {
         }
     }
 
+    func duplicatePlan(_ plan: WorkoutPlan, newName: String) async {
+        let draft = WorkoutPlanDraft(
+            title: newName,
+            type: plan.type,
+            difficulty: plan.difficulty,
+            durationMinutes: plan.durationMinutes,
+            movements: plan.movements,
+            warmUpPlaylistId: plan.warmUpPlaylistId,
+            mainPlaylistId: plan.mainPlaylistId,
+            coolDownPlaylistId: plan.coolDownPlaylistId
+        )
+        await createPlan(from: draft)
+    }
+
     func deletePlan(id: String) async {
         statusMessage = "Deleting plan..."
         errorMessage = nil

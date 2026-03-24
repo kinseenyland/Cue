@@ -12,9 +12,11 @@ struct PlanDetailView: View {
     @Binding var selectedTab: MainTab
     let onUpdate: (WorkoutPlanDraft) -> Void
     let onDelete: () -> Void
+    let onDuplicate: (String) -> Void
     let availableTypes: [WorkoutType]
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
+    @EnvironmentObject private var spotifyManager: SpotifyManager
 
     @State private var localTitle: String
     @State private var localType: WorkoutType
@@ -24,18 +26,22 @@ struct PlanDetailView: View {
     @State private var editingMovement: Movement? = nil
     @State private var isShowingDetailsEdit = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var isShowingDuplicatePrompt = false
+    @State private var duplicateName = ""
     @State private var warmUpPlaylistIdLocal: String?
     @State private var mainPlaylistIdLocal: String?
     @State private var coolDownPlaylistIdLocal: String?
     @State private var playlists: [SpotifySearchService.SpotifyPlaylist] = []
     @State private var isLoadingPlaylists = false
     @State private var playlistsError: String? = nil
+    @State private var isShowingSpotifyAlert = false
 
-    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void, availableTypes: [WorkoutType] = WorkoutType.allCases) {
+    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void, onDuplicate: @escaping (String) -> Void, availableTypes: [WorkoutType] = WorkoutType.allCases) {
         self.plan = plan
         self._selectedTab = selectedTab
         self.onUpdate = onUpdate
         self.onDelete = onDelete
+        self.onDuplicate = onDuplicate
         self.availableTypes = availableTypes
         self._localTitle = State(initialValue: plan.title)
         self._localType = State(initialValue: plan.type)
@@ -98,6 +104,10 @@ struct PlanDetailView: View {
     // MARK: - Body
 
     var body: some View {
+        let isSpotifyAuthenticated =
+        (spotifyManager.accessToken != nil || spotifyManager.apiAccessToken != nil) &&
+        !spotifyManager.isFinishingAuth
+
         VStack(alignment: .leading, spacing: 8) {
             // Back button row
             HStack {
@@ -122,8 +132,18 @@ struct PlanDetailView: View {
                 Spacer()
 
                 Menu {
-                    Button("Edit Plan Details") { isShowingDetailsEdit = true }
-                    Button("Delete Plan", role: .destructive) { isShowingDeleteConfirmation = true }
+                    Button { isShowingDetailsEdit = true } label: {
+                        Label("Edit Plan Details", systemImage: "pencil")
+                    }
+                    Button {
+                        duplicateName = "\(plan.title) (Copy)"
+                        isShowingDuplicatePrompt = true
+                    } label: {
+                        Label("Duplicate Plan", systemImage: "doc.on.doc")
+                    }
+                    Button(role: .destructive) { isShowingDeleteConfirmation = true } label: {
+                        Label("Delete Plan", systemImage: "trash")
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                         .rotationEffect(.degrees(90))
@@ -187,9 +207,15 @@ struct PlanDetailView: View {
             HStack {
                 Spacer()
                 Button {
-                    sessionVM.load(plan: plan)
-                    selectedTab = .workout
-                    dismiss()
+                    var updatedPlan = plan
+                    updatedPlan.movements = localMovements
+                    if spotifyManager.isConnected || !isSpotifyAuthenticated {
+                        sessionVM.load(plan: updatedPlan)
+                        selectedTab = .workout
+                        dismiss()
+                    } else {
+                        isShowingSpotifyAlert = true
+                    }
                 } label: {
                     Text("Start Lesson")
                         .font(.system(size: 12, weight: .heavy))
@@ -210,11 +236,36 @@ struct PlanDetailView: View {
         .task {
             await loadPlaylistsIfNeeded()
         }
+        .alert("Connect to Spotify", isPresented: $isShowingSpotifyAlert) {
+            Button("Connect & Start") {
+                _ = spotifyManager.connect()
+                var updatedPlan = plan
+                updatedPlan.movements = localMovements
+                sessionVM.load(plan: updatedPlan)
+                selectedTab = .workout
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Connect to Spotify so your workout music can start automatically.")
+        }
         .alert("Delete \"\(plan.title)\"?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) { onDelete(); dismiss() }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This action cannot be undone.")
+        }
+        .alert("Duplicate Plan", isPresented: $isShowingDuplicatePrompt) {
+            TextField("Plan name", text: $duplicateName)
+            Button("Duplicate") {
+                let name = duplicateName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                onDuplicate(name)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter a name for the duplicated plan.")
         }
         .sheet(isPresented: $isShowingDetailsEdit) {
             PlanDetailsEditSheet(
@@ -413,9 +464,10 @@ struct PlanDetailView: View {
     }
 
     private func updatePlaylist(for sectionTitle: String, to id: String?) {
-        var warm = plan.warmUpPlaylistId
-        var main = plan.mainPlaylistId
-        var cool = plan.coolDownPlaylistId
+        // Base off local state so repeated taps don't "revert" to the original plan values.
+        var warm = warmUpPlaylistIdLocal
+        var main = mainPlaylistIdLocal
+        var cool = coolDownPlaylistIdLocal
 
         switch sectionTitle {
         case "WARM-UP":
@@ -433,6 +485,7 @@ struct PlanDetailView: View {
         mainPlaylistIdLocal = main
         coolDownPlaylistIdLocal = cool
 
+        // Persist immediately on tap.
         onUpdate(WorkoutPlanDraft(
             title: plan.title,
             type: plan.type,
@@ -819,6 +872,7 @@ private struct MovementDetailCard: View {
     let movement: Movement
     let onEdit: () -> Void
     let onDelete: () -> Void
+    @State private var showDeleteConfirmation = false
 
     private var goalText: String {
         switch movement.goalType {
@@ -844,7 +898,7 @@ private struct MovementDetailCard: View {
                 }
             }
             Spacer()
-            Button(action: onDelete) {
+            Button { showDeleteConfirmation = true } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 13))
                     .foregroundStyle(Color(.systemGray3))
@@ -860,6 +914,12 @@ private struct MovementDetailCard: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { onEdit() }
+        .alert("Delete \"\(movement.name)\"?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) { onDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This movement will be removed from the plan.")
+        }
     }
 }
 
@@ -880,7 +940,8 @@ private struct MovementDetailCard: View {
             ),
             selectedTab: .constant(.plans),
             onUpdate: { _ in },
-            onDelete: {}
+            onDelete: {},
+            onDuplicate: { _ in }
         )
         .environmentObject(WorkoutSessionViewModel())
     }
