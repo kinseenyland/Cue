@@ -64,7 +64,7 @@ struct MainTabView: View {
 }
 
 extension MainTab {
-    static let visibleTabs: [MainTab] = [.home, .schedule, .plans, .profile, .spotify]
+    static let visibleTabs: [MainTab] = [.home, .schedule, .plans, .profile]
 
     var label: String {
         switch self {

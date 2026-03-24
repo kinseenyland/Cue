@@ -14,6 +14,7 @@ struct PlanDetailView: View {
     let onDelete: () -> Void
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
+    @EnvironmentObject private var spotifyManager: SpotifyManager
 
     @State private var localMovements: [Movement]
     @State private var editingMovement: Movement? = nil
@@ -25,6 +26,7 @@ struct PlanDetailView: View {
     @State private var playlists: [SpotifySearchService.SpotifyPlaylist] = []
     @State private var isLoadingPlaylists = false
     @State private var playlistsError: String? = nil
+    @State private var isShowingSpotifyAlert = false
 
     init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void) {
         self.plan = plan
@@ -88,6 +90,10 @@ struct PlanDetailView: View {
     // MARK: - Body
 
     var body: some View {
+        let isSpotifyAuthenticated =
+        (spotifyManager.accessToken != nil || spotifyManager.apiAccessToken != nil) &&
+        !spotifyManager.isFinishingAuth
+
         VStack(alignment: .leading, spacing: 8) {
             // Back button row
             HStack {
@@ -177,9 +183,13 @@ struct PlanDetailView: View {
             HStack {
                 Spacer()
                 Button {
-                    sessionVM.load(plan: plan)
-                    selectedTab = .workout
-                    dismiss()
+                    if spotifyManager.isConnected || !isSpotifyAuthenticated {
+                        sessionVM.load(plan: plan)
+                        selectedTab = .workout
+                        dismiss()
+                    } else {
+                        isShowingSpotifyAlert = true
+                    }
                 } label: {
                     Text("Start Lesson")
                         .font(.system(size: 12, weight: .heavy))
@@ -199,6 +209,17 @@ struct PlanDetailView: View {
         .navigationBarBackButtonHidden(true)
         .task {
             await loadPlaylistsIfNeeded()
+        }
+        .alert("Connect to Spotify", isPresented: $isShowingSpotifyAlert) {
+            Button("Connect & Start") {
+                _ = spotifyManager.connect()
+                sessionVM.load(plan: plan)
+                selectedTab = .workout
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Connect to Spotify so your workout music can start automatically.")
         }
         .alert("Delete \"\(plan.title)\"?", isPresented: $isShowingDeleteConfirmation) {
             Button("Delete", role: .destructive) { onDelete(); dismiss() }
@@ -393,9 +414,10 @@ struct PlanDetailView: View {
     }
 
     private func updatePlaylist(for sectionTitle: String, to id: String?) {
-        var warm = plan.warmUpPlaylistId
-        var main = plan.mainPlaylistId
-        var cool = plan.coolDownPlaylistId
+        // Base off local state so repeated taps don't "revert" to the original plan values.
+        var warm = warmUpPlaylistIdLocal
+        var main = mainPlaylistIdLocal
+        var cool = coolDownPlaylistIdLocal
 
         switch sectionTitle {
         case "WARM-UP":
@@ -413,6 +435,7 @@ struct PlanDetailView: View {
         mainPlaylistIdLocal = main
         coolDownPlaylistIdLocal = cool
 
+        // Persist immediately on tap.
         onUpdate(WorkoutPlanDraft(
             title: plan.title,
             type: plan.type,

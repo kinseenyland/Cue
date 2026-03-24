@@ -161,6 +161,11 @@ struct PlayerView: View {
         .onReceive(timer) { _ in
             sessionVM.tick()
         }
+        .onAppear {
+            #if !targetEnvironment(simulator)
+            spotifyManager.connectAppRemoteIfNeeded()
+            #endif
+        }
     }
 
     // MARK: - Movement Card

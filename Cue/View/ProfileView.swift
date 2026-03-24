@@ -8,7 +8,7 @@ import SwiftUI
 struct ProfileView: View {
     @EnvironmentObject private var spotifyManager: SpotifyManager
     @EnvironmentObject private var authVM: AuthViewModel
-    @State private var showSpotifyPopup = false
+    @State private var isShowingSpotifyPage = false
 
     var body: some View {
         NavigationStack {
@@ -41,27 +41,22 @@ struct ProfileView: View {
                         
                         Spacer()
 
-                        if spotifyManager.isConnected {
-                            Text("Connected")
-                                .font(.system(size: 16, weight: .semibold))
-                                .lineSpacing(22)
-                                .foregroundColor(.black)
-                        } else {
-                            Button {
-                                showSpotifyPopup = true
-                            } label: {
-                                HStack(spacing: 10) {
-                                    Text("Connect Your Account")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundColor(.white)
-                                }
-                                .padding(10)
-                                .frame(height: 38)
-                                .background(.black)
-                                .cornerRadius(10)
+                        Button {
+                            // Connect to Spotify without triggering playback, then open playlist manager.
+                            _ = spotifyManager.connect()
+                            isShowingSpotifyPage = true
+                        } label: {
+                            HStack(spacing: 10) {
+                                Text("Manage Playlists")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
                             }
-                            .buttonStyle(.plain)
+                            .padding(10)
+                            .frame(height: 38)
+                            .background(.black)
+                            .cornerRadius(10)
                         }
+                        .buttonStyle(.plain)
                     }
                     .padding(EdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12))
                 }
@@ -73,21 +68,7 @@ struct ProfileView: View {
                         .inset(by: 0.50)
                         .stroke(.black, lineWidth: 0.50)
                 )
-                .sheet(isPresented: $showSpotifyPopup) {
-                    NavigationStack {
-                        SpotifySearchView(onTrackSelected: { _ in })
-                            .environmentObject(spotifyManager)
-                        .navigationTitle("Spotify")
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .cancellationAction) {
-                                Button("Done") {
-                                    showSpotifyPopup = false
-                                }
-                            }
-                        }
-                    }
-                }
+                // Previously this was a modal sheet; now we navigate directly to the Spotify page.
 
                 Spacer()
 
@@ -116,6 +97,10 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(.white)
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(isPresented: $isShowingSpotifyPage) {
+                SpotifySearchView(onTrackSelected: { _ in })
+                    .environmentObject(spotifyManager)
+            }
         }
     }
 }

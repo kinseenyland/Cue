@@ -154,6 +154,8 @@ final class WorkoutSessionViewModel: ObservableObject {
         coolDownPlaylistId = plan.coolDownPlaylistId
         resetSectionTimer()
         resetMoveTimer()
+        // Ensure App Remote is connected so UI receives live now-playing updates.
+        _ = SpotifyManager.shared.connectAppRemoteIfNeeded()
         startPlaylistForCurrentSectionIfAny()
     }
 

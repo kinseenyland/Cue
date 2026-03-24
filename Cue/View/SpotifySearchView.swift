@@ -14,10 +14,21 @@ struct SpotifySearchView: View {
     @StateObject private var viewModel = SpotifySearchViewModel()
     @State private var isConnecting = false
     @State private var connectionError: String?
+    @State private var playlistSearchQuery = ""
+    @State private var isShowingNewPlaylistNameField = false
     var onTrackSelected: (SpotifySearchService.SpotifyTrack) -> Void = { _ in }
 
     private var isAuthenticated: Bool {
         (spotifyManager.accessToken != nil || spotifyManager.apiAccessToken != nil) && !spotifyManager.isFinishingAuth
+    }
+
+    private var isEditingPlaylist: Bool {
+        viewModel.selectedPlaylistForEditing != nil
+    }
+
+    /// Used in playlist editing to show "already added" state in search results.
+    private func isTrackInEditingPlaylist(_ track: SpotifySearchService.SpotifyTrack) -> Bool {
+        viewModel.playlistTracks.contains(where: { $0.track.id == track.id })
     }
 
     /// On device we need a separate API token (from browser) for playlist scopes. On simulator we use PKCE for connect so we already have scopes.
@@ -59,35 +70,39 @@ struct SpotifySearchView: View {
             }
 
             // Create playlist
-            if isAuthenticated {
+            if isAuthenticated && !isEditingPlaylist {
                 createPlaylistSection
             }
 
             // My playlists (browse & edit)
-            if isAuthenticated && hasPlaylistAccess {
+            if isAuthenticated && hasPlaylistAccess && !isEditingPlaylist && viewModel.currentPlaylist == nil {
                 myPlaylistsSection
             }
 
-            // Search Bar
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.gray)
-                TextField("Search songs...", text: $viewModel.searchQuery)
-                    .autocorrectionDisabled()
-                    .disabled(!isAuthenticated)
-                if !viewModel.searchQuery.isEmpty {
-                    Button {
-                        viewModel.clear()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
+            if !isEditingPlaylist {
+                // When creating a new playlist, search songs so users can add tracks.
+                if viewModel.currentPlaylist != nil {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
                             .foregroundColor(.gray)
+                        TextField("Search songs to add...", text: $viewModel.searchQuery)
+                            .autocorrectionDisabled()
+                            .disabled(!isAuthenticated)
+                        if !viewModel.searchQuery.isEmpty {
+                            Button {
+                                viewModel.clear()
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundColor(.gray)
+                            }
+                        }
                     }
+                    .padding(10)
+                    .background(Color(.systemGray6))
+                    .cornerRadius(10)
+                    .padding()
                 }
             }
-            .padding(10)
-            .background(Color(.systemGray6))
-            .cornerRadius(10)
-            .padding()
             
             // States
             if spotifyManager.isFinishingAuth || !isAuthenticated {
@@ -95,63 +110,62 @@ struct SpotifySearchView: View {
             } else if viewModel.selectedPlaylistForEditing != nil {
                 // Playlist editor: add-songs search + playlist tracks
                 VStack(alignment: .leading, spacing: 0) {
+                    playlistEditorHeader
                     addSongsSection
-                    playlistEditContent
-                }
-            } else if viewModel.isLoading {
-                Spacer()
-                ProgressView("Searching...")
-                Spacer()
-            } else if let error = viewModel.errorMessage {
-                Spacer()
-                Text(error)
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.center)
-                    .padding()
-                Spacer()
-            } else if viewModel.tracks.isEmpty && !viewModel.searchQuery.isEmpty {
-                Spacer()
-                Text("No results found")
-                    .foregroundColor(.gray)
-                Spacer()
-            } else {
-                // Search results (not a playlist)
-                if !viewModel.tracks.isEmpty {
-                    Text("Search results")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal)
-                }
-                List(viewModel.tracks) { track in
-                    if viewModel.currentPlaylist != nil {
-                        Button {
-                            Task { await viewModel.addTrackToCurrentPlaylist(track) }
-                        } label: {
-                            HStack {
-                                TrackRowView(track: track)
-                                Spacer()
-                                if viewModel.isAddingTrack && viewModel.lastAddedTrackName == track.name {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
-                                } else {
-                                    Image(systemName: "plus.circle.fill")
-                                        .foregroundStyle(.green)
-                                }
-                            }
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        Button {
-                            spotifyManager.play(trackUri: track.uri)
-                            onTrackSelected(track)
-                        } label: {
-                            TrackRowView(track: track)
-                        }
-                        .buttonStyle(.plain)
+                    // When searching/adding, hide the existing playlist tracks to keep the UI focused.
+                    if viewModel.searchQuery.isEmpty {
+                        playlistEditContent
                     }
                 }
-                .listStyle(.plain)
+            } else {
+                if viewModel.currentPlaylist != nil {
+                    if viewModel.isLoading {
+                        Spacer()
+                        ProgressView("Searching...")
+                        Spacer()
+                    } else if let error = viewModel.errorMessage {
+                        Spacer()
+                        Text(error)
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                        Spacer()
+                    } else if viewModel.tracks.isEmpty && !viewModel.searchQuery.isEmpty {
+                        Spacer()
+                        Text("No results found")
+                            .foregroundColor(.gray)
+                        Spacer()
+                    } else {
+                        if !viewModel.tracks.isEmpty {
+                            Text("Search results")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal)
+                        }
+                        List(viewModel.tracks) { track in
+                            Button {
+                                Task { await viewModel.addTrackToCurrentPlaylist(track) }
+                            } label: {
+                                HStack {
+                                    TrackRowView(track: track)
+                                    Spacer()
+                                    if viewModel.isAddingTrack && viewModel.lastAddedTrackName == track.name {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.green)
+                                    } else {
+                                        Image(systemName: "plus.circle.fill")
+                                            .foregroundStyle(.green)
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .listStyle(.plain)
+                    }
+                } else {
+                    Spacer()
+                }
             }
 
             if viewModel.currentPlaylist != nil, let name = viewModel.lastAddedTrackName, !viewModel.isAddingTrack {
@@ -173,6 +187,14 @@ struct SpotifySearchView: View {
             spotifyManager.connectAppRemoteIfNeeded()
             #endif
         }
+        .task {
+            // Auto-load "My playlists" once we're authenticated and have playlist scopes.
+            // Keep it simple: load once when the list is empty and we're not already editing a playlist.
+            guard isAuthenticated && hasPlaylistAccess && !isEditingPlaylist else { return }
+            guard viewModel.myPlaylists.isEmpty else { return }
+            guard !viewModel.isLoadingPlaylists else { return }
+            await viewModel.loadMyPlaylists()
+        }
         .onChange(of: scenePhase) { phase in
             #if !targetEnvironment(simulator)
             if phase == .active {
@@ -182,7 +204,7 @@ struct SpotifySearchView: View {
             }
             #endif
         }
-        .navigationTitle("Spotify")
+        .navigationTitle(viewModel.selectedPlaylistForEditing?.name ?? "Spotify")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             if viewModel.selectedPlaylistForEditing != nil {
@@ -324,30 +346,40 @@ struct SpotifySearchView: View {
                 .background(Color(UIColor.secondarySystemBackground))
                 .cornerRadius(8)
             } else {
-                HStack(spacing: 8) {
-                    TextField("Playlist name", text: $viewModel.newPlaylistName)
-                        .textFieldStyle(.roundedBorder)
-                        .autocorrectionDisabled()
+                if !isShowingNewPlaylistNameField {
                     Button {
-                        Task { await viewModel.createPlaylist() }
+                        isShowingNewPlaylistNameField = true
+                        viewModel.createPlaylistError = nil
                     } label: {
-                        if viewModel.isCreatingPlaylist {
-                            ProgressView()
-                                .scaleEffect(0.8)
-                                .tint(.white)
-                        } else {
-                            Text("Create")
-                        }
+                        Text("Create new playlist")
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
-                    .disabled(viewModel.isCreatingPlaylist || viewModel.newPlaylistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } else {
+                    HStack(spacing: 8) {
+                        TextField("Playlist name", text: $viewModel.newPlaylistName)
+                            .textFieldStyle(.roundedBorder)
+                            .autocorrectionDisabled()
+                        Button {
+                            Task { await viewModel.createPlaylist() }
+                        } label: {
+                            if viewModel.isCreatingPlaylist {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                    .tint(.white)
+                            } else {
+                                Text("Create")
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+                        .disabled(viewModel.isCreatingPlaylist || viewModel.newPlaylistName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .onAppear { viewModel.createPlaylistError = nil }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(8)
-                .onAppear { viewModel.createPlaylistError = nil }
             }
             if let error = viewModel.createPlaylistError {
                 Text(error)
@@ -386,49 +418,67 @@ struct SpotifySearchView: View {
                 .background(Color(UIColor.secondarySystemBackground))
                 .cornerRadius(8)
             } else {
-                HStack {
-                    Text("My playlists")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button {
-                        Task { await viewModel.loadMyPlaylists() }
-                    } label: {
-                        if viewModel.isLoadingPlaylists {
+                let filteredPlaylists: [SpotifySearchService.SpotifyPlaylist] = {
+                    let q = playlistSearchQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    guard !q.isEmpty else { return viewModel.myPlaylists }
+                    return viewModel.myPlaylists.filter { $0.name.lowercased().contains(q) }
+                }()
+
+                VStack(alignment: .leading, spacing: 8) {
+                    TextField("Search playlists...", text: $playlistSearchQuery)
+                        .textFieldStyle(.roundedBorder)
+                        .autocorrectionDisabled()
+                        .padding(.horizontal, 12)
+
+                    if viewModel.isLoadingPlaylists {
+                        HStack {
+                            Spacer()
                             ProgressView()
-                                .scaleEffect(0.7)
-                        } else {
-                            Text("Load")
+                            Spacer()
                         }
-                    }
-                    .font(.subheadline)
-                    .disabled(viewModel.isLoadingPlaylists)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(8)
-                if !viewModel.myPlaylists.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            ForEach(viewModel.myPlaylists, id: \.id) { playlist in
-                                Button {
-                                    Task { await viewModel.selectPlaylistForEditing(playlist) }
-                                } label: {
-                                    Text(playlist.name)
-                                        .lineLimit(1)
-                                        .font(.caption)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color(UIColor.tertiarySystemFill))
-                                        .cornerRadius(8)
+                        .padding(.vertical, 14)
+                    } else if filteredPlaylists.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(viewModel.myPlaylists.isEmpty ? "No playlists yet." : "No playlists found.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(viewModel.myPlaylists.isEmpty ? "Create one above or sign in to Spotify." : "Try a different search.")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 10)
+                    } else {
+                        ScrollView(.vertical, showsIndicators: true) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(filteredPlaylists, id: \.id) { playlist in
+                                    Button {
+                                        Task { await viewModel.selectPlaylistForEditing(playlist) }
+                                    } label: {
+                                        HStack {
+                                            Text(playlist.name)
+                                                .lineLimit(1)
+                                                .font(.body)
+                                                .foregroundStyle(.black)
+                                            Spacer()
+                                            Image(systemName: "chevron.right")
+                                                .font(.subheadline)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 10)
+                                        .background(Color(UIColor.secondarySystemBackground))
+                                        .cornerRadius(10)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
+                            .padding(.vertical, 4)
                         }
-                        .padding(.vertical, 4)
+                        .frame(maxHeight: .infinity)
                     }
                 }
+                .frame(maxHeight: .infinity, alignment: .top)
             }
             if let error = viewModel.playlistEditError {
                 Text(error)
@@ -441,10 +491,61 @@ struct SpotifySearchView: View {
         .padding(.bottom, 4)
     }
 
+    private var playlistEditorHeader: some View {
+        HStack(spacing: 8) {
+            Button {
+                viewModel.closePlaylistEditor()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .frame(width: 32, height: 32)
+                    .background(Color(.systemGray5))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(viewModel.selectedPlaylistForEditing?.name ?? "")
+                    .font(.headline)
+                    .foregroundStyle(.black)
+                    .lineLimit(1)
+                Text("Current tracks & add songs")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+    }
+
     /// When editing a playlist: search Spotify and add results to this playlist.
     @ViewBuilder
     private var addSongsSection: some View {
         VStack(alignment: .leading, spacing: 6) {
+            // Search bar scoped to playlist editing (still uses `viewModel.searchQuery`).
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundColor(.gray)
+                TextField("Search songs to add…", text: $viewModel.searchQuery)
+                    .autocorrectionDisabled()
+                if !viewModel.searchQuery.isEmpty {
+                    Button {
+                        viewModel.clear()
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .padding(10)
+            .background(Color(.systemGray6))
+            .cornerRadius(10)
+            .padding(.horizontal)
+
             Text("Add songs from Spotify")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
@@ -474,13 +575,14 @@ struct SpotifySearchView: View {
                     .padding(.vertical, 8)
             } else {
                 List(viewModel.tracks) { track in
+                    let alreadyAdded = isTrackInEditingPlaylist(track)
                     Button {
                         Task { await viewModel.addTrackToPlaylistBeingEdited(track) }
                     } label: {
                         HStack {
                             TrackRowView(track: track)
                             Spacer()
-                            if viewModel.isAddingTrack && viewModel.lastAddedTrackName == track.name {
+                            if alreadyAdded || (viewModel.isAddingTrack && viewModel.lastAddedTrackName == track.name) {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(.green)
                             } else {
@@ -489,6 +591,7 @@ struct SpotifySearchView: View {
                             }
                         }
                     }
+                    .disabled(alreadyAdded)
                     .buttonStyle(.plain)
                 }
                 .listStyle(.plain)

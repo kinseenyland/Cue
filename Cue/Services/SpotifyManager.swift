@@ -102,12 +102,52 @@ class SpotifyManager: NSObject, ObservableObject {
         print("[Spotify] Simulator: using web PKCE (search only; no playback).")
         return connectWithWebAuth()
         #else
+        // If we already have a token, prefer a direct App Remote connect.
+        // This matches the expected "Link Spotify app" behavior and avoids unnecessary re-authorization.
+        if accessToken != nil {
+            let didConnect = connectAppRemoteIfNeeded()
+            if didConnect { return true }
+        }
+
         print("[Spotify] Opening Spotify app to connect (playback). For creating playlists, tap \"Allow creating playlists\" after connecting.")
         // App Remote playback/control needs app-remote-control. We also request playback scopes for state/control.
         let scopes = ["app-remote-control", "user-read-playback-state", "user-modify-playback-state", "user-read-private"]
         appRemote.authorizeAndPlayURI("", asRadio: false, additionalScopes: scopes, sessionIdentifier: nil)
         return true
         #endif
+    }
+
+    /// Device-only: open Spotify app and immediately start playing the given URI.
+    /// This matches the "Link Spotify app" flow and avoids Web API "No active device found".
+    @MainActor
+    @discardableResult
+    func connectAndPlay(uri: String) -> Bool {
+        guard !uri.isEmpty else { return connect() }
+        #if targetEnvironment(simulator)
+        print("[Spotify] Simulator: playback requires a physical device.")
+        playbackError = "Playback requires a physical device with the Spotify app installed."
+        return false
+        #else
+        print("[Spotify] Opening Spotify app to play URI: \(uri)")
+        let scopes = ["app-remote-control", "user-read-playback-state", "user-modify-playback-state", "user-read-private"]
+        appRemote.authorizeAndPlayURI(uri, asRadio: false, additionalScopes: scopes, sessionIdentifier: nil)
+        return true
+        #endif
+    }
+
+    /// Start a workout playlist. If App Remote is not connected yet, we open Spotify and start playback via App Remote.
+    func startWorkoutPlaylist(playlistUri: String) {
+        guard !playlistUri.isEmpty else { return }
+        #if targetEnvironment(simulator)
+        playbackError = "Playback requires a physical device with the Spotify app installed."
+        return
+        #endif
+
+        if appRemote.isConnected {
+            playPlaylistFromStart(playlistUri: playlistUri)
+        } else {
+            Task { @MainActor in _ = connectAndPlay(uri: playlistUri) }
+        }
     }
 
     /// Run Web PKCE and store token as API token (playlist scopes). Call this on device after connect() to enable create playlist. On simulator we already use PKCE for connect() so this is no-op.
