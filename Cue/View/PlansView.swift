@@ -108,7 +108,7 @@ struct PlansView: View {
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
-                                .tint(.blue)
+                                .tint(.black)
                             }
                             .contextMenu {
                                 Button("Start Workout") {
@@ -159,26 +159,24 @@ struct PlansView: View {
             }
         }
         .sheet(item: $editingPlan) { plan in
-            WorkoutPlanFormView(draft: draft(from: plan), availableTypes: availableTypes) { updated in
+            EditPlanView(plan: plan, availableTypes: availableTypes) { updated in
                 Task { await vm.updatePlan(id: plan.id, from: updated) }
             }
         }
-        .alert("Cue", isPresented: $isShowingAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(alertMessage)
+        .overlay {
+            if isShowingAlert {
+                CustomAlertView(
+                    title: "Cue",
+                    message: alertMessage,
+                    primaryLabel: "OK",
+                    primaryAction: { isShowingAlert = false },
+                    primaryStyle: .gray,
+                    onDismiss: { isShowingAlert = false }
+                )
+            }
         }
     }
 
-    private func draft(from plan: WorkoutPlan) -> WorkoutPlanDraft {
-        WorkoutPlanDraft(
-            title: plan.title,
-            type: plan.type,
-            difficulty: plan.difficulty,
-            durationMinutes: plan.durationMinutes,
-            movements: plan.movements
-        )
-    }
 }
 
 struct PlanFilterChip: View {

@@ -48,6 +48,59 @@ final class PlanCreationViewModel: ObservableObject {
         self.availableTypes = availableTypes
     }
 
+    /// Initializes pre-populated from an existing `WorkoutPlan` for editing.
+    /// Reconstructs the structured draft (warm-up, named main sections, cool-down) from
+    /// the plan's flat `movements` array.
+    init(editingPlan plan: WorkoutPlan, availableTypes: [WorkoutType] = WorkoutType.allCases) {
+        self.availableTypes = availableTypes
+        draft.name = plan.title
+        draft.type = plan.type
+        draft.difficulty = plan.difficulty
+        draft.durationMinutes = plan.durationMinutes
+        draft.warmUpPlaylistId = plan.warmUpPlaylistId
+        draft.mainPlaylistId = plan.mainPlaylistId
+        draft.coolDownPlaylistId = plan.coolDownPlaylistId
+
+        let warmUp = plan.movements.filter { $0.section == .warmUp }
+        draft.warmUpMovements = warmUp
+        draft.warmUpDurationMinutes = warmUp.first?.sectionDurationMinutes ?? 5
+
+        let coolDown = plan.movements.filter { $0.section == .coolDown }
+        draft.coolDownMovements = coolDown
+        draft.coolDownDurationMinutes = coolDown.first?.sectionDurationMinutes ?? 5
+
+        let mainMovements = plan.movements.filter { $0.section == .main }
+        var sections: [WorkoutSubSection] = []
+        var seen: [String: Int] = [:]
+        for m in mainMovements {
+            let key = m.sectionName ?? ""
+            if let idx = seen[key] {
+                sections[idx].movements.append(m)
+            } else {
+                seen[key] = sections.count
+                sections.append(WorkoutSubSection(
+                    name: m.sectionName ?? "",
+                    durationMinutes: m.sectionDurationMinutes ?? 5,
+                    movements: [m]
+                ))
+            }
+        }
+        draft.mainSections = sections.isEmpty ? [WorkoutSubSection()] : sections
+    }
+
+    /// Redistributes remaining time (total − warm-up − cool-down) equally across all main sections.
+    func redistributeMainSectionTime() {
+        let mainMinutes = max(0, draft.durationMinutes
+            - draft.warmUpDurationMinutes
+            - draft.coolDownDurationMinutes)
+        guard !draft.mainSections.isEmpty else { return }
+        let perSection = mainMinutes / draft.mainSections.count
+        let remainder = mainMinutes % draft.mainSections.count
+        for i in draft.mainSections.indices {
+            draft.mainSections[i].durationMinutes = perSection + (i == 0 ? remainder : 0)
+        }
+    }
+
     var canAdvance: Bool {
         switch step {
         case .name:

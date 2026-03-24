@@ -23,6 +23,7 @@ struct CueApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .tint(.black)
                 .environmentObject(authVM)
                 .environmentObject(spotifyManager)
                 .onOpenURL { url in

@@ -37,6 +37,7 @@ struct MainTabView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .tint(.black)
         .safeAreaInset(edge: .bottom) {
             HStack(alignment: .center, spacing: 0) {
                 ForEach(MainTab.visibleTabs, id: \.self) { tab in
