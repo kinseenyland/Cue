@@ -281,6 +281,7 @@ struct ScheduleFormView: View {
                 displayedComponents: .date
             )
             .datePickerStyle(.graphical)
+            .tint(.black)
             .padding(.horizontal)
         }
     }

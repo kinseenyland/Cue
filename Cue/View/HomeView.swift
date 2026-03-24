@@ -62,17 +62,52 @@ struct HomeView: View {
                         .padding(.horizontal, 24)
                         .padding(.top, 8)
 
-                    ForEach(upcomingItems) { item in
+                    if upcomingItems.isEmpty {
                         Button {
-                            if let planId = item.planId,
-                               let plan = plansVM.plans.first(where: { $0.id == planId }) {
-                                navigationPath.append(plan)
-                            }
+                            selectedTab = .schedule
                         } label: {
-                            HomeScheduleCard(item: item)
+                            HStack(spacing: 12) {
+                                Image(systemName: "calendar.badge.plus")
+                                    .font(.system(size: 20))
+                                    .foregroundStyle(.black)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("You're free!")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(.black)
+                                    Text("Add a class to your schedule.")
+                                        .font(.system(size: 12, weight: .thin))
+                                        .foregroundStyle(.black)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.black)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 9)
+                            .frame(height: 76)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.white)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.black, lineWidth: 1)
+                            )
                         }
                         .buttonStyle(.plain)
-                        .disabled(item.planId == nil)
+                    } else {
+                        ForEach(upcomingItems) { item in
+                            Button {
+                                if let planId = item.planId,
+                                   let plan = plansVM.plans.first(where: { $0.id == planId }) {
+                                    navigationPath.append(plan)
+                                }
+                            } label: {
+                                HomeScheduleCard(item: item)
+                            }
+                            .buttonStyle(.plain)
+                            .disabled(item.planId == nil)
+                        }
                     }
 
                     // Favorite Plans section
@@ -192,7 +227,7 @@ private struct HomeScheduleCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .frame(height: 70)
+        .frame(height: 76)
         .frame(maxWidth: .infinity)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 10))

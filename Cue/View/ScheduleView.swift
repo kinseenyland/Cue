@@ -152,6 +152,7 @@ struct ScheduleView: View {
                     Task { await vm.createSchedule(from: draft) }
                 }
             }
+            .tint(.black)
         }
         .sheet(item: $editingItem) { item in
             NavigationStack {
@@ -166,6 +167,7 @@ struct ScheduleView: View {
                     }
                 )
             }
+            .tint(.black)
         }
     }
 
@@ -182,7 +184,7 @@ struct ScheduleView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.black)
                 }
 
                 Spacer()
@@ -200,7 +202,7 @@ struct ScheduleView: View {
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.black)
                 }
             }
             .padding(.horizontal)
@@ -209,7 +211,7 @@ struct ScheduleView: View {
             let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
             LazyVGrid(columns: columns, spacing: 0) {
-                ForEach(weekdaySymbols, id: \.self) { symbol in
+                ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
                         .font(.caption2)
                         .fontWeight(.medium)

@@ -34,12 +34,8 @@ final class AuthViewModel: ObservableObject {
 
     func signIn(email: String, password: String) {
         let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedEmail.isEmpty else {
-            errorMessage = "Enter your email."
-            return
-        }
-        guard !password.isEmpty else {
-            errorMessage = "Enter your password."
+        guard !trimmedEmail.isEmpty && !password.isEmpty else {
+            errorMessage = "Incorrect email or password."
             return
         }
 
@@ -51,7 +47,7 @@ final class AuthViewModel: ObservableObject {
             guard let self else { return }
             self.isLoading = false
             if let error {
-                self.errorMessage = "Sign in failed: \(error.localizedDescription)"
+                self.errorMessage = "Incorrect email or password."
             } else {
                 self.statusMessage = "Signed in."
             }
