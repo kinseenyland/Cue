@@ -242,6 +242,7 @@ final class WorkoutSessionViewModel: ObservableObject {
     }
 
     func reset() {
+        SpotifyManager.shared.pausePlayback()
         planTitle = "Workout"
         planId = nil
         movements = []
