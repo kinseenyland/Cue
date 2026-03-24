@@ -9,12 +9,28 @@ import SwiftUI
 
 struct AuthView: View {
     @EnvironmentObject var authVM: AuthViewModel
+    @Environment(\.dismiss) private var dismiss
+    @State private var email = ""
+    @State private var password = ""
 
     var body: some View {
         ZStack {
             Color.white.ignoresSafeArea()
 
             VStack {
+                HStack {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.black)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
                 Spacer()
 
                 // Card
@@ -27,7 +43,7 @@ struct AuthView: View {
                         .padding(.bottom, 10)
 
                     // Email field
-                    TextField("e-mail address", text: $authVM.email)
+                    TextField("e-mail address", text: $email)
                         .font(.system(size: 12, weight: .thin))
                         .textInputAutocapitalization(.never)
                         .keyboardType(.emailAddress)
@@ -37,7 +53,7 @@ struct AuthView: View {
                         .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
 
                     // Password field
-                    SecureField("password", text: $authVM.password)
+                    SecureField("password", text: $password)
                         .font(.system(size: 12, weight: .thin))
                         .padding(.horizontal, 9)
                         .padding(.vertical, 7)
@@ -45,7 +61,7 @@ struct AuthView: View {
 
                     // Sign In button
                     Button {
-                        authVM.signIn()
+                        authVM.signIn(email: email, password: password)
                     } label: {
                         Text("Sign In")
                             .font(.system(size: 12, weight: .heavy))
@@ -54,16 +70,6 @@ struct AuthView: View {
                             .padding(.vertical, 10)
                             .background(Color.black)
                             .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
-                    .disabled(authVM.isLoading)
-
-                    // Create account link
-                    Button {
-                        authVM.signUp()
-                    } label: {
-                        Text("Create an Account")
-                            .font(.system(size: 12, weight: .heavy))
-                            .foregroundStyle(.black)
                     }
                     .disabled(authVM.isLoading)
 

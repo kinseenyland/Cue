@@ -40,7 +40,7 @@ class CueViewModel: ObservableObject {
                     let title = data["title"] as? String,
                     let typeRaw = data["type"] as? String,
                     let difficultyRaw = data["difficulty"] as? String,
-                    let type = WorkoutType(rawValue: typeRaw),
+                    let type = WorkoutType(legacy: typeRaw),
                     let difficulty = Difficulty(rawValue: difficultyRaw)
                 else { return nil }
 
@@ -66,7 +66,8 @@ class CueViewModel: ObservableObject {
                     movements: resolvedMovements,
                     warmUpPlaylistId: data["warmUpPlaylistId"] as? String,
                     mainPlaylistId: data["mainPlaylistId"] as? String,
-                    coolDownPlaylistId: data["coolDownPlaylistId"] as? String
+                    coolDownPlaylistId: data["coolDownPlaylistId"] as? String,
+                    lastRunAt: data["lastRunAt"] as? Double
                 )
             }
 
@@ -87,7 +88,7 @@ class CueViewModel: ObservableObject {
             let plan = WorkoutPlan(
                 ownerId: Auth.auth().currentUser?.uid ?? "debug-user",
                 title: "Hot Pilates - Core",
-                type: .pilates,
+                type: .matPilates,
                 difficulty: .medium,
                 durationMinutes: 60,
                 isPublic: false,
@@ -220,6 +221,32 @@ class CueViewModel: ObservableObject {
             }
             errorMessage = "❌ Update failed: \(error.localizedDescription)"
         }
+    }
+
+    func markPlanAsRun(id: String) async {
+        let now = Date().timeIntervalSince1970
+        if let idx = plans.firstIndex(where: { $0.id == id }) {
+            plans[idx].lastRunAt = now
+        }
+        do {
+            try await db.collection("plans").document(id).updateData(["lastRunAt": now])
+        } catch {
+            print("Failed to update lastRunAt: \(error.localizedDescription)")
+        }
+    }
+
+    func duplicatePlan(_ plan: WorkoutPlan, newName: String) async {
+        let draft = WorkoutPlanDraft(
+            title: newName,
+            type: plan.type,
+            difficulty: plan.difficulty,
+            durationMinutes: plan.durationMinutes,
+            movements: plan.movements,
+            warmUpPlaylistId: plan.warmUpPlaylistId,
+            mainPlaylistId: plan.mainPlaylistId,
+            coolDownPlaylistId: plan.coolDownPlaylistId
+        )
+        await createPlan(from: draft)
     }
 
     func deletePlan(id: String) async {

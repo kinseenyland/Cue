@@ -19,7 +19,7 @@ struct SpotifySearchView: View {
     var onTrackSelected: (SpotifySearchService.SpotifyTrack) -> Void = { _ in }
 
     private var isAuthenticated: Bool {
-        (spotifyManager.accessToken != nil || spotifyManager.apiAccessToken != nil) && !spotifyManager.isFinishingAuth
+        spotifyManager.isAuthenticated
     }
 
     private var isEditingPlaylist: Bool {

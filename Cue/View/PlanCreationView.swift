@@ -6,9 +6,15 @@
 import SwiftUI
 
 struct PlanCreationView: View {
-    @StateObject private var vm = PlanCreationViewModel()
+    @StateObject private var vm: PlanCreationViewModel
     let onSave: (WorkoutPlanDraft) -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var showExitConfirmation = false
+
+    init(availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (WorkoutPlanDraft) -> Void) {
+        _vm = StateObject(wrappedValue: PlanCreationViewModel(availableTypes: availableTypes))
+        self.onSave = onSave
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,6 +31,74 @@ struct PlanCreationView: View {
         }
         .background(Color.white.ignoresSafeArea())
         .environmentObject(vm)
+        .overlay {
+            if showExitConfirmation {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { showExitConfirmation = false }
+
+                VStack(spacing: 16) {
+                    HStack {
+                        Spacer()
+                        Button { showExitConfirmation = false } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 30, height: 30)
+                                .background(Color(.systemGray5))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Text("Are you sure?")
+                        .font(.system(size: 18, weight: .bold))
+
+                    Text("Your progress will be lost if you leave.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    VStack(spacing: 10) {
+                        if !vm.isOnFirstStep {
+                            Button {
+                                showExitConfirmation = false
+                                vm.back()
+                            } label: {
+                                Text("Go Back")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(Color(.systemGray6))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Button {
+                            showExitConfirmation = false
+                            dismiss()
+                        } label: {
+                            Text("Discard Plan")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(Color.red)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(20)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+                .padding(.horizontal, 40)
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showExitConfirmation)
     }
 
     // MARK: - Header
@@ -33,12 +107,12 @@ struct PlanCreationView: View {
         ZStack {
             HStack {
                 if vm.isOnFirstStep {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { showExitConfirmation = true }
                         .font(.system(size: 16))
                         .foregroundStyle(.secondary)
                 } else {
                     Button {
-                        vm.back()
+                        showExitConfirmation = true
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 16, weight: .medium))
@@ -86,16 +160,6 @@ struct PlanCreationView: View {
             PlanTypeStepView()
         case .duration:
             PlanDurationStepView()
-        case .warmUpIntro:
-            PlanSectionIntroStepView(
-                headline: "Let's warm up.",
-                subtext: "Suggested ~5 min · Add the movements you use to prepare your class.",
-                bullets: [
-                    "Dynamic stretches, mobility work, or light cardio",
-                    "Movements that raise heart rate gradually",
-                    "Prep for the main workout ahead"
-                ]
-            )
         case .warmUpMovements:
             VStack(alignment: .leading, spacing: 12) {
                 MovementListStepView(
@@ -119,16 +183,6 @@ struct PlanCreationView: View {
             }
         case .mainMovements:
             PlanMainMovementsStepView()
-        case .coolDownIntro:
-            PlanSectionIntroStepView(
-                headline: "Wind it down.",
-                subtext: "Suggested ~5 min · Add the movements you use to close out your class.",
-                bullets: [
-                    "Static stretches and breathing exercises",
-                    "Movements that lower heart rate",
-                    "Help your class recover and reflect"
-                ]
-            )
         case .coolDownMovements:
             VStack(alignment: .leading, spacing: 12) {
                 MovementListStepView(

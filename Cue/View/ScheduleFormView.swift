@@ -208,7 +208,7 @@ struct ScheduleFormView: View {
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 HStack(spacing: 6) {
-                    InfoChip(label: plan.type.rawValue.capitalized)
+                    InfoChip(label: plan.type.displayName)
                     InfoChip(label: plan.difficulty.rawValue.capitalized)
                     InfoChip(label: "\(plan.durationMinutes) min")
                 }
@@ -332,7 +332,7 @@ private struct PlanRow: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(.primary)
-                Text("\(plan.type.rawValue.capitalized) · \(plan.difficulty.rawValue.capitalized)")
+                Text("\(plan.type.displayName) · \(plan.difficulty.rawValue.capitalized)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

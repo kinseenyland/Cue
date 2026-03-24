@@ -5,6 +5,7 @@
 //  Created by Kinsee Nyland on 2/10/26.
 //
 
+import FirebaseAuth
 import SwiftUI
 
 struct PlansView: View {
@@ -16,7 +17,14 @@ struct PlansView: View {
     @State private var alertMessage = ""
     @State private var selectedType: WorkoutType? = nil
     @StateObject private var vm = CueViewModel()
+    @StateObject private var profileVM = ProfileViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
+    @EnvironmentObject private var authVM: AuthViewModel
+
+    /// Class types to show in filter chips and plan creation. Falls back to all types if profile not loaded.
+    private var availableTypes: [WorkoutType] {
+        profileVM.preferredClassTypes.isEmpty ? WorkoutType.allCases : profileVM.preferredClassTypes
+    }
 
     var filteredPlans: [WorkoutPlan] {
         guard let type = selectedType else { return vm.plans }
@@ -48,9 +56,9 @@ struct PlansView: View {
                         PlanFilterChip(label: "All", isSelected: selectedType == nil) {
                             selectedType = nil
                         }
-                        ForEach(WorkoutType.allCases, id: \.self) { type in
+                        ForEach(availableTypes, id: \.self) { type in
                             PlanFilterChip(
-                                label: type.rawValue.capitalized,
+                                label: type.displayName,
                                 isSelected: selectedType == type
                             ) {
                                 selectedType = type
@@ -133,20 +141,25 @@ struct PlansView: View {
                             await vm.deletePlan(id: plan.id)
                             navigationPath.removeLast()
                         }
-                    }
+                    },
+                    onDuplicate: { name in
+                        Task { await vm.duplicatePlan(plan, newName: name) }
+                    },
+                    availableTypes: availableTypes
                 )
             }
         }
         .task {
             await vm.fetchPlans()
+            if let uid = authVM.user?.uid { profileVM.load(uid: uid) }
         }
         .sheet(isPresented: $isPresentingCreateForm) {
-            PlanCreationView { newPlan in
+            PlanCreationView(availableTypes: availableTypes) { newPlan in
                 Task { await vm.createPlan(from: newPlan) }
             }
         }
         .sheet(item: $editingPlan) { plan in
-            WorkoutPlanFormView(draft: draft(from: plan)) { updated in
+            WorkoutPlanFormView(draft: draft(from: plan), availableTypes: availableTypes) { updated in
                 Task { await vm.updatePlan(id: plan.id, from: updated) }
             }
         }
@@ -204,6 +217,14 @@ struct PlanRowCard: View {
         }
     }
 
+    private var lastRunLabel: String? {
+        guard let lastRunAt = plan.lastRunAt else { return nil }
+        let date = Date(timeIntervalSince1970: lastRunAt)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return "Last run: \(formatter.string(from: date))"
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -223,6 +244,12 @@ struct PlanRowCard: View {
                         .font(.system(size: 12, weight: .thin))
                 }
                 .foregroundStyle(.black)
+
+                if let lastRun = lastRunLabel {
+                    Text(lastRun)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
@@ -242,7 +269,6 @@ struct PlanRowCard: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
-        .frame(height: 76)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(

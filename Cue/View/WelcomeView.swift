@@ -14,10 +14,13 @@ struct WelcomeView: View {
         NavigationStack {
             HStack(spacing: 10) {
                 VStack(spacing: 14) {
-                    VStack(spacing: 10) {
+                    VStack(spacing: 6) {
                         Text("CUE")
                             .font(.system(size: 96, weight: .regular))
                             .lineSpacing(22)
+                            .foregroundColor(.black)
+                        Text("welcome to cue.")
+                            .font(.system(size: 13, weight: .thin))
                             .foregroundColor(.black)
                     }
                     .padding(EdgeInsets(top: 5, leading: 12, bottom: 24, trailing: 12))
@@ -26,7 +29,7 @@ struct WelcomeView: View {
                         AuthView()
                     } label: {
                         HStack(spacing: 10) {
-                            Text("Sign up")
+                            Text("Sign in")
                                 .font(.system(size: 12, weight: .semibold))
                                 .lineSpacing(22)
                                 .foregroundColor(.white)
@@ -40,9 +43,9 @@ struct WelcomeView: View {
                     .buttonStyle(.plain)
 
                     NavigationLink {
-                        AuthView()
+                        AccountCreationView()
                     } label: {
-                        Text("Sign in")
+                        Text("New here?")
                             .font(.system(size: 12, weight: .semibold))
                             .lineSpacing(22)
                             .foregroundColor(.black)

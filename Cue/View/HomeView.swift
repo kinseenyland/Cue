@@ -11,7 +11,12 @@ struct HomeView: View {
     @EnvironmentObject private var authVM: AuthViewModel
     @StateObject private var scheduleVM = ScheduleViewModel()
     @StateObject private var plansVM = CueViewModel()
+    @StateObject private var profileVM = ProfileViewModel()
     @State private var navigationPath = NavigationPath()
+
+    private var availableTypes: [WorkoutType] {
+        profileVM.preferredClassTypes.isEmpty ? WorkoutType.allCases : profileVM.preferredClassTypes
+    }
 
     private var displayName: String {
         authVM.user?.displayName?.isEmpty == false
@@ -31,13 +36,15 @@ struct HomeView: View {
         NavigationStack(path: $navigationPath) {
             ScrollView {
                 VStack(spacing: 8) {
-                    // CUE header
-                    Text("CUE")
-                        .font(.system(size: 64, weight: .black))
-                        .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.top, 8)
-                        .padding(.bottom, 8)
+                    // Page header
+                    HStack {
+                        Text("Home")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundStyle(.black)
+                        Spacer()
+                    }
+                    .padding(.top, 8)
+                    .padding(.bottom, 8)
 
                     // Welcome message
                     Text("Welcome \(displayName)!")
@@ -104,13 +111,18 @@ struct HomeView: View {
                             await plansVM.deletePlan(id: plan.id)
                             navigationPath.removeLast()
                         }
-                    }
+                    },
+                    onDuplicate: { name in
+                        Task { await plansVM.duplicatePlan(plan, newName: name) }
+                    },
+                    availableTypes: availableTypes
                 )
             }
         }
         .task {
             await scheduleVM.fetchSchedules()
             await plansVM.fetchPlans()
+            if let uid = authVM.user?.uid { profileVM.load(uid: uid) }
         }
     }
 }

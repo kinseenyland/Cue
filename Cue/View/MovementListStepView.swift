@@ -11,7 +11,6 @@ struct MovementListStepView: View {
     @Binding var durationMinutes: Int
     @Binding var movements: [Movement]
 
-    @State private var showAddForm = false
     @State private var assigningGoal = false
     @State private var newName = ""
     @State private var newGoalType: GoalType = .reps
@@ -24,7 +23,6 @@ struct MovementListStepView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                // Headline + editable duration badge
                 HStack(alignment: .top, spacing: 12) {
                     Text(headline)
                         .font(.system(size: 30, weight: .bold))
@@ -52,47 +50,40 @@ struct MovementListStepView: View {
                     .padding(.horizontal, 24)
                 }
 
-                if showAddForm {
-                    addForm
-                        .padding(.horizontal, 24)
-                } else {
-                    Button {
-                        newGoalType = defaultGoalType ?? .reps
-                        assigningGoal = defaultGoalType != nil
-                        showAddForm = true
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 13, weight: .semibold))
-                            Text("Add Movement")
-                                .font(.system(size: 14, weight: .medium))
-                        }
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .overlay(Capsule().stroke(Color.black, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
+                addForm
                     .padding(.horizontal, 24)
-                }
             }
             .padding(.top, 4)
             .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onChange(of: showAddForm) { _, isShowing in
-            if isShowing { nameFieldFocused = true }
+        .onAppear {
+            newGoalType = defaultGoalType ?? .reps
+            assigningGoal = defaultGoalType != nil
+            nameFieldFocused = true
         }
     }
 
     private var addForm: some View {
         VStack(alignment: .leading, spacing: 10) {
-            TextField("Movement name", text: $newName)
-                .font(.system(size: 16))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                .focused($nameFieldFocused)
+            HStack(spacing: 10) {
+                TextField("Movement name", text: $newName)
+                    .font(.system(size: 16))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 12)
+                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                    .focused($nameFieldFocused)
+
+                Button {
+                    submitMovement()
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(canSubmit ? Color.black : Color(.systemGray4))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSubmit)
+            }
 
             if assigningGoal {
                 HStack(alignment: .center, spacing: 10) {
@@ -155,37 +146,11 @@ struct MovementListStepView: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            Button {
-                submitMovement()
-            } label: {
-                Text("+ Add")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(canSubmit ? .white : Color(.systemGray3))
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(canSubmit ? Color.black : Color(.systemGray5))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-            }
-            .buttonStyle(.plain)
-            .disabled(!canSubmit)
-
-            Button("done with section") {
-                closeForm()
-            }
-            .font(.system(size: 13))
-            .foregroundStyle(.secondary)
-            .buttonStyle(.plain)
-            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 
     private var canSubmit: Bool {
-        let nameOk = !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if assigningGoal {
-            return nameOk && (newGoalType == .reps ? !newReps.isEmpty : !newSeconds.isEmpty)
-        }
-        return nameOk
+        !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func submitMovement() {
@@ -204,17 +169,6 @@ struct MovementListStepView: View {
         showNoteField = false
         newNote = ""
         nameFieldFocused = true
-    }
-
-    private func closeForm() {
-        newName = ""
-        newGoalType = defaultGoalType ?? .reps
-        assigningGoal = defaultGoalType != nil
-        newReps = ""
-        newSeconds = ""
-        showNoteField = false
-        newNote = ""
-        showAddForm = false
     }
 }
 

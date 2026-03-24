@@ -12,6 +12,8 @@ struct PlanDetailView: View {
     @Binding var selectedTab: MainTab
     let onUpdate: (WorkoutPlanDraft) -> Void
     let onDelete: () -> Void
+    let onDuplicate: (String) -> Void
+    let availableTypes: [WorkoutType]
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
     @EnvironmentObject private var spotifyManager: SpotifyManager
@@ -20,6 +22,8 @@ struct PlanDetailView: View {
     @State private var editingMovement: Movement? = nil
     @State private var isShowingDetailsEdit = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var isShowingDuplicatePrompt = false
+    @State private var duplicateName = ""
     @State private var warmUpPlaylistIdLocal: String?
     @State private var mainPlaylistIdLocal: String?
     @State private var coolDownPlaylistIdLocal: String?
@@ -28,11 +32,13 @@ struct PlanDetailView: View {
     @State private var playlistsError: String? = nil
     @State private var isShowingSpotifyAlert = false
 
-    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void) {
+    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void, onDuplicate: @escaping (String) -> Void, availableTypes: [WorkoutType] = WorkoutType.allCases) {
         self.plan = plan
         self._selectedTab = selectedTab
         self.onUpdate = onUpdate
         self.onDelete = onDelete
+        self.onDuplicate = onDuplicate
+        self.availableTypes = availableTypes
         self._localMovements = State(initialValue: plan.movements)
         self._warmUpPlaylistIdLocal = State(initialValue: plan.warmUpPlaylistId)
         self._mainPlaylistIdLocal = State(initialValue: plan.mainPlaylistId)
@@ -79,7 +85,7 @@ struct PlanDetailView: View {
 
     private var typeIcon: String {
         switch plan.type {
-        case .pilates: return "figure.pilates"
+        case .matPilates, .reformerPilates: return "figure.pilates"
         case .yoga: return "figure.yoga"
         case .cycle: return "bicycle"
         case .strength: return "dumbbell.fill"
@@ -118,8 +124,18 @@ struct PlanDetailView: View {
                 Spacer()
 
                 Menu {
-                    Button("Edit Plan Details") { isShowingDetailsEdit = true }
-                    Button("Delete Plan", role: .destructive) { isShowingDeleteConfirmation = true }
+                    Button { isShowingDetailsEdit = true } label: {
+                        Label("Edit Plan Details", systemImage: "pencil")
+                    }
+                    Button {
+                        duplicateName = "\(plan.title) (Copy)"
+                        isShowingDuplicatePrompt = true
+                    } label: {
+                        Label("Duplicate Plan", systemImage: "doc.on.doc")
+                    }
+                    Button(role: .destructive) { isShowingDeleteConfirmation = true } label: {
+                        Label("Delete Plan", systemImage: "trash")
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                         .rotationEffect(.degrees(90))
@@ -134,7 +150,7 @@ struct PlanDetailView: View {
             // Details Snapshot: Type, Time, Intensity
             HStack(spacing: 10) {
                 Spacer()
-                PlanDetailCard(icon: typeIcon, label: "Type", value: plan.type.rawValue.capitalized)
+                PlanDetailCard(icon: typeIcon, label: "Type", value: plan.type.displayName)
                 PlanDetailCard(icon: "timer", label: "Time", value: "\(plan.durationMinutes) min")
                 PlanDetailCard(icon: "flame.fill", label: "Intensity", value: difficultyLabel)
                 Spacer()
@@ -183,8 +199,10 @@ struct PlanDetailView: View {
             HStack {
                 Spacer()
                 Button {
+                    var updatedPlan = plan
+                    updatedPlan.movements = localMovements
                     if spotifyManager.isConnected || !isSpotifyAuthenticated {
-                        sessionVM.load(plan: plan)
+                        sessionVM.load(plan: updatedPlan)
                         selectedTab = .workout
                         dismiss()
                     } else {
@@ -213,7 +231,9 @@ struct PlanDetailView: View {
         .alert("Connect to Spotify", isPresented: $isShowingSpotifyAlert) {
             Button("Connect & Start") {
                 _ = spotifyManager.connect()
-                sessionVM.load(plan: plan)
+                var updatedPlan = plan
+                updatedPlan.movements = localMovements
+                sessionVM.load(plan: updatedPlan)
                 selectedTab = .workout
                 dismiss()
             }
@@ -227,8 +247,20 @@ struct PlanDetailView: View {
         } message: {
             Text("This action cannot be undone.")
         }
+        .alert("Duplicate Plan", isPresented: $isShowingDuplicatePrompt) {
+            TextField("Plan name", text: $duplicateName)
+            Button("Duplicate") {
+                let name = duplicateName.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !name.isEmpty else { return }
+                onDuplicate(name)
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter a name for the duplicated plan.")
+        }
         .sheet(isPresented: $isShowingDetailsEdit) {
-            PlanDetailsEditSheet(plan: plan) { name, type, difficulty, duration in
+            PlanDetailsEditSheet(plan: plan, availableTypes: availableTypes) { name, type, difficulty, duration in
                 onUpdate(WorkoutPlanDraft(
                     title: name, type: type, difficulty: difficulty,
                     durationMinutes: duration, movements: localMovements
@@ -469,13 +501,15 @@ private struct PlanDetailsEditSheet: View {
     @State private var type: WorkoutType
     @State private var difficulty: Difficulty
     @State private var duration: Int
+    let availableTypes: [WorkoutType]
     let onSave: (String, WorkoutType, Difficulty, Int) -> Void
 
-    init(plan: WorkoutPlan, onSave: @escaping (String, WorkoutType, Difficulty, Int) -> Void) {
+    init(plan: WorkoutPlan, availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (String, WorkoutType, Difficulty, Int) -> Void) {
         _name = State(initialValue: plan.title)
         _type = State(initialValue: plan.type)
         _difficulty = State(initialValue: plan.difficulty)
         _duration = State(initialValue: plan.durationMinutes)
+        self.availableTypes = availableTypes
         self.onSave = onSave
     }
 
@@ -529,11 +563,11 @@ private struct PlanDetailsEditSheet: View {
                             .kerning(1.2)
                         ScrollView(.horizontal, showsIndicators: false) {
                             HStack(spacing: 8) {
-                                ForEach(WorkoutType.allCases, id: \.self) { t in
+                                ForEach(availableTypes, id: \.self) { t in
                                     Button {
                                         type = t
                                     } label: {
-                                        Text(t.rawValue.capitalized)
+                                        Text(t.displayName)
                                             .font(.system(size: 14, weight: .medium))
                                             .foregroundStyle(type == t ? .white : .black)
                                             .lineLimit(1)
@@ -789,6 +823,7 @@ private struct MovementDetailCard: View {
     let movement: Movement
     let onEdit: () -> Void
     let onDelete: () -> Void
+    @State private var showDeleteConfirmation = false
 
     private var goalText: String {
         switch movement.goalType {
@@ -814,7 +849,7 @@ private struct MovementDetailCard: View {
                 }
             }
             Spacer()
-            Button(action: onDelete) {
+            Button { showDeleteConfirmation = true } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 13))
                     .foregroundStyle(Color(.systemGray3))
@@ -830,6 +865,12 @@ private struct MovementDetailCard: View {
         )
         .contentShape(Rectangle())
         .onTapGesture { onEdit() }
+        .alert("Delete \"\(movement.name)\"?", isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) { onDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This movement will be removed from the plan.")
+        }
     }
 }
 
@@ -839,7 +880,7 @@ private struct MovementDetailCard: View {
             plan: WorkoutPlan(
                 ownerId: "preview",
                 title: "Hot Pilates - Core",
-                type: .pilates,
+                type: .matPilates,
                 difficulty: .hard,
                 durationMinutes: 60,
                 movements: [
@@ -850,7 +891,8 @@ private struct MovementDetailCard: View {
             ),
             selectedTab: .constant(.plans),
             onUpdate: { _ in },
-            onDelete: {}
+            onDelete: {},
+            onDuplicate: { _ in }
         )
         .environmentObject(WorkoutSessionViewModel())
     }

@@ -19,6 +19,6 @@ struct WorkoutPlanDraft: Identifiable, Hashable {
     var coolDownPlaylistId: String?
 
     var summaryLine: String {
-        "Type: \(type.rawValue.capitalized) • Difficulty: \(difficulty.rawValue.capitalized) • Time: \(durationMinutes) mins"
+        "Type: \(type.displayName) • Difficulty: \(difficulty.rawValue.capitalized) • Time: \(durationMinutes) mins"
     }
 }

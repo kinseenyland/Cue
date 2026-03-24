@@ -1,5 +1,6 @@
 import AuthenticationServices
 import CryptoKit
+import FirebaseAuth
 import Foundation
 import Combine
 import SpotifyiOS
@@ -9,10 +10,17 @@ class SpotifyManager: NSObject, ObservableObject {
     static let shared = SpotifyManager()
 
     private let keychainService = "com.cue.spotify"
-    private let accessTokenKey = "spotify_access_token"
-    private let refreshTokenKey = "spotify_refresh_token"
-    private let apiAccessTokenKey = "spotify_api_access_token"
-    private let apiRefreshTokenKey = "spotify_api_refresh_token"
+    private var currentUserUID: String?
+
+    /// Single source of truth: user has valid Spotify credentials
+    var isAuthenticated: Bool {
+        (accessToken != nil || apiAccessToken != nil) && !isFinishingAuth
+    }
+
+    private func keychainKey(_ base: String) -> String? {
+        guard let uid = currentUserUID else { return nil }
+        return "\(base)_\(uid)"
+    }
 
     let spotifyClientID = "93c38381b8ff4b7d984fa217cbb3dcd3"
     let spotifyRedirectURL = URL(string: "spotify-ios-quick-start://spotify-login-callback")!
@@ -28,19 +36,21 @@ class SpotifyManager: NSObject, ObservableObject {
     @Published var accessToken: String? {
         didSet {
             appRemote.connectionParameters.accessToken = accessToken
+            guard let key = keychainKey("spotify_access_token") else { return }
             if let token = accessToken {
-                KeychainHelper.save(key: accessTokenKey, value: token, service: keychainService)
+                KeychainHelper.save(key: key, value: token, service: keychainService)
             } else {
-                KeychainHelper.delete(key: accessTokenKey, service: keychainService)
+                KeychainHelper.delete(key: key, service: keychainService)
             }
         }
     }
     private var refreshToken: String? {
         didSet {
+            guard let key = keychainKey("spotify_refresh_token") else { return }
             if let token = refreshToken {
-                KeychainHelper.save(key: refreshTokenKey, value: token, service: keychainService)
+                KeychainHelper.save(key: key, value: token, service: keychainService)
             } else {
-                KeychainHelper.delete(key: refreshTokenKey, service: keychainService)
+                KeychainHelper.delete(key: key, service: keychainService)
             }
         }
     }
@@ -48,29 +58,35 @@ class SpotifyManager: NSObject, ObservableObject {
     /// Token with playlist scopes (from PKCE). Used for Web API: create playlist, add tracks, /me. App Remote only accepts token from Spotify app.
     @Published var apiAccessToken: String? {
         didSet {
+            guard let key = keychainKey("spotify_api_access_token") else { return }
             if let token = apiAccessToken {
-                KeychainHelper.save(key: apiAccessTokenKey, value: token, service: keychainService)
+                KeychainHelper.save(key: key, value: token, service: keychainService)
             } else {
-                KeychainHelper.delete(key: apiAccessTokenKey, service: keychainService)
+                KeychainHelper.delete(key: key, service: keychainService)
             }
         }
     }
     private var apiRefreshToken: String? {
         didSet {
+            guard let key = keychainKey("spotify_api_refresh_token") else { return }
             if let token = apiRefreshToken {
-                KeychainHelper.save(key: apiRefreshTokenKey, value: token, service: keychainService)
+                KeychainHelper.save(key: key, value: token, service: keychainService)
             } else {
-                KeychainHelper.delete(key: apiRefreshTokenKey, service: keychainService)
+                KeychainHelper.delete(key: key, service: keychainService)
             }
         }
     }
 
     override init() {
         super.init()
-        accessToken = KeychainHelper.load(key: accessTokenKey, service: keychainService)
-        refreshToken = KeychainHelper.load(key: refreshTokenKey, service: keychainService)
-        apiAccessToken = KeychainHelper.load(key: apiAccessTokenKey, service: keychainService)
-        apiRefreshToken = KeychainHelper.load(key: apiRefreshTokenKey, service: keychainService)
+        // Observe Firebase auth state — load tokens for the signed-in user, or clear on sign-out
+        Auth.auth().addStateDidChangeListener { [weak self] _, user in
+            if let uid = user?.uid {
+                self?.loadTokens(for: uid)
+            } else {
+                self?.clearInMemoryState()
+            }
+        }
     }
 
     /// Token to use for Web API (playlists, /me). Prefer API token (has playlist scopes); fallback to main token.
@@ -622,14 +638,46 @@ class SpotifyManager: NSObject, ObservableObject {
     /// Last playback error message for UI
     @Published var playbackError: String?
 
-    /// Call when signing out / disconnecting to clear saved credentials
+    /// Explicitly disconnect Spotify — clears Keychain tokens for this user.
+    /// Called when the user intentionally wants to unlink Spotify from their account.
     func signOut() {
+        // nil tokens while currentUserUID is still set → didSets delete from Keychain
+        accessToken = nil
+        refreshToken = nil
+        apiAccessToken = nil
+        apiRefreshToken = nil
+        currentUserUID = nil
+        disconnect()
+        print("[Spotify] Signed out, credentials cleared")
+    }
+
+    /// Load tokens from Keychain for the given Firebase UID. Called automatically on Cue sign-in.
+    func loadTokens(for uid: String) {
+        currentUserUID = uid
+        // Persist any in-memory tokens from account creation PKCE flow (set before UID existed)
+        if let t = accessToken { KeychainHelper.save(key: "spotify_access_token_\(uid)", value: t, service: keychainService) }
+        if let t = refreshToken { KeychainHelper.save(key: "spotify_refresh_token_\(uid)", value: t, service: keychainService) }
+        if let t = apiAccessToken { KeychainHelper.save(key: "spotify_api_access_token_\(uid)", value: t, service: keychainService) }
+        if let t = apiRefreshToken { KeychainHelper.save(key: "spotify_api_refresh_token_\(uid)", value: t, service: keychainService) }
+        // Load from Keychain only if nothing is already in memory
+        if accessToken == nil && apiAccessToken == nil {
+            accessToken = KeychainHelper.load(key: "spotify_access_token_\(uid)", service: keychainService)
+            refreshToken = KeychainHelper.load(key: "spotify_refresh_token_\(uid)", service: keychainService)
+            apiAccessToken = KeychainHelper.load(key: "spotify_api_access_token_\(uid)", service: keychainService)
+            apiRefreshToken = KeychainHelper.load(key: "spotify_api_refresh_token_\(uid)", service: keychainService)
+        }
+        print("[Spotify] Tokens loaded for user \(uid), authenticated: \(isAuthenticated)")
+    }
+
+    /// Clear in-memory Spotify state on Cue sign-out. Preserves Keychain so tokens reload on next sign-in.
+    func clearInMemoryState() {
+        currentUserUID = nil  // Must come first — keychainKey() returns nil → didSets skip Keychain deletion
         accessToken = nil
         refreshToken = nil
         apiAccessToken = nil
         apiRefreshToken = nil
         disconnect()
-        print("[Spotify] Signed out, credentials cleared")
+        print("[Spotify] In-memory state cleared (Keychain preserved for re-login)")
     }
 
     private func generateCodeVerifier() -> String {

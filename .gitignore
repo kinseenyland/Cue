@@ -28,3 +28,9 @@ Build/
 *.ipa
 *.dSYM.zip
 *.dSYM
+
+# Local AI docs (personal reference, not for repo)
+.aidocs/
+
+# Seed scripts
+seed-*.js
