@@ -127,8 +127,19 @@ final class PlanCreationViewModel: ObservableObject {
         draft.mainSections = sections.isEmpty ? [WorkoutSubSection()] : sections
     }
 
+    /// Total duration across all main sub-sections.
+    var totalMainMinutes: Int {
+        draft.mainSections.reduce(0) { $0 + $1.durationMinutes }
+    }
+
+    /// Prevents onChange loops when one redistribution triggers another.
+    private var isRedistributing = false
+
     /// Redistributes remaining time (total − warm-up − cool-down) equally across all main sections.
     func redistributeMainSectionTime() {
+        guard !isRedistributing else { return }
+        isRedistributing = true
+        defer { isRedistributing = false }
         let mainMinutes = max(0, draft.durationMinutes
             - draft.warmUpDurationMinutes
             - draft.coolDownDurationMinutes)
@@ -138,6 +149,16 @@ final class PlanCreationViewModel: ObservableObject {
         for i in draft.mainSections.indices {
             draft.mainSections[i].durationMinutes = perSection + (i == 0 ? remainder : 0)
         }
+    }
+
+    /// When main section time changes, split the remaining time evenly between warm-up and cool-down.
+    func redistributeWarmUpCoolDown() {
+        guard !isRedistributing else { return }
+        isRedistributing = true
+        defer { isRedistributing = false }
+        let remaining = max(0, draft.durationMinutes - totalMainMinutes)
+        draft.warmUpDurationMinutes = remaining / 2
+        draft.coolDownDurationMinutes = remaining - (remaining / 2)
     }
 
     var canAdvance: Bool {

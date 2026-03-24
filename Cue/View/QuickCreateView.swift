@@ -70,10 +70,12 @@ struct QuickCreateView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showDiscardConfirmation)
-        .onAppear {
-            vm.draft.warmUpDurationMinutes = 0
-            vm.draft.coolDownDurationMinutes = 0
-        }
+        .interactiveDismissDisabled(true)
+        .onChange(of: vm.draft.durationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.warmUpDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.coolDownDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.mainSections.count) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.totalMainMinutes) { _, _ in vm.redistributeWarmUpCoolDown() }
     }
 
     // MARK: - Header

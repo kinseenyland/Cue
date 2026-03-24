@@ -69,21 +69,18 @@ struct PlanCreationView: View {
                         .multilineTextAlignment(.center)
 
                     VStack(spacing: 10) {
-                        if !vm.isOnFirstStep {
-                            Button {
-                                showExitConfirmation = false
-                                vm.back()
-                            } label: {
-                                Text("Go Back")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(.black)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 13)
-                                    .background(Color(.systemGray6))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
-                            .buttonStyle(.plain)
+                        Button {
+                            showExitConfirmation = false
+                        } label: {
+                            Text("Keep Editing")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
+                        .buttonStyle(.plain)
 
                         Button {
                             showExitConfirmation = false
@@ -108,6 +105,12 @@ struct PlanCreationView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showExitConfirmation)
+        .interactiveDismissDisabled(true)
+        .onChange(of: vm.draft.durationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.warmUpDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.coolDownDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.mainSections.count) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.totalMainMinutes) { _, _ in vm.redistributeWarmUpCoolDown() }
     }
 
     // MARK: - Header
@@ -115,13 +118,9 @@ struct PlanCreationView: View {
     private var header: some View {
         ZStack {
             HStack {
-                if vm.isOnFirstStep {
-                    Button("Cancel") { showExitConfirmation = true }
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
-                } else {
+                if !vm.isOnFirstStep {
                     Button {
-                        showExitConfirmation = true
+                        vm.back()
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 16, weight: .medium))
@@ -129,6 +128,13 @@ struct PlanCreationView: View {
                     }
                 }
                 Spacer()
+                Button {
+                    showExitConfirmation = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(vm.isOnFirstStep ? .gray : .black)
+                }
             }
 
             Text(vm.step.title)
