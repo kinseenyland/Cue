@@ -31,30 +31,6 @@ struct SpotifySearchView: View {
         viewModel.playlistTracks.contains(where: { $0.track.id == track.id })
     }
 
-    /// On device we need a separate API token (from browser) for playlist scopes. On simulator we use PKCE for connect so we already have scopes.
-    private var hasPlaylistAccess: Bool {
-        #if targetEnvironment(simulator)
-        return true
-        #else
-        return spotifyManager.apiAccessToken != nil
-        #endif
-    }
-
-    /// True when authenticated and running on a physical device (so we show "Link Spotify app").
-    private var isAuthenticatedOnDevice: Bool {
-        #if targetEnvironment(simulator)
-        return false
-        #else
-        return isAuthenticated
-        #endif
-    }
-
-    /// Show "Link Spotify app" only after playback failed (e.g. connection refused), so re-linking is available when needed.
-    /// Hidden on fresh launch so the bar doesn’t appear until they try to play and hit an error.
-    private var shouldShowLinkSpotifyAppBar: Bool {
-        isAuthenticatedOnDevice && !spotifyManager.isConnected && spotifyManager.playbackError != nil
-    }
-    
     private var shouldShowNowPlayingRibbon: Bool {
         spotifyManager.playbackError != nil || spotifyManager.isConnected || !spotifyManager.currentTrackName.isEmpty
     }
@@ -65,8 +41,6 @@ struct SpotifySearchView: View {
                 finishingAuthView
             } else if !isAuthenticated {
                 connectToSpotifyPrompt
-            } else if shouldShowLinkSpotifyAppBar {
-                linkSpotifyAppBar
             }
 
             // Create playlist
@@ -75,7 +49,7 @@ struct SpotifySearchView: View {
             }
 
             // My playlists (browse & edit)
-            if isAuthenticated && hasPlaylistAccess && !isEditingPlaylist && viewModel.currentPlaylist == nil {
+            if isAuthenticated && !isEditingPlaylist && viewModel.currentPlaylist == nil {
                 myPlaylistsSection
             }
 
@@ -190,7 +164,7 @@ struct SpotifySearchView: View {
         .task {
             // Auto-load "My playlists" once we're authenticated and have playlist scopes.
             // Keep it simple: load once when the list is empty and we're not already editing a playlist.
-            guard isAuthenticated && hasPlaylistAccess && !isEditingPlaylist else { return }
+            guard isAuthenticated && !isEditingPlaylist else { return }
             guard viewModel.myPlaylists.isEmpty else { return }
             guard !viewModel.isLoadingPlaylists else { return }
             await viewModel.loadMyPlaylists()
@@ -322,24 +296,6 @@ struct SpotifySearchView: View {
                         viewModel.clearCurrentPlaylist()
                     }
                     .font(.subheadline.weight(.medium))
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(8)
-            } else if !hasPlaylistAccess {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("To use playlists, allow access in the browser.")
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Button {
-                        spotifyManager.grantPlaylistAccess()
-                    } label: {
-                        Label("Allow using playlists", systemImage: "link")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.green)
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)

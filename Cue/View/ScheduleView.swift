@@ -155,7 +155,6 @@ struct ScheduleView: View {
                     Task { await vm.createSchedule(from: draft) }
                 }
             }
-            .tint(.black)
         }
         .sheet(item: $editingItem) { item in
             NavigationStack {
@@ -170,7 +169,6 @@ struct ScheduleView: View {
                     }
                 )
             }
-            .tint(.black)
         }
     }
 

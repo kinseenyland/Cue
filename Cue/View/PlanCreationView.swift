@@ -11,8 +11,17 @@ struct PlanCreationView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showExitConfirmation = false
 
-    init(availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (WorkoutPlanDraft) -> Void) {
-        _vm = StateObject(wrappedValue: PlanCreationViewModel(availableTypes: availableTypes))
+    init(
+        availableTypes: [WorkoutType] = WorkoutType.allCases,
+        workoutStructure: WorkoutStructurePreference? = nil,
+        musicApproach: MusicApproach? = nil,
+        onSave: @escaping (WorkoutPlanDraft) -> Void
+    ) {
+        _vm = StateObject(wrappedValue: PlanCreationViewModel(
+            availableTypes: availableTypes,
+            workoutStructure: workoutStructure,
+            musicApproach: musicApproach
+        ))
         self.onSave = onSave
     }
 
@@ -60,21 +69,18 @@ struct PlanCreationView: View {
                         .multilineTextAlignment(.center)
 
                     VStack(spacing: 10) {
-                        if !vm.isOnFirstStep {
-                            Button {
-                                showExitConfirmation = false
-                                vm.back()
-                            } label: {
-                                Text("Go Back")
-                                    .font(.system(size: 15, weight: .semibold))
-                                    .foregroundStyle(.black)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 13)
-                                    .background(Color(.systemGray6))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
-                            .buttonStyle(.plain)
+                        Button {
+                            showExitConfirmation = false
+                        } label: {
+                            Text("Keep Editing")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(.black)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 13)
+                                .background(Color(.systemGray6))
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
                         }
+                        .buttonStyle(.plain)
 
                         Button {
                             showExitConfirmation = false
@@ -99,6 +105,12 @@ struct PlanCreationView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showExitConfirmation)
+        .interactiveDismissDisabled(true)
+        .onChange(of: vm.draft.durationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.warmUpDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.coolDownDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.mainSections.count) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.totalMainMinutes) { _, _ in vm.redistributeWarmUpCoolDown() }
     }
 
     // MARK: - Header
@@ -106,13 +118,9 @@ struct PlanCreationView: View {
     private var header: some View {
         ZStack {
             HStack {
-                if vm.isOnFirstStep {
-                    Button("Cancel") { showExitConfirmation = true }
-                        .font(.system(size: 16))
-                        .foregroundStyle(.secondary)
-                } else {
+                if !vm.isOnFirstStep {
                     Button {
-                        showExitConfirmation = true
+                        vm.back()
                     } label: {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 16, weight: .medium))
@@ -120,6 +128,13 @@ struct PlanCreationView: View {
                     }
                 }
                 Spacer()
+                Button {
+                    showExitConfirmation = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(vm.isOnFirstStep ? .gray : .black)
+                }
             }
 
             Text(vm.step.title)
@@ -160,6 +175,10 @@ struct PlanCreationView: View {
             PlanTypeStepView()
         case .duration:
             PlanDurationStepView()
+        case .musicApproachChoice:
+            MusicApproachChoiceStepView()
+        case .pickMusic:
+            PlanPickMusicStepView()
         case .warmUpMovements:
             VStack(alignment: .leading, spacing: 12) {
                 MovementListStepView(
@@ -168,18 +187,28 @@ struct PlanCreationView: View {
                     durationMinutes: $vm.draft.warmUpDurationMinutes,
                     movements: $vm.draft.warmUpMovements
                 )
-                PlanSectionPlaylistPicker(
-                    title: "Warm-up playlist",
-                    selectedPlaylistId: $vm.draft.warmUpPlaylistId
-                )
+                if vm.showInlinePlaylistPickers {
+                    PlanSectionPlaylistPicker(
+                        title: "Warm-up playlist",
+                        selectedPlaylistId: $vm.draft.warmUpPlaylistId
+                    )
+                } else if let name = vm.playlistName(for: vm.draft.warmUpPlaylistId) {
+                    AssignedPlaylistLabel(name: name)
+                        .padding(.horizontal, 24)
+                }
             }
         case .mainSections:
             VStack(alignment: .leading, spacing: 12) {
                 PlanMainSectionsStepView()
-                PlanSectionPlaylistPicker(
-                    title: "Main workout playlist",
-                    selectedPlaylistId: $vm.draft.mainPlaylistId
-                )
+                if vm.showInlinePlaylistPickers {
+                    PlanSectionPlaylistPicker(
+                        title: "Main workout playlist",
+                        selectedPlaylistId: $vm.draft.mainPlaylistId
+                    )
+                } else if let name = vm.playlistName(for: vm.draft.mainPlaylistId) {
+                    AssignedPlaylistLabel(name: name)
+                        .padding(.horizontal, 24)
+                }
             }
         case .mainMovements:
             PlanMainMovementsStepView()
@@ -191,10 +220,15 @@ struct PlanCreationView: View {
                     durationMinutes: $vm.draft.coolDownDurationMinutes,
                     movements: $vm.draft.coolDownMovements
                 )
-                PlanSectionPlaylistPicker(
-                    title: "Cool-down playlist",
-                    selectedPlaylistId: $vm.draft.coolDownPlaylistId
-                )
+                if vm.showInlinePlaylistPickers {
+                    PlanSectionPlaylistPicker(
+                        title: "Cool-down playlist",
+                        selectedPlaylistId: $vm.draft.coolDownPlaylistId
+                    )
+                } else if let name = vm.playlistName(for: vm.draft.coolDownPlaylistId) {
+                    AssignedPlaylistLabel(name: name)
+                        .padding(.horizontal, 24)
+                }
             }
         case .review:
             PlanReviewStepView()
@@ -225,9 +259,7 @@ struct PlanCreationView: View {
 
     // MARK: - Helpers
 
-    private var progress: Double {
-        Double(vm.step.rawValue + 1) / Double(PlanCreationStep.total)
-    }
+    private var progress: Double { vm.progress }
 }
 
 // MARK: - Playlist picker per section

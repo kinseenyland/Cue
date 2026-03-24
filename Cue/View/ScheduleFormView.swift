@@ -122,14 +122,24 @@ struct ScheduleFormView: View {
                     .disabled(selectedPlan == nil)
             }
         }
-        .alert("Delete this scheduled class?", isPresented: $showDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
-                onDelete?()
-                dismiss()
+        .overlay {
+            if showDeleteConfirmation {
+                CustomAlertView(
+                    title: "Delete this scheduled class?",
+                    message: "This action cannot be undone.",
+                    primaryLabel: "Cancel",
+                    primaryAction: { showDeleteConfirmation = false },
+                    primaryStyle: .gray,
+                    secondaryLabel: "Delete",
+                    secondaryAction: {
+                        showDeleteConfirmation = false
+                        onDelete?()
+                        dismiss()
+                    },
+                    secondaryStyle: .destructive,
+                    onDismiss: { showDeleteConfirmation = false }
+                )
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This action cannot be undone.")
         }
     }
 
@@ -281,7 +291,6 @@ struct ScheduleFormView: View {
                 displayedComponents: .date
             )
             .datePickerStyle(.graphical)
-            .tint(.black)
             .padding(.horizontal)
         }
     }

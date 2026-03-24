@@ -11,7 +11,8 @@ import SwiftUI
 struct PlansView: View {
     @Binding var selectedTab: MainTab
     @State private var navigationPath = NavigationPath()
-    @State private var isPresentingCreateForm = false
+    @State private var isPresentingCreateChoice = false
+    @State private var presentedCreationMode: PlanCreationMode? = nil
     @State private var editingPlan: WorkoutPlan? = nil
     @State private var isShowingAlert = false
     @State private var alertMessage = ""
@@ -40,7 +41,11 @@ struct PlansView: View {
                         .foregroundStyle(.black)
                     Spacer()
                     Button {
-                        isPresentingCreateForm = true
+                        if vm.plans.isEmpty {
+                            presentedCreationMode = .guided
+                        } else {
+                            isPresentingCreateChoice = true
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 20))
@@ -108,7 +113,7 @@ struct PlansView: View {
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
-                                .tint(.blue)
+                                .tint(.black)
                             }
                             .contextMenu {
                                 Button("Start Workout") {
@@ -153,32 +158,49 @@ struct PlansView: View {
             await vm.fetchPlans()
             if let uid = authVM.user?.uid { profileVM.load(uid: uid) }
         }
-        .sheet(isPresented: $isPresentingCreateForm) {
-            PlanCreationView(availableTypes: availableTypes) { newPlan in
-                Task { await vm.createPlan(from: newPlan) }
+        .sheet(isPresented: $isPresentingCreateChoice) {
+            PlanCreationChoiceView { mode in
+                presentedCreationMode = mode
+            }
+        }
+        .sheet(item: $presentedCreationMode) { mode in
+            switch mode {
+            case .guided:
+                PlanCreationView(
+                    availableTypes: availableTypes,
+                    workoutStructure: profileVM.workoutStructure,
+                    musicApproach: profileVM.musicApproach
+                ) { newPlan in
+                    Task { await vm.createPlan(from: newPlan) }
+                }
+            case .quick:
+                QuickCreateView(
+                    availableTypes: availableTypes,
+                    workoutStructure: profileVM.workoutStructure
+                ) { newPlan in
+                    Task { await vm.createPlan(from: newPlan) }
+                }
             }
         }
         .sheet(item: $editingPlan) { plan in
-            WorkoutPlanFormView(draft: draft(from: plan), availableTypes: availableTypes) { updated in
+            EditPlanView(plan: plan, availableTypes: availableTypes) { updated in
                 Task { await vm.updatePlan(id: plan.id, from: updated) }
             }
         }
-        .alert("Cue", isPresented: $isShowingAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(alertMessage)
+        .overlay {
+            if isShowingAlert {
+                CustomAlertView(
+                    title: "Cue",
+                    message: alertMessage,
+                    primaryLabel: "OK",
+                    primaryAction: { isShowingAlert = false },
+                    primaryStyle: .gray,
+                    onDismiss: { isShowingAlert = false }
+                )
+            }
         }
     }
 
-    private func draft(from plan: WorkoutPlan) -> WorkoutPlanDraft {
-        WorkoutPlanDraft(
-            title: plan.title,
-            type: plan.type,
-            difficulty: plan.difficulty,
-            durationMinutes: plan.durationMinutes,
-            movements: plan.movements
-        )
-    }
 }
 
 struct PlanFilterChip: View {

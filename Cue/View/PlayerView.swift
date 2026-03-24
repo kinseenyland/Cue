@@ -144,29 +144,31 @@ struct PlayerView: View {
                 }
             }
 
-            VStack(spacing: 6) {
-                spotifyBar
+            if sessionVM.warmUpPlaylistId != nil || sessionVM.mainPlaylistId != nil || sessionVM.coolDownPlaylistId != nil {
+                VStack(spacing: 6) {
+                    spotifyBar
 
-                if !spotifyManager.nextTrackTitle.isEmpty {
-                    HStack {
-                        Text("Up next:")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(spotifyManager.nextTrackTitle)
-                            .font(.caption)
-                            .fontWeight(.semibold)
-                            .lineLimit(1)
-                        Spacer()
+                    if !spotifyManager.nextTrackTitle.isEmpty {
+                        HStack {
+                            Text("Up next:")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(spotifyManager.nextTrackTitle)
+                                .font(.caption)
+                                .fontWeight(.semibold)
+                                .lineLimit(1)
+                            Spacer()
+                        }
+                        .padding(10)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.systemGray6))
+                        )
                     }
-                    .padding(10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemGray6))
-                    )
                 }
+                .padding(.horizontal)
+                .padding(.bottom, 8)
             }
-            .padding(.horizontal)
-            .padding(.bottom, 8)
         }
         .onReceive(timer) { _ in
             sessionVM.tick()
@@ -199,14 +201,25 @@ struct PlayerView: View {
         .onDisappear {
             spotifyManager.stopPlaybackSyncLoop()
         }
-        .alert("End Workout?", isPresented: $showExitConfirmation) {
-            Button("Keep Going", role: .cancel) { }
-            Button("End Workout", role: .destructive) {
-                sessionVM.reset()
-                selectedTab = .plans
+        .overlay {
+            if showExitConfirmation {
+                CustomAlertView(
+                    title: "End Workout?",
+                    message: "Are you sure you want to end this workout? Your progress will be lost.",
+                    primaryLabel: "Keep Going",
+                    primaryAction: { showExitConfirmation = false },
+                    primaryStyle: .gray,
+                    secondaryLabel: "End Workout",
+                    secondaryAction: {
+                        showExitConfirmation = false
+                        sessionVM.reset()
+                        selectedTab = .plans
+                    },
+                    secondaryStyle: .destructive,
+                    onDismiss: { showExitConfirmation = false }
+                )
+                .animation(.easeInOut(duration: 0.2), value: showExitConfirmation)
             }
-        } message: {
-            Text("Are you sure you want to end this workout? Your progress will be lost.")
         }
     }
 

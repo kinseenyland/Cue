@@ -483,6 +483,14 @@ class SpotifyManager: NSObject, ObservableObject {
         })
     }
 
+    func pausePlayback() {
+        #if targetEnvironment(simulator)
+        return
+        #endif
+        guard appRemote.isConnected, !isPaused else { return }
+        appRemote.playerAPI?.pause({ _, _ in })
+    }
+
     func togglePlayPause() {
         #if targetEnvironment(simulator)
         playbackError = "Playback requires a physical device with the Spotify app installed."
