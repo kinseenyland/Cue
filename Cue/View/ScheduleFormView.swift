@@ -24,6 +24,7 @@ struct ScheduleFormView: View {
     @State private var selectedMinute: Int  // 0, 15, 30, 45
     @State private var selectedPeriod: String // "AM" or "PM"
     @State private var showDeleteConfirmation = false
+    @State private var showExitConfirmation = false
 
     private static let hours = Array(1...12)
     private static let minutes = [0, 15, 30, 45]
@@ -115,7 +116,13 @@ struct ScheduleFormView: View {
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
+                Button("Cancel") {
+                    if selectedPlan != nil {
+                        showExitConfirmation = true
+                    } else {
+                        dismiss()
+                    }
+                }
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") { save() }
@@ -139,6 +146,53 @@ struct ScheduleFormView: View {
                     secondaryStyle: .destructive,
                     onDismiss: { showDeleteConfirmation = false }
                 )
+            }
+            if showExitConfirmation {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { showExitConfirmation = false }
+
+                VStack(spacing: 16) {
+                    HStack {
+                        Spacer()
+                        Button { showExitConfirmation = false } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 30, height: 30)
+                                .background(Color(.systemGray5))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Text("Are you sure?")
+                        .font(.system(size: 18, weight: .bold))
+
+                    Text("Your schedule changes will be lost if you leave.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    Button {
+                        showExitConfirmation = false
+                        dismiss()
+                    } label: {
+                        Text("Discard")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Color.red)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(20)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+                .padding(.horizontal, 40)
             }
         }
     }
