@@ -35,7 +35,7 @@ struct ScheduleView: View {
     }
 
     private var weekdaySymbols: [String] {
-        let symbols = calendar.veryShortWeekdaySymbols
+        let symbols = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
         let firstWeekday = calendar.firstWeekday - 1
         return Array(symbols[firstWeekday...]) + Array(symbols[..<firstWeekday])
     }
