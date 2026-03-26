@@ -77,8 +77,9 @@ struct PlayerView: View {
                                 }
                                 .padding(16)
                                 .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 14))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
+                                    RoundedRectangle(cornerRadius: 14)
                                         .stroke(Color.black, lineWidth: 1)
                                 )
                             }
@@ -317,8 +318,9 @@ struct PlayerView: View {
         }
         .padding(20)
         .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
         .overlay(
-            RoundedRectangle(cornerRadius: 14)
+            RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.black, lineWidth: 1)
         )
     }
@@ -397,8 +399,9 @@ struct PlayerView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
         .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .overlay(
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.black, lineWidth: 1)
         )
     }
@@ -579,6 +582,7 @@ struct PlayerView: View {
         }
         .padding(12)
         .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 14))
         .overlay(
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.black.opacity(0.15), lineWidth: 1)
@@ -629,8 +633,9 @@ private struct SectionDropdown: View {
             .padding(.trailing, 6)
             .padding(.vertical, 6)
             .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 12))
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: 12)
                     .stroke(Color.black, lineWidth: 1)
             )
 
