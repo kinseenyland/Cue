@@ -298,7 +298,7 @@ struct PlayerView: View {
 
                 Spacer()
 
-                Text("\(sessionVM.currentIndex + 1) of \(sessionVM.movements.count)")
+                Text("\(sessionVM.currentSectionPosition.index) of \(sessionVM.currentSectionPosition.total)")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
 
@@ -358,8 +358,12 @@ struct PlayerView: View {
                     SectionDropdown(
                         label: section.label,
                         movements: section.movements,
+                        startIndex: section.startIndex,
                         onTapLabel: {
                             sessionVM.jumpToMove(at: section.startIndex)
+                        },
+                        onTapMove: { globalIndex in
+                            sessionVM.jumpToMove(at: globalIndex)
                         }
                     )
                     .id(sessionVM.currentIndex)
@@ -372,25 +376,23 @@ struct PlayerView: View {
 
     private func moveRow(_ move: Movement) -> some View {
         HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(move.name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.black)
-                    .lineLimit(1)
-                if move.reps != nil || move.seconds != nil {
-                    HStack(spacing: 6) {
-                        Image(systemName: move.goalType == .timed ? "timer" : "arrow.2.circlepath")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                        Text(move.goalType == .timed
-                             ? "\(move.seconds ?? 0) sec"
-                             : "\(move.reps ?? 0) reps")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
-                    }
+            Text(move.name)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.black)
+                .lineLimit(1)
+            Spacer()
+            if move.reps != nil || move.seconds != nil {
+                HStack(spacing: 5) {
+                    Image(systemName: move.goalType == .timed ? "timer" : "arrow.2.circlepath")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                    Text(move.goalType == .timed
+                         ? "\(move.seconds ?? 0) sec"
+                         : "\(move.reps ?? 0) reps")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
                 }
             }
-            Spacer()
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 12)
@@ -595,7 +597,9 @@ struct PlayerView: View {
 private struct SectionDropdown: View {
     let label: String
     let movements: [Movement]
+    let startIndex: Int
     let onTapLabel: () -> Void
+    var onTapMove: ((_ globalIndex: Int) -> Void)? = nil
     @State private var isExpanded = false
 
     var body: some View {
@@ -632,7 +636,7 @@ private struct SectionDropdown: View {
 
             if isExpanded {
                 VStack(spacing: 6) {
-                    ForEach(movements) { move in
+                    ForEach(Array(movements.enumerated()), id: \.element.id) { offset, move in
                         HStack(spacing: 8) {
                             Text(move.name)
                                 .font(.system(size: 13, weight: .medium))
@@ -655,6 +659,10 @@ private struct SectionDropdown: View {
                         .padding(.vertical, 10)
                         .background(Color(.systemGray6))
                         .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onTapMove?(startIndex + offset)
+                        }
                     }
                 }
                 .padding(.leading, 20)

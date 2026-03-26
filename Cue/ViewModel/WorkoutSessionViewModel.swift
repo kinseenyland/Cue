@@ -275,6 +275,15 @@ final class WorkoutSessionViewModel: ObservableObject {
     var mainCount: Int { movements.filter { $0.section == .main }.count }
     var coolDownCount: Int { movements.filter { $0.section == .coolDown }.count }
 
+    var currentSectionPosition: (index: Int, total: Int) {
+        guard let move = currentMove else { return (0, 0) }
+        let sectionMoves = movements.filter {
+            $0.section == move.section && $0.sectionName == move.sectionName
+        }
+        let posInSection = sectionMoves.firstIndex(where: { $0.id == move.id }) ?? 0
+        return (posInSection + 1, sectionMoves.count)
+    }
+
     // MARK: - Helpers
 
     private func resetSectionTimer() {
