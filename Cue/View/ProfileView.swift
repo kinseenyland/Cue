@@ -209,7 +209,10 @@ struct ProfileView: View {
                     .foregroundColor(.black)
                 Spacer()
                 Button {
-                    _ = spotifyManager.connect()
+                    if !spotifyManager.isAuthenticated {
+                        // Playlist authorization flow (no playback side effects).
+                        _ = spotifyManager.grantPlaylistAccess()
+                    }
                     isShowingSpotifyPage = true
                 } label: {
                     Text("Manage Playlists")

@@ -21,6 +21,7 @@ class SpotifySearchViewModel: ObservableObject {
     @Published var currentPlaylist: SpotifySearchService.SpotifyPlaylist?
     @Published var isAddingTrack = false
     @Published var lastAddedTrackName: String?
+    @Published var currentPlaylistAddedTrackIDs: Set<String> = []
 
     // Browse / edit existing playlist
     @Published var myPlaylists: [SpotifySearchService.SpotifyPlaylist] = []
@@ -74,12 +75,32 @@ class SpotifySearchViewModel: ObservableObject {
             createPlaylistError = "Enter a playlist name."
             return
         }
+
+        // Prevent duplicate playlist names for this user (case-insensitive).
+        // Ensure we have a recent playlist list before validating.
+        if myPlaylists.isEmpty && !isLoadingPlaylists {
+            await loadMyPlaylists()
+        }
+        let normalizedName = name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasDuplicate = myPlaylists.contains {
+            $0.name.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                .trimmingCharacters(in: .whitespacesAndNewlines) == normalizedName
+        }
+        guard !hasDuplicate else {
+            createPlaylistError = "You already have a playlist named \"\(name)\"."
+            return
+        }
+
         isCreatingPlaylist = true
         createPlaylistError = nil
         defer { isCreatingPlaylist = false }
         do {
             let playlist = try await SpotifySearchService.shared.createPlaylist(name: name, description: "Created with Cue", isPublic: true)
             currentPlaylist = playlist
+            currentPlaylistAddedTrackIDs = []
+            // Keep local cache in sync so duplicate checks work immediately.
+            myPlaylists.insert(playlist, at: 0)
             newPlaylistName = ""
         } catch SpotifySearchService.SpotifyError.notAuthenticated {
             createPlaylistError = "Connect to Spotify first."
@@ -99,12 +120,14 @@ class SpotifySearchViewModel: ObservableObject {
     @MainActor
     func addTrackToCurrentPlaylist(_ track: SpotifySearchService.SpotifyTrack) async {
         guard let playlist = currentPlaylist else { return }
+        guard !currentPlaylistAddedTrackIDs.contains(track.id) else { return }
         isAddingTrack = true
         lastAddedTrackName = nil
         defer { isAddingTrack = false }
         do {
             try await SpotifySearchService.shared.addTracksToPlaylist(playlistId: playlist.id, uris: [track.uri])
             lastAddedTrackName = track.name
+            currentPlaylistAddedTrackIDs.insert(track.id)
         } catch {
             createPlaylistError = "Could not add \"\(track.name)\" to playlist."
         }
@@ -114,6 +137,7 @@ class SpotifySearchViewModel: ObservableObject {
     func clearCurrentPlaylist() {
         currentPlaylist = nil
         lastAddedTrackName = nil
+        currentPlaylistAddedTrackIDs = []
         createPlaylistError = nil
     }
 
@@ -148,6 +172,10 @@ class SpotifySearchViewModel: ObservableObject {
         print("[Cue Spotify] selectPlaylistForEditing: id=\(playlist.id), name=\(playlist.name)")
         #endif
         selectedPlaylistForEditing = playlist
+        // Start each playlist editor session with a clean search state.
+        searchQuery = ""
+        tracks = []
+        errorMessage = nil
         playlistSnapshotId = nil
         playlistTracks = []
         playlistEditError = nil
@@ -205,6 +233,9 @@ class SpotifySearchViewModel: ObservableObject {
     @MainActor
     func closePlaylistEditor() {
         selectedPlaylistForEditing = nil
+        searchQuery = ""
+        tracks = []
+        errorMessage = nil
         playlistSnapshotId = nil
         playlistTracks = []
         playlistEditError = nil
