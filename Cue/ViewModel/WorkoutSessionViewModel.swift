@@ -22,6 +22,7 @@ final class WorkoutSessionViewModel: ObservableObject {
     @Published var elapsedSeconds: Int = 0
     var planType: WorkoutType?
     var planDifficulty: Difficulty?
+    var planDurationMinutes: Int = 0
 
     var warmUpPlaylistId: String?
     var mainPlaylistId: String?
@@ -157,6 +158,7 @@ final class WorkoutSessionViewModel: ObservableObject {
         elapsedSeconds = 0
         planType = plan.type
         planDifficulty = plan.difficulty
+        planDurationMinutes = plan.durationMinutes
         warmUpPlaylistId = plan.warmUpPlaylistId
         mainPlaylistId = plan.mainPlaylistId
         coolDownPlaylistId = plan.coolDownPlaylistId
@@ -252,12 +254,21 @@ final class WorkoutSessionViewModel: ObservableObject {
         elapsedSeconds = 0
         planType = nil
         planDifficulty = nil
+        planDurationMinutes = 0
         sectionRemainingSeconds = 0
         moveRemainingSeconds = 0
     }
 
     var elapsedTimeFormatted: String {
         formatTime(elapsedSeconds)
+    }
+
+    var remainingSeconds: Int {
+        max(0, planDurationMinutes * 60 - elapsedSeconds)
+    }
+
+    var remainingTimeFormatted: String {
+        formatTime(remainingSeconds)
     }
 
     var warmUpCount: Int { movements.filter { $0.section == .warmUp }.count }

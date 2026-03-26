@@ -76,9 +76,10 @@ struct PlayerView: View {
                                         .foregroundStyle(.black)
                                 }
                                 .padding(16)
+                                .background(Color.white)
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color(.systemGray4), lineWidth: 1)
+                                        .stroke(Color.black, lineWidth: 1)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -108,6 +109,20 @@ struct PlayerView: View {
                         .foregroundStyle(.black)
                 }
                 Spacer()
+                HStack(spacing: 5) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 12, weight: .medium))
+                    Text(sessionVM.remainingTimeFormatted)
+                        .font(.system(size: 13, weight: .semibold))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(sessionVM.remainingSeconds < 300 ? .red : .primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(Color(.systemGray6))
+                )
             }
             .padding(.horizontal)
             .padding(.top, 8)
@@ -115,17 +130,17 @@ struct PlayerView: View {
             ScrollView {
                 VStack(spacing: 0) {
                     Text(sessionVM.planTitle)
-                        .font(.system(size: 17))
-                        .foregroundStyle(.primary)
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal)
                         .padding(.top, 4)
 
                     Text(sessionVM.currentSectionLabel)
-                        .font(.system(size: 32, weight: .bold))
+                        .font(.system(size: 28, weight: .bold))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal)
-                        .padding(.top, 8)
+                        .padding(.top, 4)
 
                     if let move = sessionVM.currentMove {
                         movementCard(move)
@@ -135,11 +150,11 @@ struct PlayerView: View {
 
                     upcomingMovesList
                         .padding(.horizontal)
-                        .padding(.top, 12)
+                        .padding(.top, 10)
 
                     upcomingSectionsView
                         .padding(.horizontal)
-                        .padding(.top, 8)
+                        .padding(.top, 6)
                         .padding(.bottom, 16)
                 }
             }
@@ -226,43 +241,34 @@ struct PlayerView: View {
     // MARK: - Movement Card
 
     private func movementCard(_ move: Movement) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center) {
-                Text(move.name)
-                    .font(.system(size: 30, weight: .bold))
-                Spacer()
-                if move.goalType == .timed, let seconds = move.seconds {
-                    Text("\(seconds)s")
-                        .font(.system(size: 15, weight: .semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.black, lineWidth: 1.5)
-                        )
-                } else if let reps = move.reps {
-                    Text("\(reps) reps")
-                        .font(.system(size: 15, weight: .semibold))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 16)
-                                .stroke(Color.black, lineWidth: 1.5)
-                        )
+        VStack(alignment: .leading, spacing: 16) {
+            Text(move.name)
+                .font(.system(size: 26, weight: .bold))
+
+            if move.reps != nil || move.seconds != nil {
+                HStack(spacing: 6) {
+                    Image(systemName: move.goalType == .timed ? "timer" : "arrow.2.circlepath")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.secondary)
+                    Text(move.goalType == .timed
+                         ? "\(move.seconds ?? 0) sec"
+                         : "\(move.reps ?? 0) reps")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.primary)
                 }
             }
 
             if let notes = move.notes, !notes.isEmpty {
                 let lines = notes.components(separatedBy: "\n").filter { !$0.isEmpty }
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 6) {
                     ForEach(lines, id: \.self) { line in
-                        HStack(alignment: .top, spacing: 10) {
+                        HStack(alignment: .top, spacing: 8) {
                             Circle()
                                 .fill(Color.black)
-                                .frame(width: 6, height: 6)
+                                .frame(width: 5, height: 5)
                                 .padding(.top, 6)
                             Text(line)
-                                .font(.system(size: 15))
+                                .font(.system(size: 14))
                                 .foregroundStyle(.primary)
                         }
                     }
@@ -276,11 +282,17 @@ struct PlayerView: View {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .background(Circle().fill(Color.black))
                 }
                 .disabled(!sessionVM.canGoPrevious)
                 .opacity(sessionVM.canGoPrevious ? 1.0 : 0.3)
+
+                Spacer()
+
+                Text("\(sessionVM.currentIndex + 1) of \(sessionVM.movements.count)")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.secondary)
 
                 Spacer()
 
@@ -290,15 +302,16 @@ struct PlayerView: View {
                     Image(systemName: sessionVM.canGoNext ? "chevron.right" : "checkmark")
                         .font(.system(size: 16, weight: .bold))
                         .foregroundStyle(.white)
-                        .frame(width: 40, height: 40)
+                        .frame(width: 44, height: 44)
                         .background(Circle().fill(Color.black))
                 }
             }
         }
         .padding(20)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(.systemGray6))
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.black, lineWidth: 1)
         )
     }
 
@@ -307,9 +320,10 @@ struct PlayerView: View {
     private var upcomingMovesList: some View {
         VStack(alignment: .leading, spacing: 8) {
             if !sessionVM.upcomingMovesInSection.isEmpty {
-                Text("Up Next")
-                    .font(.caption)
+                Text("UP NEXT")
+                    .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .tracking(0.5)
             }
             ForEach(sessionVM.upcomingMovesInSection, id: \.movement.id) { item in
                 moveRow(item.movement)
@@ -328,9 +342,10 @@ struct PlayerView: View {
             if let section = sessionVM.upcomingSections.first {
                 VStack(alignment: .leading, spacing: 8) {
                     if sessionVM.upcomingMovesInSection.isEmpty {
-                        Text("Up Next")
-                            .font(.caption)
+                        Text("UP NEXT")
+                            .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
+                            .tracking(0.5)
                     }
                     SectionDropdown(
                         label: section.label,
@@ -348,25 +363,33 @@ struct PlayerView: View {
     // MARK: - Move Row
 
     private func moveRow(_ move: Movement) -> some View {
-        HStack {
-            Text(move.name)
-                .font(.body)
-                .foregroundStyle(.primary)
-            Spacer()
-            if move.goalType == .timed, let seconds = move.seconds {
-                Text("\(seconds)s")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            } else if let reps = move.reps {
-                Text("\(reps) reps")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(move.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .lineLimit(1)
+                if move.reps != nil || move.seconds != nil {
+                    HStack(spacing: 6) {
+                        Image(systemName: move.goalType == .timed ? "timer" : "arrow.2.circlepath")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                        Text(move.goalType == .timed
+                             ? "\(move.seconds ?? 0) sec"
+                             : "\(move.reps ?? 0) reps")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
+                }
             }
+            Spacer()
         }
-        .padding(14)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(Color.white)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(.systemGray4), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.black, lineWidth: 1)
         )
     }
 
@@ -545,9 +568,10 @@ struct PlayerView: View {
             }
         }
         .padding(12)
+        .background(Color.white)
         .overlay(
             RoundedRectangle(cornerRadius: 14)
-                .stroke(Color(.systemGray4), lineWidth: 1)
+                .stroke(Color.black.opacity(0.15), lineWidth: 1)
         )
     }
 
@@ -592,9 +616,10 @@ private struct SectionDropdown: View {
             .padding(.leading, 14)
             .padding(.trailing, 6)
             .padding(.vertical, 6)
+            .background(Color.white)
             .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color(.systemGray4), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.black, lineWidth: 1)
             )
 
             if isExpanded {
