@@ -178,7 +178,7 @@ struct SpotifySearchView: View {
             guard !viewModel.isLoadingPlaylists else { return }
             await viewModel.loadMyPlaylists()
         }
-        .onChange(of: spotifyManager.apiAccessToken) { _ in
+        .onChange(of: spotifyManager.apiAccessToken) { _, _ in
             Task {
                 // Token can arrive after initial render; load playlists immediately then.
                 guard isAuthenticated && hasPlaylistAccess && !isEditingPlaylist else { return }
@@ -187,7 +187,7 @@ struct SpotifySearchView: View {
                 await viewModel.loadMyPlaylists()
             }
         }
-        .onChange(of: spotifyManager.isFinishingAuth) { finishing in
+        .onChange(of: spotifyManager.isFinishingAuth) { _, finishing in
             guard !finishing else { return }
             Task {
                 guard isAuthenticated && hasPlaylistAccess && !isEditingPlaylist else { return }
@@ -196,7 +196,7 @@ struct SpotifySearchView: View {
                 await viewModel.loadMyPlaylists()
             }
         }
-        .onChange(of: scenePhase) { phase in
+        .onChange(of: scenePhase) { _, phase in
             #if !targetEnvironment(simulator)
             if phase == .active {
                 spotifyManager.connectAppRemoteIfNeeded()
@@ -266,7 +266,7 @@ struct SpotifySearchView: View {
                 connectionError = nil
                 isConnecting = true
                 Task { @MainActor in
-                    let started = spotifyManager.connect()
+                    let started = spotifyManager.connectForOnboarding()
                     if !started {
                         connectionError = "Failed to start authorization. Please try again."
                     }
@@ -472,6 +472,15 @@ struct SpotifySearchView: View {
                             Text(viewModel.myPlaylists.isEmpty ? "Create one above or sign in to Spotify." : "Try a different search.")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
+                            if viewModel.myPlaylists.isEmpty {
+                                Button {
+                                    Task { await viewModel.loadMyPlaylists() }
+                                } label: {
+                                    Label("Refresh", systemImage: "arrow.clockwise")
+                                        .font(.caption)
+                                }
+                                .padding(.top, 4)
+                            }
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)

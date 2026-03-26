@@ -81,11 +81,13 @@ class SpotifyManager: NSObject, ObservableObject {
 
     override init() {
         super.init()
-        // Observe Firebase auth state — load tokens for the signed-in user, or clear on sign-out
-        Auth.auth().addStateDidChangeListener { [weak self] _, user in
+        // Observe Firebase auth state — load tokens for the signed-in user, or clear on sign-out.
+        // Only clear when a previously signed-in user signs out (not during onboarding when no user exists yet).
+        _ = Auth.auth().addStateDidChangeListener { [weak self] _, user in
             if let uid = user?.uid {
                 self?.loadTokens(for: uid)
-            } else {
+            } else if self?.currentUserUID != nil {
+                // User was signed in and now isn't → actual sign-out
                 self?.clearInMemoryState()
             }
         }
@@ -94,8 +96,8 @@ class SpotifyManager: NSObject, ObservableObject {
     /// Token to use for Web API (playlists, /me). Prefer API token (has playlist scopes); fallback to main token.
     var tokenForWebAPI: String? { apiAccessToken ?? accessToken }
 
-    /// Token that has playlist-read scope. Use this for GET playlist/tracks; do not use playback token (causes 403).
-    var tokenForPlaylistRead: String? { apiAccessToken }
+    /// Token that has playlist-read scope. Prefer API token; fall back to main token if it came from PKCE (has refresh token = full scopes).
+    var tokenForPlaylistRead: String? { apiAccessToken ?? (refreshToken != nil ? accessToken : nil) }
     
     var playURI = ""
     private let webAPIBaseURL = "https://api.spotify.com/v1"
@@ -174,6 +176,20 @@ class SpotifyManager: NSObject, ObservableObject {
     func grantPlaylistAccess() -> Bool {
         #if targetEnvironment(simulator)
         return false
+        #else
+        return connectWithWebAuth(forPlaylistScopesOnly: true)
+        #endif
+    }
+
+    /// Onboarding connect: use Web PKCE (full scopes including playlist read).
+    /// Unlike connect(), this never uses App Remote — it authenticates via browser.
+    /// On device: stores as apiAccessToken so tokenForPlaylistRead works.
+    /// On simulator: stores as accessToken (main token, same as connect()).
+    @MainActor
+    @discardableResult
+    func connectForOnboarding() -> Bool {
+        #if targetEnvironment(simulator)
+        return connectWithWebAuth(forPlaylistScopesOnly: false)
         #else
         return connectWithWebAuth(forPlaylistScopesOnly: true)
         #endif
@@ -387,11 +403,13 @@ class SpotifyManager: NSObject, ObservableObject {
     }
 
     /// Clear the credentials used for Web API when refresh fails (so UI can show "sign in again").
+    /// Only clears tokens that have a corresponding refresh token (i.e., from PKCE flow).
+    /// Never clears an App Remote–only access token (no refresh token) since Web API 401s are expected for it.
     func clearWebAPICredentialsOnRefreshFailure() {
         if apiRefreshToken != nil {
             apiAccessToken = nil
             apiRefreshToken = nil
-        } else {
+        } else if refreshToken != nil {
             accessToken = nil
             refreshToken = nil
         }

@@ -46,7 +46,7 @@ final class AuthViewModel: ObservableObject {
         Auth.auth().signIn(withEmail: trimmedEmail, password: password) { [weak self] _, error in
             guard let self else { return }
             self.isLoading = false
-            if let error {
+            if error != nil {
                 self.errorMessage = "Incorrect email or password."
             } else {
                 self.statusMessage = "Signed in."

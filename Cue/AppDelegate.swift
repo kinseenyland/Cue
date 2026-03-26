@@ -33,4 +33,15 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         _ = openURLSwizzled
         return true
     }
+
+    /// Fallback URL handler for Spotify App Remote callback.
+    /// SwiftUI's onOpenURL can miss the redirect when returning from the Spotify app on device.
+    func application(
+        _ app: UIApplication,
+        open url: URL,
+        options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+    ) -> Bool {
+        SpotifyManager.shared.handleURL(url)
+        return true
+    }
 }

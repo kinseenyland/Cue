@@ -30,7 +30,7 @@ struct CueApp: App {
                     spotifyManager.handleURL(url)
                 }
         }
-        .onChange(of: scenePhase) { phase in
+        .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
                 break
