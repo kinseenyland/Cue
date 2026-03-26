@@ -166,6 +166,7 @@ struct MovementListStepView: View {
         newName = ""
         newReps = ""
         newSeconds = ""
+        assigningGoal = false
         showNoteField = false
         newNote = ""
         nameFieldFocused = true
@@ -293,6 +294,7 @@ struct MovementAddFormView: View {
         newName = ""
         newReps = ""
         newSeconds = ""
+        assigningGoal = false
         showNoteField = false
         newNote = ""
         nameFieldFocused = true

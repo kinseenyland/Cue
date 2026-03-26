@@ -85,7 +85,7 @@ class SpotifySearchService {
     }
     
     func searchTracks(query: String) async throws -> [SpotifyTrack] {
-        guard var token = SpotifyManager.shared.tokenForWebAPI else {
+        guard let token = SpotifyManager.shared.tokenForWebAPI else {
             throw SpotifyError.notAuthenticated
         }
 

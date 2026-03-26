@@ -238,24 +238,27 @@ struct PlanDetailView: View {
             await loadPlaylistsIfNeeded()
         }
         .sheet(isPresented: $isShowingEdit) {
-            EditPlanView(
-                plan: currentPlan,
-                availableTypes: availableTypes
-            ) { updated in
-                // Apply changes locally for immediate UI refresh, then persist
-                var newPlan = currentPlan
-                newPlan.title = updated.title
-                newPlan.type = updated.type
-                newPlan.difficulty = updated.difficulty
-                newPlan.durationMinutes = updated.durationMinutes
-                newPlan.movements = updated.movements
-                newPlan.warmUpPlaylistId = updated.warmUpPlaylistId
-                newPlan.mainPlaylistId = updated.mainPlaylistId
-                newPlan.coolDownPlaylistId = updated.coolDownPlaylistId
-                currentPlan = newPlan
-                onUpdate(updated)
-                Task { await loadPlaylistsIfNeeded() }
-            }
+            PlanFormView(
+                availableTypes: availableTypes,
+                mode: .edit(
+                    plan: currentPlan,
+                    onSave: { updated in
+                        // Apply changes locally for immediate UI refresh, then persist
+                        var newPlan = currentPlan
+                        newPlan.title = updated.title
+                        newPlan.type = updated.type
+                        newPlan.difficulty = updated.difficulty
+                        newPlan.durationMinutes = updated.durationMinutes
+                        newPlan.movements = updated.movements
+                        newPlan.warmUpPlaylistId = updated.warmUpPlaylistId
+                        newPlan.mainPlaylistId = updated.mainPlaylistId
+                        newPlan.coolDownPlaylistId = updated.coolDownPlaylistId
+                        currentPlan = newPlan
+                        onUpdate(updated)
+                        Task { await loadPlaylistsIfNeeded() }
+                    }
+                )
+            )
         }
         .overlay(alignment: .bottom) {
             if isShowingSpotifyHandoff {

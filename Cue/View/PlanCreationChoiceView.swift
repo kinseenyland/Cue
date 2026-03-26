@@ -44,7 +44,11 @@ struct PlanCreationChoiceView: View {
             dismiss()
             onChoice(mode)
         } label: {
-            HStack(spacing: 16) {
+            HStack(spacing: 12) {
+                Image(systemName: mode == .quick ? "bolt.fill" : "list.bullet.clipboard")
+                    .font(.system(size: 18))
+                    .foregroundStyle(Color(UIColor.systemGray3))
+                    .frame(width: 28)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(title)
                         .font(.system(size: 16, weight: .semibold))

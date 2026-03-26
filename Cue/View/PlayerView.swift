@@ -29,7 +29,7 @@ struct PlayerView: View {
                 workoutPlayerView
             }
         }
-        .onChange(of: sessionVM.isComplete) { complete in
+        .onChange(of: sessionVM.isComplete) { _, complete in
             if complete, let planId = sessionVM.planId {
                 Task { await vm.markPlanAsRun(id: planId) }
             }
@@ -207,7 +207,7 @@ struct PlayerView: View {
             spotifyManager.refreshNextTrackFromQueue()
             lastSpotifyHardSyncAt = Date()
         }
-        .onChange(of: sessionVM.currentIndex) { _ in
+        .onChange(of: sessionVM.currentIndex) { _, _ in
             // Move/section transitions should refresh now-playing + queue immediately.
             spotifyManager.requestAppRemotePlayerStateNow()
             spotifyManager.refreshPlaybackStateNow()

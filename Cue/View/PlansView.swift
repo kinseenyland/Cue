@@ -174,18 +174,23 @@ struct PlansView: View {
                     Task { await vm.createPlan(from: newPlan) }
                 }
             case .quick:
-                QuickCreateView(
+                PlanFormView(
                     availableTypes: availableTypes,
-                    workoutStructure: profileVM.workoutStructure
-                ) { newPlan in
-                    Task { await vm.createPlan(from: newPlan) }
-                }
+                    mode: .create(
+                        workoutStructure: profileVM.workoutStructure,
+                        onSave: { newPlan in Task { await vm.createPlan(from: newPlan) } }
+                    )
+                )
             }
         }
         .sheet(item: $editingPlan) { plan in
-            EditPlanView(plan: plan, availableTypes: availableTypes) { updated in
-                Task { await vm.updatePlan(id: plan.id, from: updated) }
-            }
+            PlanFormView(
+                availableTypes: availableTypes,
+                mode: .edit(
+                    plan: plan,
+                    onSave: { updated in Task { await vm.updatePlan(id: plan.id, from: updated) } }
+                )
+            )
         }
         .overlay {
             if isShowingAlert {

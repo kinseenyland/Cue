@@ -83,6 +83,7 @@ final class PlanCreationViewModel: ObservableObject {
         case .repBased:  draft.goalType = .reps
         default:         break
         }
+        redistributeMainSectionTime()
     }
 
     /// Initializes pre-populated from an existing `WorkoutPlan` for editing.

@@ -39,7 +39,7 @@ struct AccountCreationView: View {
         }
         .background(Color.white.ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .onChange(of: vm.step) { step in
+        .onChange(of: vm.step) { _, step in
             switch step {
             case .name:     focusedField = .name
             case .email:    focusedField = .email
@@ -467,7 +467,7 @@ private struct AccountSpotifyStepView: View {
 
             VStack(spacing: 12) {
                 Button {
-                    spotifyManager.connect()
+                    spotifyManager.connectForOnboarding()
                 } label: {
                     HStack(spacing: 10) {
                         Image(systemName: isConnected ? "checkmark.circle.fill" : "music.note")
