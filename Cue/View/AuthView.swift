@@ -58,7 +58,8 @@ struct AuthView: View {
                             .onSubmit { focusedField = .password }
                             .padding(.horizontal, 9)
                             .frame(height: 44)
-                            .overlay(Rectangle().stroke(Color.black, lineWidth: 0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.black, lineWidth: 0.5))
 
                         // Password field
                         SecureField("password", text: $password)
@@ -68,7 +69,8 @@ struct AuthView: View {
                             .onSubmit { focusedField = nil }
                             .padding(.horizontal, 9)
                             .frame(height: 44)
-                            .overlay(Rectangle().stroke(Color.black, lineWidth: 0.5))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.black, lineWidth: 0.5))
 
                         // Sign In button
                         Button {
