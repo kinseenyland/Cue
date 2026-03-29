@@ -10,6 +10,7 @@ import UIKit
 
 struct SpotifySearchView: View {
     @EnvironmentObject private var spotifyManager: SpotifyManager
+    @EnvironmentObject private var mainTabChrome: MainTabChrome
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel = SpotifySearchViewModel()
     @State private var isConnecting = false
@@ -42,6 +43,12 @@ struct SpotifySearchView: View {
 
     private var shouldShowNowPlayingRibbon: Bool {
         spotifyManager.playbackError != nil || spotifyManager.isConnected || !spotifyManager.currentTrackName.isEmpty
+    }
+
+    /// Clears the custom tab bar in `MainTabView`; extra bottom padding would leave an empty band above the keyboard.
+    private var bottomPaddingClearingMainTabBar: CGFloat {
+        if mainTabChrome.hideBottomBar { return 0 }
+        return shouldShowNowPlayingRibbon ? 84 : 56
     }
 
     var body: some View {
@@ -158,7 +165,7 @@ struct SpotifySearchView: View {
 
         }
         .ignoresSafeArea(.keyboard, edges: .bottom)
-        .padding(.bottom, shouldShowNowPlayingRibbon ? 84 : 56)
+        .padding(.bottom, bottomPaddingClearingMainTabBar)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if shouldShowNowPlayingRibbon {
                 nowPlayingBar
@@ -204,6 +211,18 @@ struct SpotifySearchView: View {
                 spotifyManager.disconnect()
             }
             #endif
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            mainTabChrome.hideBottomBar = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            mainTabChrome.hideBottomBar = false
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardDidHideNotification)) { _ in
+            mainTabChrome.hideBottomBar = false
+        }
+        .onDisappear {
+            mainTabChrome.hideBottomBar = false
         }
         .navigationTitle(viewModel.selectedPlaylistForEditing?.name ?? "Spotify")
         .navigationBarTitleDisplayMode(.inline)
