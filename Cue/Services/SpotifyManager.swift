@@ -6,6 +6,12 @@ import Combine
 import SpotifyiOS
 import UIKit
 
+/// Track + position within a playlist context, for resuming playback later in the same workout session.
+struct PlaylistResumeSnapshot: Equatable, Sendable {
+    let trackUri: String
+    let positionMs: Int
+}
+
 class SpotifyManager: NSObject, ObservableObject {
     static let shared = SpotifyManager()
 
@@ -527,22 +533,35 @@ class SpotifyManager: NSObject, ObservableObject {
 
     /// Play a playlist from the beginning. Prefers Web API (supports offset position 0), falls back to App Remote play(uri).
     func playPlaylistFromStart(playlistUri: String) {
+        Task { await playPlaylist(playlistUri: playlistUri, resume: nil) }
+    }
+
+    /// Start a playlist, optionally resuming a specific track and position from a prior session snapshot.
+    func playPlaylist(playlistUri: String, resume: PlaylistResumeSnapshot?) async {
         guard let normalizedURI = normalizedContextURI(from: playlistUri) else { return }
         #if targetEnvironment(simulator)
-        playbackError = "Playback requires a physical device with the Spotify app installed."
+        await MainActor.run {
+            playbackError = "Playback requires a physical device with the Spotify app installed."
+        }
         return
         #endif
 
-        Task { @MainActor in
-            do {
-                // Spotify remembers shuffle state per device; explicitly disable it so order matches the playlist.
-                try? await setShuffleViaWebAPI(false)
-                try await playContextFromStartViaWebAPI(contextUri: normalizedURI)
-                playbackError = nil
-            } catch {
-                // If Web API playback fails (e.g. no active device), explicitly open/link Spotify app and play context.
-                print("[Spotify] Web API play failed, falling back to App Remote: \(error)")
-                _ = self.connectAndPlay(uri: normalizedURI)
+        do {
+            // Spotify remembers shuffle state per device; explicitly disable it so order matches the playlist.
+            try? await setShuffleViaWebAPI(false)
+            try await playContextViaWebAPI(contextUri: normalizedURI, resume: resume)
+            await MainActor.run { playbackError = nil }
+        } catch {
+            print("[Spotify] Web API play failed\(resume != nil ? " (resume)" : ""), falling back: \(error)")
+            if resume != nil {
+                do {
+                    try await playContextViaWebAPI(contextUri: normalizedURI, resume: nil)
+                    await MainActor.run { playbackError = nil }
+                } catch {
+                    await MainActor.run { _ = self.connectAndPlay(uri: normalizedURI) }
+                }
+            } else {
+                await MainActor.run { _ = self.connectAndPlay(uri: normalizedURI) }
             }
         }
     }
@@ -626,6 +645,52 @@ class SpotifyManager: NSObject, ObservableObject {
         }
     }
 
+    /// True when both values refer to the same Spotify playlist (URI, open URL, or raw id).
+    func isSamePlaylist(_ a: String?, _ b: String?) -> Bool {
+        guard let a, let b else { return false }
+        guard let na = normalizedContextURI(from: a), let nb = normalizedContextURI(from: b) else { return false }
+        return na == nb
+    }
+
+    /// Stable `spotify:playlist:…` URI for comparing stored plan playlist ids.
+    func normalizedPlaylistURI(from value: String) -> String? {
+        normalizedContextURI(from: value)
+    }
+
+    /// If Spotify is currently playing from this playlist, returns track URI and progress for session resume.
+    func fetchPlaylistResumeSnapshotIfPlaying(playlistUri: String) async -> PlaylistResumeSnapshot? {
+        guard let normalized = normalizedContextURI(from: playlistUri) else { return nil }
+        let token = await MainActor.run { tokenForWebAPI }
+        guard let token else { return nil }
+        var request = URLRequest(url: URL(string: "\(webAPIBaseURL)/me/player")!)
+        request.httpMethod = "GET"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+            if statusCode == 401 {
+                let refreshed = await refreshWebAPITokenIfNeeded()
+                if refreshed { return await fetchPlaylistResumeSnapshotIfPlaying(playlistUri: playlistUri) }
+                await MainActor.run { clearWebAPICredentialsOnRefreshFailure() }
+                return nil
+            }
+            guard statusCode == 200 else { return nil }
+            guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+            let context = json["context"] as? [String: Any]
+            let contextType = context?["type"] as? String
+            let contextUri = context?["uri"] as? String
+            guard contextType == "playlist", let contextUri, contextUri == normalized else { return nil }
+            let item = json["item"] as? [String: Any]
+            let trackUri = item?["uri"] as? String
+            let progressMS = (json["progress_ms"] as? Int) ?? 0
+            guard let trackUri, !trackUri.isEmpty else { return nil }
+            return PlaylistResumeSnapshot(trackUri: trackUri, positionMs: max(0, progressMS))
+        } catch {
+            return nil
+        }
+    }
+
     /// Accepts spotify URI, playlist ID, or open.spotify.com playlist URL and returns context URI.
     private func normalizedContextURI(from value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -649,17 +714,26 @@ class SpotifyManager: NSObject, ObservableObject {
         return nil
     }
 
-    private func playContextFromStartViaWebAPI(contextUri: String) async throws {
+    private func playContextViaWebAPI(contextUri: String, resume: PlaylistResumeSnapshot?) async throws {
         guard let token = tokenForWebAPI else { throw NSError(domain: "Spotify", code: 401) }
         var request = URLRequest(url: URL(string: "\(webAPIBaseURL)/me/player/play")!)
         request.httpMethod = "PUT"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        let body: [String: Any] = [
-            "context_uri": contextUri,
-            "offset": ["position": 0],
-            "position_ms": 0
-        ]
+        let body: [String: Any]
+        if let resume {
+            body = [
+                "context_uri": contextUri,
+                "offset": ["uri": resume.trackUri],
+                "position_ms": resume.positionMs
+            ]
+        } else {
+            body = [
+                "context_uri": contextUri,
+                "offset": ["position": 0],
+                "position_ms": 0
+            ]
+        }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -667,7 +741,7 @@ class SpotifyManager: NSObject, ObservableObject {
         if statusCode == 401 {
             let refreshed = await refreshWebAPITokenIfNeeded()
             if refreshed {
-                try await playContextFromStartViaWebAPI(contextUri: contextUri)
+                try await playContextViaWebAPI(contextUri: contextUri, resume: resume)
                 return
             }
             await MainActor.run { self.clearWebAPICredentialsOnRefreshFailure() }
