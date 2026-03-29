@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import FirebaseCore
 import SpotifyiOS
 
 @main
@@ -15,10 +14,6 @@ struct CueApp: App {
     @StateObject private var authVM = AuthViewModel()
     @StateObject private var spotifyManager = SpotifyManager.shared
     @Environment(\.scenePhase) var scenePhase
-    
-    init() {
-        FirebaseApp.configure()
-    }
 
     var body: some Scene {
         WindowGroup {

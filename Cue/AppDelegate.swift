@@ -9,6 +9,7 @@
 
 import UIKit
 import ObjectiveC
+import FirebaseCore
 
 private let openURLSwizzled: Void = {
     guard let original = class_getInstanceMethod(UIApplication.self, NSSelectorFromString("openURL:")),
@@ -31,6 +32,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         _ = openURLSwizzled
+        // Configure after UIApplication’s delegate is set so Firebase/GoogleUtilities swizzling sees a real UIApplicationDelegate.
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
         return true
     }
 
