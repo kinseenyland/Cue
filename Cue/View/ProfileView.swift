@@ -4,6 +4,7 @@
 //
 
 import FirebaseAuth
+import PhotosUI
 import SwiftUI
 
 struct ProfileView: View {
@@ -12,6 +13,12 @@ struct ProfileView: View {
     @State private var isShowingSpotifyPage = false
     @StateObject private var profileVM = ProfileViewModel()
     @State private var showEditSheet = false
+
+    @State private var showPhotoOptions = false
+    @State private var showCamera = false
+    @State private var showPhotoPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var cameraImage: UIImage? = nil
 
     private var displayName: String {
         profileVM.displayName.isEmpty ? (authVM.user?.displayName ?? "") : profileVM.displayName
@@ -43,14 +50,11 @@ struct ProfileView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     HStack(spacing: 14) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.black)
-                                .frame(width: 48, height: 48)
-                            Text(initials.isEmpty ? "?" : initials)
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.white)
+                        Button { showPhotoOptions = true } label: {
+                            profileAvatarView
                         }
+                        .buttonStyle(.plain)
+
                         VStack(alignment: .leading, spacing: 2) {
                             Text(displayName.isEmpty ? "Your Name" : displayName)
                                 .font(.system(size: 18, weight: .semibold))
@@ -115,7 +119,65 @@ struct ProfileView: View {
                 currentName: displayName
             )
         }
+        .confirmationDialog("Change Profile Photo", isPresented: $showPhotoOptions, titleVisibility: .visible) {
+            Button("Take Photo") { showCamera = true }
+            Button("Choose from Library") { showPhotoPicker = true }
+            Button("Cancel", role: .cancel) {}
+        }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraImagePicker(image: $cameraImage)
+                .ignoresSafeArea()
+        }
+        .onChange(of: selectedPhotoItem) { newItem in
+            guard let newItem else { return }
+            Task {
+                if let data = try? await newItem.loadTransferable(type: Data.self),
+                   let img = UIImage(data: data),
+                   let uid = authVM.user?.uid {
+                    profileVM.saveProfileImage(img, uid: uid)
+                }
+                selectedPhotoItem = nil
+            }
+        }
+        .onChange(of: cameraImage) { newImage in
+            if let img = newImage, let uid = authVM.user?.uid {
+                profileVM.saveProfileImage(img, uid: uid)
+                cameraImage = nil
+            }
+        }
     }
+
+    // MARK: - Profile Avatar
+
+    private var profileAvatarView: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if let img = profileVM.profileImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 48, height: 48)
+                    .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(Color.black)
+                    .frame(width: 48, height: 48)
+                    .overlay(
+                        Text(initials.isEmpty ? "?" : initials)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.white)
+                    )
+            }
+            Image(systemName: "camera.fill")
+                .font(.system(size: 10))
+                .foregroundColor(.white)
+                .padding(4)
+                .background(Color.black)
+                .clipShape(Circle())
+                .offset(x: 2, y: 2)
+        }
+    }
+
 
     // MARK: - Preferences Section
 
