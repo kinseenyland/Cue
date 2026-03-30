@@ -35,7 +35,7 @@ struct ScheduleView: View {
     }
 
     private var weekdaySymbols: [String] {
-        let symbols = calendar.veryShortWeekdaySymbols
+        let symbols = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
         let firstWeekday = calendar.firstWeekday - 1
         return Array(symbols[firstWeekday...]) + Array(symbols[..<firstWeekday])
     }
@@ -55,6 +55,23 @@ struct ScheduleView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             VStack(spacing: 0) {
+                HStack {
+                    Text("Schedule")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(.black)
+                    Spacer()
+                    Button {
+                        isPresentingCreateForm = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 20))
+                            .foregroundStyle(.black)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 8)
+
                 calendarStrip
                     .padding(.bottom, 8)
 
@@ -111,15 +128,7 @@ struct ScheduleView: View {
                     }
                 }
             }
-            .navigationTitle("Schedule")
-            .toolbar {
-                Button {
-                    isPresentingCreateForm = true
-                } label: {
-                    Image(systemName: "plus")
-                        .fontWeight(.medium)
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: WorkoutPlan.self) { plan in
                 PlanDetailView(
                     plan: plan,
@@ -129,6 +138,9 @@ struct ScheduleView: View {
                     },
                     onDelete: {
                         Task { await plansVM.deletePlan(id: plan.id) }
+                    },
+                    onDuplicate: { name in
+                        Task { await plansVM.duplicatePlan(plan, newName: name) }
                     }
                 )
             }
@@ -173,7 +185,7 @@ struct ScheduleView: View {
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.black)
                 }
 
                 Spacer()
@@ -191,7 +203,7 @@ struct ScheduleView: View {
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.primary)
+                        .foregroundStyle(.black)
                 }
             }
             .padding(.horizontal)
@@ -200,7 +212,7 @@ struct ScheduleView: View {
             let columns = Array(repeating: GridItem(.flexible(), spacing: 0), count: 7)
 
             LazyVGrid(columns: columns, spacing: 0) {
-                ForEach(weekdaySymbols, id: \.self) { symbol in
+                ForEach(Array(weekdaySymbols.enumerated()), id: \.offset) { _, symbol in
                     Text(symbol)
                         .font(.caption2)
                         .fontWeight(.medium)

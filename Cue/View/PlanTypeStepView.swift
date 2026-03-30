@@ -24,9 +24,9 @@ struct PlanTypeStepView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(WorkoutType.allCases, id: \.self) { type in
+                        ForEach(vm.availableTypes, id: \.self) { type in
                             PlanPillButton(
-                                label: type.rawValue.capitalized,
+                                label: type.displayName,
                                 isSelected: vm.draft.type == type
                             ) {
                                 vm.draft.type = type
@@ -39,7 +39,7 @@ struct PlanTypeStepView: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                Text("LEVEL")
+                Text("INTENSITY")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .kerning(1.2)

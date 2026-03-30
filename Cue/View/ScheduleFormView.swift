@@ -24,6 +24,7 @@ struct ScheduleFormView: View {
     @State private var selectedMinute: Int  // 0, 15, 30, 45
     @State private var selectedPeriod: String // "AM" or "PM"
     @State private var showDeleteConfirmation = false
+    @State private var showExitConfirmation = false
 
     private static let hours = Array(1...12)
     private static let minutes = [0, 15, 30, 45]
@@ -115,21 +116,84 @@ struct ScheduleFormView: View {
         }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
-                Button("Cancel") { dismiss() }
+                Button("Cancel") {
+                    if selectedPlan != nil {
+                        showExitConfirmation = true
+                    } else {
+                        dismiss()
+                    }
+                }
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") { save() }
                     .disabled(selectedPlan == nil)
             }
         }
-        .alert("Delete this scheduled class?", isPresented: $showDeleteConfirmation) {
-            Button("Delete", role: .destructive) {
-                onDelete?()
-                dismiss()
+        .overlay {
+            if showDeleteConfirmation {
+                CustomAlertView(
+                    title: "Delete this scheduled class?",
+                    message: "This action cannot be undone.",
+                    primaryLabel: "Cancel",
+                    primaryAction: { showDeleteConfirmation = false },
+                    primaryStyle: .gray,
+                    secondaryLabel: "Delete",
+                    secondaryAction: {
+                        showDeleteConfirmation = false
+                        onDelete?()
+                        dismiss()
+                    },
+                    secondaryStyle: .destructive,
+                    onDismiss: { showDeleteConfirmation = false }
+                )
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This action cannot be undone.")
+            if showExitConfirmation {
+                Color.black.opacity(0.4)
+                    .ignoresSafeArea()
+                    .onTapGesture { showExitConfirmation = false }
+
+                VStack(spacing: 16) {
+                    HStack {
+                        Spacer()
+                        Button { showExitConfirmation = false } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 30, height: 30)
+                                .background(Color(.systemGray5))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Text("Are you sure?")
+                        .font(.system(size: 18, weight: .bold))
+
+                    Text("Your schedule changes will be lost if you leave.")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    Button {
+                        showExitConfirmation = false
+                        dismiss()
+                    } label: {
+                        Text("Discard")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Color.red)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(20)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+                .padding(.horizontal, 40)
+            }
         }
     }
 
@@ -208,7 +272,7 @@ struct ScheduleFormView: View {
                     .font(.subheadline)
                     .fontWeight(.semibold)
                 HStack(spacing: 6) {
-                    InfoChip(label: plan.type.rawValue.capitalized)
+                    InfoChip(label: plan.type.displayName)
                     InfoChip(label: plan.difficulty.rawValue.capitalized)
                     InfoChip(label: "\(plan.durationMinutes) min")
                 }
@@ -332,7 +396,7 @@ private struct PlanRow: View {
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundStyle(.primary)
-                Text("\(plan.type.rawValue.capitalized) · \(plan.difficulty.rawValue.capitalized)")
+                Text("\(plan.type.displayName) · \(plan.difficulty.rawValue.capitalized)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

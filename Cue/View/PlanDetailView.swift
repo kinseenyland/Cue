@@ -2,8 +2,6 @@
 //  PlanDetailView.swift
 //  Cue
 //
-//  Created by Kinsee Nyland on 2/10/26.
-//
 
 import SwiftUI
 
@@ -12,45 +10,60 @@ struct PlanDetailView: View {
     @Binding var selectedTab: MainTab
     let onUpdate: (WorkoutPlanDraft) -> Void
     let onDelete: () -> Void
+    let onDuplicate: (String) -> Void
+    let availableTypes: [WorkoutType]
+
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
+    @EnvironmentObject private var spotifyManager: SpotifyManager
 
-    @State private var localMovements: [Movement]
-    @State private var editingMovement: Movement? = nil
-    @State private var isShowingDetailsEdit = false
+    /// Local copy updated immediately when edits are saved, so the view reflects changes without waiting for a Firestore round-trip.
+    @State private var currentPlan: WorkoutPlan
+    @State private var isShowingEdit = false
     @State private var isShowingDeleteConfirmation = false
-    @State private var warmUpPlaylistIdLocal: String?
-    @State private var mainPlaylistIdLocal: String?
-    @State private var coolDownPlaylistIdLocal: String?
+    @State private var isShowingDuplicatePrompt = false
+    @State private var isShowingSpotifyHandoff = false
+    @State private var duplicateName = ""
     @State private var playlists: [SpotifySearchService.SpotifyPlaylist] = []
     @State private var isLoadingPlaylists = false
-    @State private var playlistsError: String? = nil
 
-    init(plan: WorkoutPlan, selectedTab: Binding<MainTab>, onUpdate: @escaping (WorkoutPlanDraft) -> Void, onDelete: @escaping () -> Void) {
+    private var planHasPlaylist: Bool {
+        currentPlan.warmUpPlaylistId != nil ||
+        currentPlan.mainPlaylistId != nil ||
+        currentPlan.coolDownPlaylistId != nil
+    }
+
+    init(
+        plan: WorkoutPlan,
+        selectedTab: Binding<MainTab>,
+        onUpdate: @escaping (WorkoutPlanDraft) -> Void,
+        onDelete: @escaping () -> Void,
+        onDuplicate: @escaping (String) -> Void,
+        availableTypes: [WorkoutType] = WorkoutType.allCases
+    ) {
         self.plan = plan
         self._selectedTab = selectedTab
         self.onUpdate = onUpdate
         self.onDelete = onDelete
-        self._localMovements = State(initialValue: plan.movements)
-        self._warmUpPlaylistIdLocal = State(initialValue: plan.warmUpPlaylistId)
-        self._mainPlaylistIdLocal = State(initialValue: plan.mainPlaylistId)
-        self._coolDownPlaylistIdLocal = State(initialValue: plan.coolDownPlaylistId)
+        self.onDuplicate = onDuplicate
+        self.availableTypes = availableTypes
+        self._currentPlan = State(initialValue: plan)
     }
 
-    // MARK: - Computed groupings (use localMovements so edits reflect immediately)
+    // MARK: - Computed groupings
 
     private var warmUpMovements: [Movement] {
-        localMovements.filter { $0.section == .warmUp }
+        currentPlan.movements.filter { $0.section == .warmUp }
     }
 
     private var coolDownMovements: [Movement] {
-        localMovements.filter { $0.section == .coolDown }
+        currentPlan.movements.filter { $0.section == .coolDown }
     }
 
     private var mainSections: [(name: String, movements: [Movement])] {
         var result: [(name: String, movements: [Movement])] = []
         var nameToIndex: [String: Int] = [:]
-        for m in localMovements where m.section == .main {
+        for m in currentPlan.movements where m.section == .main {
             let key = m.sectionName ?? ""
             if let idx = nameToIndex[key] {
                 result[idx].movements.append(m)
@@ -68,7 +81,7 @@ struct PlanDetailView: View {
     }
 
     private var difficultyLabel: String {
-        switch plan.difficulty {
+        switch currentPlan.difficulty {
         case .easy: return "Low"
         case .medium: return "Medium"
         case .hard: return "High"
@@ -76,13 +89,18 @@ struct PlanDetailView: View {
     }
 
     private var typeIcon: String {
-        switch plan.type {
-        case .pilates: return "figure.pilates"
+        switch currentPlan.type {
+        case .matPilates, .reformerPilates: return "figure.pilates"
         case .yoga: return "figure.yoga"
         case .cycle: return "bicycle"
         case .strength: return "dumbbell.fill"
         case .cardio: return "heart.fill"
         }
+    }
+
+    private func playlistName(for id: String?) -> String? {
+        guard let id else { return nil }
+        return playlists.first(where: { $0.uri == id })?.name
     }
 
     // MARK: - Body
@@ -103,7 +121,7 @@ struct PlanDetailView: View {
 
             // Title + menu row
             HStack(alignment: .center, spacing: 10) {
-                Text(plan.title)
+                Text(currentPlan.title)
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(.black)
                     .lineLimit(1)
@@ -112,8 +130,20 @@ struct PlanDetailView: View {
                 Spacer()
 
                 Menu {
-                    Button("Edit Plan Details") { isShowingDetailsEdit = true }
-                    Button("Delete Plan", role: .destructive) { isShowingDeleteConfirmation = true }
+                    Button { isShowingEdit = true } label: {
+                        Label("Edit Plan", systemImage: "pencil")
+                    }
+                    Button {
+                        duplicateName = "\(currentPlan.title) (Copy)"
+                        isShowingDuplicatePrompt = true
+                    } label: {
+                        Label("Duplicate Plan", systemImage: "doc.on.doc")
+                    }
+                    Button(role: .destructive) {
+                        isShowingDeleteConfirmation = true
+                    } label: {
+                        Label("Delete Plan", systemImage: "trash")
+                    }
                 } label: {
                     Image(systemName: "ellipsis")
                         .rotationEffect(.degrees(90))
@@ -128,14 +158,14 @@ struct PlanDetailView: View {
             // Details Snapshot: Type, Time, Intensity
             HStack(spacing: 10) {
                 Spacer()
-                PlanDetailCard(icon: typeIcon, label: "Type", value: plan.type.rawValue.capitalized)
-                PlanDetailCard(icon: "timer", label: "Time", value: "\(plan.durationMinutes) min")
+                PlanDetailCard(icon: typeIcon, label: "Type", value: currentPlan.type.displayName)
+                PlanDetailCard(icon: "timer", label: "Time", value: "\(currentPlan.durationMinutes) min")
                 PlanDetailCard(icon: "flame.fill", label: "Intensity", value: difficultyLabel)
                 Spacer()
             }
             .padding(.horizontal, 10)
 
-            // Movement list
+            // Movement list (read-only)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     if hasSectionStructure {
@@ -143,7 +173,7 @@ struct PlanDetailView: View {
                             movementSectionBlock(
                                 title: "WARM-UP",
                                 movements: warmUpMovements,
-                                playlistId: warmUpPlaylistIdLocal
+                                playlistId: currentPlan.warmUpPlaylistId
                             )
                         }
                         if !mainSections.isEmpty {
@@ -153,18 +183,14 @@ struct PlanDetailView: View {
                             movementSectionBlock(
                                 title: "COOL-DOWN",
                                 movements: coolDownMovements,
-                                playlistId: coolDownPlaylistIdLocal
+                                playlistId: currentPlan.coolDownPlaylistId
                             )
                         }
                     } else {
                         VStack(spacing: 8) {
-                            ForEach(localMovements) { movement in
-                                MovementDetailCard(
-                                    movement: movement,
-                                    onEdit: { editingMovement = movement },
-                                    onDelete: { deleteMovement(movement) }
-                                )
-                                .padding(.horizontal, 20)
+                            ForEach(currentPlan.movements) { movement in
+                                MovementReadRow(movement: movement)
+                                    .padding(.horizontal, 20)
                             }
                         }
                     }
@@ -177,9 +203,20 @@ struct PlanDetailView: View {
             HStack {
                 Spacer()
                 Button {
-                    sessionVM.load(plan: plan)
-                    selectedTab = .workout
-                    dismiss()
+                    if planHasPlaylist && spotifyManager.isAuthenticated && !spotifyManager.isConnected {
+                        isShowingSpotifyHandoff = true
+                        Task {
+                            try? await Task.sleep(nanoseconds: 800_000_000)
+                            isShowingSpotifyHandoff = false
+                            sessionVM.load(plan: currentPlan)
+                            selectedTab = .workout
+                            dismiss()
+                        }
+                    } else {
+                        sessionVM.load(plan: currentPlan)
+                        selectedTab = .workout
+                        dismiss()
+                    }
                 } label: {
                     Text("Start Lesson")
                         .font(.system(size: 12, weight: .heavy))
@@ -200,23 +237,143 @@ struct PlanDetailView: View {
         .task {
             await loadPlaylistsIfNeeded()
         }
-        .alert("Delete \"\(plan.title)\"?", isPresented: $isShowingDeleteConfirmation) {
-            Button("Delete", role: .destructive) { onDelete(); dismiss() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This action cannot be undone.")
+        .sheet(isPresented: $isShowingEdit) {
+            PlanFormView(
+                availableTypes: availableTypes,
+                mode: .edit(
+                    plan: currentPlan,
+                    onSave: { updated in
+                        // Apply changes locally for immediate UI refresh, then persist
+                        var newPlan = currentPlan
+                        newPlan.title = updated.title
+                        newPlan.type = updated.type
+                        newPlan.difficulty = updated.difficulty
+                        newPlan.durationMinutes = updated.durationMinutes
+                        newPlan.movements = updated.movements
+                        newPlan.warmUpPlaylistId = updated.warmUpPlaylistId
+                        newPlan.mainPlaylistId = updated.mainPlaylistId
+                        newPlan.coolDownPlaylistId = updated.coolDownPlaylistId
+                        currentPlan = newPlan
+                        onUpdate(updated)
+                        Task { await loadPlaylistsIfNeeded() }
+                    }
+                )
+            )
         }
-        .sheet(isPresented: $isShowingDetailsEdit) {
-            PlanDetailsEditSheet(plan: plan) { name, type, difficulty, duration in
-                onUpdate(WorkoutPlanDraft(
-                    title: name, type: type, difficulty: difficulty,
-                    durationMinutes: duration, movements: localMovements
-                ))
+        .overlay(alignment: .bottom) {
+            if isShowingSpotifyHandoff {
+                HStack(spacing: 10) {
+                    Image(systemName: "music.note")
+                        .font(.system(size: 14, weight: .semibold))
+                    Text("Popping over to Spotify to kickstart your music!")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .background(Color.black)
+                .clipShape(Capsule())
+                .shadow(color: .black.opacity(0.2), radius: 12, y: 4)
+                .padding(.bottom, 100)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .sheet(item: $editingMovement) { movement in
-            MovementEditSheet(movement: movement) { updated in
-                updateMovement(updated)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isShowingSpotifyHandoff)
+        .overlay {
+            if isShowingDeleteConfirmation {
+                CustomAlertView(
+                    title: "Delete \"\(currentPlan.title)\"?",
+                    message: "This action cannot be undone.",
+                    primaryLabel: "Cancel",
+                    primaryAction: { isShowingDeleteConfirmation = false },
+                    primaryStyle: .gray,
+                    secondaryLabel: "Delete",
+                    secondaryAction: {
+                        isShowingDeleteConfirmation = false
+                        onDelete()
+                        dismiss()
+                    },
+                    secondaryStyle: .destructive,
+                    onDismiss: { isShowingDeleteConfirmation = false }
+                )
+            }
+        }
+        .overlay {
+            if isShowingDuplicatePrompt {
+                ZStack {
+                    Color.black.opacity(0.4)
+                        .ignoresSafeArea()
+                        .onTapGesture { isShowingDuplicatePrompt = false }
+
+                    VStack(spacing: 16) {
+                        HStack {
+                            Spacer()
+                            Button { isShowingDuplicatePrompt = false } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 30, height: 30)
+                                    .background(Color(.systemGray5))
+                                    .clipShape(Circle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Text("Duplicate Plan")
+                            .font(.system(size: 18, weight: .bold))
+
+                        Text("Enter a name for the duplicated plan.")
+                            .font(.system(size: 14))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+
+                        TextField("Plan name", text: $duplicateName)
+                            .font(.system(size: 15))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.black, lineWidth: 1)
+                            )
+
+                        VStack(spacing: 10) {
+                            Button {
+                                let name = duplicateName.trimmingCharacters(in: .whitespacesAndNewlines)
+                                guard !name.isEmpty else { return }
+                                isShowingDuplicatePrompt = false
+                                onDuplicate(name)
+                                dismiss()
+                            } label: {
+                                Text("Duplicate")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(Color.black)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                isShowingDuplicatePrompt = false
+                            } label: {
+                                Text("Cancel")
+                                    .font(.system(size: 15, weight: .semibold))
+                                    .foregroundStyle(.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 13)
+                                    .background(Color(.systemGray6))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(20)
+                    .background(Color.white)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+                    .padding(.horizontal, 40)
+                }
             }
         }
     }
@@ -231,58 +388,20 @@ struct PlanDetailView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .kerning(1.2)
-                if let playlistId, let name = playlistName(for: playlistId) {
-                    Menu {
-                        Button("None") {
-                            updatePlaylist(for: title, to: nil)
-                        }
-                        ForEach(playlists, id: \.uri) { playlist in
-                            Button(playlist.name) {
-                                updatePlaylist(for: title, to: playlist.uri)
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "music.note.list")
-                            Text(name)
-                                .font(.system(size: 11, weight: .regular))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
+                if let name = playlistName(for: playlistId) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "music.note.list")
+                        Text(name)
+                            .font(.system(size: 11, weight: .regular))
                     }
-                    .buttonStyle(.plain)
-                } else if !playlists.isEmpty {
-                    Menu {
-                        Button("None") {
-                            updatePlaylist(for: title, to: nil)
-                        }
-                        ForEach(playlists, id: \.uri) { playlist in
-                            Button(playlist.name) {
-                                updatePlaylist(for: title, to: playlist.uri)
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "music.note.list")
-                            Text("None")
-                                .font(.system(size: 11, weight: .regular))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 20)
+
             ForEach(movements) { movement in
-                MovementDetailCard(
-                    movement: movement,
-                    onEdit: { editingMovement = movement },
-                    onDelete: { deleteMovement(movement) }
-                )
-                .padding(.horizontal, 20)
+                MovementReadRow(movement: movement)
+                    .padding(.horizontal, 20)
             }
         }
     }
@@ -294,48 +413,13 @@ struct PlanDetailView: View {
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(.secondary)
                     .kerning(1.2)
-                if let pid = mainPlaylistIdLocal, let name = playlistName(for: pid) {
-                    Menu {
-                        Button("None") {
-                            updatePlaylist(for: "MAIN WORKOUT", to: nil)
-                        }
-                        ForEach(playlists, id: \.uri) { playlist in
-                            Button(playlist.name) {
-                                updatePlaylist(for: "MAIN WORKOUT", to: playlist.uri)
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "music.note.list")
-                            Text(name)
-                                .font(.system(size: 11, weight: .regular))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
+                if let name = playlistName(for: currentPlan.mainPlaylistId) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "music.note.list")
+                        Text(name)
+                            .font(.system(size: 11, weight: .regular))
                     }
-                    .buttonStyle(.plain)
-                } else if !playlists.isEmpty {
-                    Menu {
-                        Button("None") {
-                            updatePlaylist(for: "MAIN WORKOUT", to: nil)
-                        }
-                        ForEach(playlists, id: \.uri) { playlist in
-                            Button(playlist.name) {
-                                updatePlaylist(for: "MAIN WORKOUT", to: playlist.uri)
-                            }
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "music.note.list")
-                            Text("None")
-                                .font(.system(size: 11, weight: .regular))
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 9, weight: .medium))
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
             }
             .padding(.horizontal, 20)
@@ -350,374 +434,65 @@ struct PlanDetailView: View {
                             .padding(.horizontal, 20)
                     }
                     ForEach(section.movements) { movement in
-                        MovementDetailCard(
-                            movement: movement,
-                            onEdit: { editingMovement = movement },
-                            onDelete: { deleteMovement(movement) }
-                        )
-                        .padding(.horizontal, 20)
+                        MovementReadRow(movement: movement)
+                            .padding(.horizontal, 20)
                     }
                 }
             }
         }
     }
 
-    // MARK: - Movement Mutations
-
-    private func deleteMovement(_ movement: Movement) {
-        localMovements.removeAll { $0.id == movement.id }
-        saveMovements()
-    }
-
-    private func updateMovement(_ updated: Movement) {
-        if let idx = localMovements.firstIndex(where: { $0.id == updated.id }) {
-            localMovements[idx] = updated
-        }
-        saveMovements()
-    }
-
-    private func saveMovements() {
-        onUpdate(WorkoutPlanDraft(
-            title: plan.title, type: plan.type, difficulty: plan.difficulty,
-            durationMinutes: plan.durationMinutes,
-            movements: localMovements,
-            warmUpPlaylistId: warmUpPlaylistIdLocal,
-            mainPlaylistId: mainPlaylistIdLocal,
-            coolDownPlaylistId: coolDownPlaylistIdLocal
-        ))
-    }
-
-    private func playlistName(for id: String) -> String? {
-        // We store the Spotify playlist URI (context_uri), so match on uri
-        playlists.first(where: { $0.uri == id })?.name
-    }
-
-    private func updatePlaylist(for sectionTitle: String, to id: String?) {
-        var warm = plan.warmUpPlaylistId
-        var main = plan.mainPlaylistId
-        var cool = plan.coolDownPlaylistId
-
-        switch sectionTitle {
-        case "WARM-UP":
-            warm = id
-        case "MAIN WORKOUT":
-            main = id
-        case "COOL-DOWN":
-            cool = id
-        default:
-            break
-        }
-
-        // Update local state so UI reflects change immediately
-        warmUpPlaylistIdLocal = warm
-        mainPlaylistIdLocal = main
-        coolDownPlaylistIdLocal = cool
-
-        onUpdate(WorkoutPlanDraft(
-            title: plan.title,
-            type: plan.type,
-            difficulty: plan.difficulty,
-            durationMinutes: plan.durationMinutes,
-            movements: localMovements,
-            warmUpPlaylistId: warm,
-            mainPlaylistId: main,
-            coolDownPlaylistId: cool
-        ))
-    }
+    // MARK: - Spotify Playlists (display-only)
 
     private func loadPlaylistsIfNeeded() async {
-        if !playlists.isEmpty || isLoadingPlaylists { return }
+        guard spotifyManager.isAuthenticated,
+              (currentPlan.warmUpPlaylistId != nil || currentPlan.mainPlaylistId != nil || currentPlan.coolDownPlaylistId != nil),
+              !isLoadingPlaylists else { return }
         isLoadingPlaylists = true
-        playlistsError = nil
         defer { isLoadingPlaylists = false }
-        do {
-            playlists = try await SpotifySearchService.shared.getMyPlaylists(limit: 50)
-        } catch {
-            playlistsError = "Could not load Spotify playlists."
-        }
+        playlists = (try? await SpotifySearchService.shared.getMyPlaylists(limit: 50)) ?? []
     }
 }
 
-// MARK: - Plan Details Edit Sheet
+// MARK: - Movement Read Row
 
-private struct PlanDetailsEditSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String
-    @State private var type: WorkoutType
-    @State private var difficulty: Difficulty
-    @State private var duration: Int
-    let onSave: (String, WorkoutType, Difficulty, Int) -> Void
-
-    init(plan: WorkoutPlan, onSave: @escaping (String, WorkoutType, Difficulty, Int) -> Void) {
-        _name = State(initialValue: plan.title)
-        _type = State(initialValue: plan.type)
-        _difficulty = State(initialValue: plan.difficulty)
-        _duration = State(initialValue: plan.durationMinutes)
-        self.onSave = onSave
-    }
-
-    private var canSave: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack {
-                Button("Cancel") { dismiss() }
-                    .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("Edit Details")
-                    .font(.system(size: 17, weight: .semibold))
-                Spacer()
-                Button("Save") {
-                    onSave(name.trimmingCharacters(in: .whitespacesAndNewlines), type, difficulty, duration)
-                    dismiss()
-                }
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(canSave ? .black : Color(.systemGray3))
-                .disabled(!canSave)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 24)
-
-            ScrollView {
-                VStack(alignment: .leading, spacing: 28) {
-                    // Name
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("PLAN NAME")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .kerning(1.2)
-                        TextField("Plan name", text: $name)
-                            .font(.system(size: 16))
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 13)
-                            .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                    }
-
-                    // Type
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("WORKOUT TYPE")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .kerning(1.2)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(WorkoutType.allCases, id: \.self) { t in
-                                    Button {
-                                        type = t
-                                    } label: {
-                                        Text(t.rawValue.capitalized)
-                                            .font(.system(size: 14, weight: .medium))
-                                            .foregroundStyle(type == t ? .white : .black)
-                                            .lineLimit(1)
-                                            .padding(.horizontal, 14)
-                                            .padding(.vertical, 8)
-                                            .background(type == t ? Color.black : Color.clear)
-                                            .overlay(Capsule().stroke(Color.black, lineWidth: 1))
-                                            .clipShape(Capsule())
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-
-                    // Difficulty
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("DIFFICULTY")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .kerning(1.2)
-                        HStack(spacing: 8) {
-                            ForEach(Difficulty.allCases, id: \.self) { d in
-                                Button {
-                                    difficulty = d
-                                } label: {
-                                    Text(d.rawValue.capitalized)
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundStyle(difficulty == d ? .white : .black)
-                                        .padding(.horizontal, 14)
-                                        .padding(.vertical, 8)
-                                        .background(difficulty == d ? Color.black : Color.clear)
-                                        .overlay(Capsule().stroke(Color.black, lineWidth: 1))
-                                        .clipShape(Capsule())
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                    }
-
-                    // Duration
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("DURATION")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .kerning(1.2)
-                        HStack(spacing: 16) {
-                            Button {
-                                if duration > 5 { duration -= 5 }
-                            } label: {
-                                Image(systemName: "minus")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundStyle(.black)
-                                    .frame(width: 36, height: 36)
-                                    .overlay(Circle().stroke(Color.black, lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-
-                            Text("\(duration) min")
-                                .font(.system(size: 18, weight: .semibold))
-                                .frame(minWidth: 80, alignment: .center)
-
-                            Button {
-                                duration += 5
-                            } label: {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundStyle(.black)
-                                    .frame(width: 36, height: 36)
-                                    .overlay(Circle().stroke(Color.black, lineWidth: 1))
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 40)
-            }
-        }
-        .background(Color.white.ignoresSafeArea())
-    }
-}
-
-// MARK: - Movement Edit Sheet
-
-private struct MovementEditSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var name: String
-    @State private var goalType: GoalType
-    @State private var reps: String
-    @State private var seconds: String
-    @State private var notes: String
+private struct MovementReadRow: View {
     let movement: Movement
-    let onSave: (Movement) -> Void
 
-    init(movement: Movement, onSave: @escaping (Movement) -> Void) {
-        self.movement = movement
-        self.onSave = onSave
-        _name = State(initialValue: movement.name)
-        _goalType = State(initialValue: movement.goalType)
-        _reps = State(initialValue: movement.reps.map { String($0) } ?? "")
-        _seconds = State(initialValue: movement.seconds.map { String($0) } ?? "")
-        _notes = State(initialValue: movement.notes ?? "")
-    }
-
-    private var canSave: Bool {
-        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-        (goalType == .reps ? !reps.isEmpty : !seconds.isEmpty)
+    private var goalText: String {
+        switch movement.goalType {
+        case .timed: return movement.seconds.map { "\($0) sec" } ?? "—"
+        case .reps:  return movement.reps.map { "\($0) reps" } ?? "—"
+        }
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header
-            HStack {
-                Button("Cancel") { dismiss() }
-                    .font(.system(size: 16))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("Edit Movement")
-                    .font(.system(size: 17, weight: .semibold))
-                Spacer()
-                Button("Save") {
-                    var updated = movement
-                    updated.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
-                    updated.goalType = goalType
-                    updated.reps = goalType == .reps ? Int(reps) : nil
-                    updated.seconds = goalType == .timed ? Int(seconds) : nil
-                    let trimmedNote = notes.trimmingCharacters(in: .whitespacesAndNewlines)
-                    updated.notes = trimmedNote.isEmpty ? nil : trimmedNote
-                    onSave(updated)
-                    dismiss()
-                }
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(canSave ? .black : Color(.systemGray3))
-                .disabled(!canSave)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 24)
-
-            VStack(alignment: .leading, spacing: 24) {
-                // Name
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("MOVEMENT NAME")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .kerning(1.2)
-                    TextField("Movement name", text: $name)
-                        .font(.system(size: 16))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 13)
-                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                }
-
-                // Goal
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("GOAL")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .kerning(1.2)
-
-                    HStack(alignment: .center, spacing: 10) {
-                        TextField("0", text: goalType == .reps ? $reps : $seconds)
-                            .keyboardType(.numberPad)
-                            .font(.system(size: 20, weight: .semibold))
-                            .multilineTextAlignment(.center)
-                            .frame(width: 64)
-                            .padding(.vertical, 10)
-                            .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(goalType == .reps ? "reps" : "seconds")
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(.black)
-                            Button {
-                                goalType = goalType == .reps ? .timed : .reps
-                                reps = ""
-                                seconds = ""
-                            } label: {
-                                Text("switch to \(goalType == .reps ? "timed" : "reps")")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(.secondary)
-                                    .underline()
-                            }
-                            .buttonStyle(.plain)
-                        }
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(movement.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.black)
+                    .lineLimit(1)
+                if movement.reps != nil || movement.seconds != nil {
+                    HStack(spacing: 6) {
+                        Image(systemName: movement.goalType == .timed ? "timer" : "arrow.2.circlepath")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.secondary)
+                        Text(goalText)
+                            .font(.system(size: 12, weight: .thin))
+                            .foregroundStyle(.black)
                     }
                 }
-
-                // Notes
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("NOTE")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .kerning(1.2)
-                    TextField("e.g. 5lb weight, use a band", text: $notes)
-                        .font(.system(size: 16))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 13)
-                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                }
             }
-            .padding(.horizontal, 20)
-
             Spacer()
         }
-        .background(Color.white.ignoresSafeArea())
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
+        .background(Color.white)
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.black, lineWidth: 1)
+        )
     }
 }
 
@@ -760,63 +535,13 @@ private struct PlanDetailCard: View {
     }
 }
 
-// MARK: - Movement Detail Card
-
-private struct MovementDetailCard: View {
-    let movement: Movement
-    let onEdit: () -> Void
-    let onDelete: () -> Void
-
-    private var goalText: String {
-        switch movement.goalType {
-        case .timed: return movement.seconds.map { "\($0) sec" } ?? "—"
-        case .reps:  return movement.reps.map { "\($0) reps" } ?? "—"
-        }
-    }
-
-    var body: some View {
-        HStack(alignment: .center, spacing: 8) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(movement.name)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.black)
-                    .lineLimit(1)
-                HStack(spacing: 6) {
-                    Image(systemName: "timer")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                    Text(goalText)
-                        .font(.system(size: 12, weight: .thin))
-                        .foregroundStyle(.black)
-                }
-            }
-            Spacer()
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color(.systemGray3))
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 12)
-        .background(Color.white)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.black, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture { onEdit() }
-    }
-}
-
 #Preview {
     NavigationStack {
         PlanDetailView(
             plan: WorkoutPlan(
                 ownerId: "preview",
                 title: "Hot Pilates - Core",
-                type: .pilates,
+                type: .matPilates,
                 difficulty: .hard,
                 durationMinutes: 60,
                 movements: [
@@ -827,8 +552,10 @@ private struct MovementDetailCard: View {
             ),
             selectedTab: .constant(.plans),
             onUpdate: { _ in },
-            onDelete: {}
+            onDelete: {},
+            onDuplicate: { _ in }
         )
         .environmentObject(WorkoutSessionViewModel())
+        .environmentObject(SpotifyManager.shared)
     }
 }

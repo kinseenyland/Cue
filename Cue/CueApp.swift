@@ -6,7 +6,6 @@
 //
 
 import SwiftUI
-import FirebaseCore
 import SpotifyiOS
 
 @main
@@ -15,21 +14,18 @@ struct CueApp: App {
     @StateObject private var authVM = AuthViewModel()
     @StateObject private var spotifyManager = SpotifyManager.shared
     @Environment(\.scenePhase) var scenePhase
-    
-    init() {
-        FirebaseApp.configure()
-    }
 
     var body: some Scene {
         WindowGroup {
             RootView()
+                .tint(.black)
                 .environmentObject(authVM)
                 .environmentObject(spotifyManager)
                 .onOpenURL { url in
                     spotifyManager.handleURL(url)
                 }
         }
-        .onChange(of: scenePhase) { phase in
+        .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
                 break

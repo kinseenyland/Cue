@@ -5,18 +5,27 @@
 //  Created by Kinsee Nyland on 2/10/26.
 //
 
+import FirebaseAuth
 import SwiftUI
 
 struct PlansView: View {
     @Binding var selectedTab: MainTab
     @State private var navigationPath = NavigationPath()
-    @State private var isPresentingCreateForm = false
+    @State private var isPresentingCreateChoice = false
+    @State private var presentedCreationMode: PlanCreationMode? = nil
     @State private var editingPlan: WorkoutPlan? = nil
     @State private var isShowingAlert = false
     @State private var alertMessage = ""
     @State private var selectedType: WorkoutType? = nil
     @StateObject private var vm = CueViewModel()
+    @StateObject private var profileVM = ProfileViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
+    @EnvironmentObject private var authVM: AuthViewModel
+
+    /// Class types to show in filter chips and plan creation. Falls back to all types if profile not loaded.
+    private var availableTypes: [WorkoutType] {
+        profileVM.preferredClassTypes.isEmpty ? WorkoutType.allCases : profileVM.preferredClassTypes
+    }
 
     var filteredPlans: [WorkoutPlan] {
         guard let type = selectedType else { return vm.plans }
@@ -32,7 +41,11 @@ struct PlansView: View {
                         .foregroundStyle(.black)
                     Spacer()
                     Button {
-                        isPresentingCreateForm = true
+                        if vm.plans.isEmpty {
+                            presentedCreationMode = .guided
+                        } else {
+                            isPresentingCreateChoice = true
+                        }
                     } label: {
                         Image(systemName: "plus")
                             .font(.system(size: 20))
@@ -48,9 +61,9 @@ struct PlansView: View {
                         PlanFilterChip(label: "All", isSelected: selectedType == nil) {
                             selectedType = nil
                         }
-                        ForEach(WorkoutType.allCases, id: \.self) { type in
+                        ForEach(availableTypes, id: \.self) { type in
                             PlanFilterChip(
-                                label: type.rawValue.capitalized,
+                                label: type.displayName,
                                 isSelected: selectedType == type
                             ) {
                                 selectedType = type
@@ -100,7 +113,7 @@ struct PlansView: View {
                                 } label: {
                                     Label("Edit", systemImage: "pencil")
                                 }
-                                .tint(.blue)
+                                .tint(.black)
                             }
                             .contextMenu {
                                 Button("Start Workout") {
@@ -133,39 +146,66 @@ struct PlansView: View {
                             await vm.deletePlan(id: plan.id)
                             navigationPath.removeLast()
                         }
-                    }
+                    },
+                    onDuplicate: { name in
+                        Task { await vm.duplicatePlan(plan, newName: name) }
+                    },
+                    availableTypes: availableTypes
                 )
             }
         }
         .task {
             await vm.fetchPlans()
+            if let uid = authVM.user?.uid { profileVM.load(uid: uid) }
         }
-        .sheet(isPresented: $isPresentingCreateForm) {
-            PlanCreationView { newPlan in
-                Task { await vm.createPlan(from: newPlan) }
+        .sheet(isPresented: $isPresentingCreateChoice) {
+            PlanCreationChoiceView { mode in
+                presentedCreationMode = mode
+            }
+        }
+        .sheet(item: $presentedCreationMode) { mode in
+            switch mode {
+            case .guided:
+                PlanCreationView(
+                    availableTypes: availableTypes,
+                    workoutStructure: profileVM.workoutStructure,
+                    musicApproach: profileVM.musicApproach
+                ) { newPlan in
+                    Task { await vm.createPlan(from: newPlan) }
+                }
+            case .quick:
+                PlanFormView(
+                    availableTypes: availableTypes,
+                    mode: .create(
+                        workoutStructure: profileVM.workoutStructure,
+                        onSave: { newPlan in Task { await vm.createPlan(from: newPlan) } }
+                    )
+                )
             }
         }
         .sheet(item: $editingPlan) { plan in
-            WorkoutPlanFormView(draft: draft(from: plan)) { updated in
-                Task { await vm.updatePlan(id: plan.id, from: updated) }
-            }
+            PlanFormView(
+                availableTypes: availableTypes,
+                mode: .edit(
+                    plan: plan,
+                    onSave: { updated in Task { await vm.updatePlan(id: plan.id, from: updated) } }
+                )
+            )
         }
-        .alert("Cue", isPresented: $isShowingAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(alertMessage)
+        .overlay {
+            if isShowingAlert {
+                CustomAlertView(
+                    title: "Cue",
+                    message: alertMessage,
+                    primaryLabel: "OK",
+                    primaryAction: { isShowingAlert = false },
+                    primaryStyle: .gray,
+                    onDismiss: { isShowingAlert = false }
+                )
+            }
         }
     }
 
-    private func draft(from plan: WorkoutPlan) -> WorkoutPlanDraft {
-        WorkoutPlanDraft(
-            title: plan.title,
-            type: plan.type,
-            difficulty: plan.difficulty,
-            durationMinutes: plan.durationMinutes,
-            movements: plan.movements
-        )
-    }
 }
 
 struct PlanFilterChip: View {
@@ -204,6 +244,14 @@ struct PlanRowCard: View {
         }
     }
 
+    private var lastRunLabel: String? {
+        guard let lastRunAt = plan.lastRunAt else { return nil }
+        let date = Date(timeIntervalSince1970: lastRunAt)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return "Last run: \(formatter.string(from: date))"
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -223,6 +271,12 @@ struct PlanRowCard: View {
                         .font(.system(size: 12, weight: .thin))
                 }
                 .foregroundStyle(.black)
+
+                if let lastRun = lastRunLabel {
+                    Text(lastRun)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
             }
 
             Spacer()
@@ -243,6 +297,7 @@ struct PlanRowCard: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .frame(height: 76)
+        .frame(maxWidth: .infinity)
         .background(Color.white)
         .clipShape(RoundedRectangle(cornerRadius: 10))
         .overlay(

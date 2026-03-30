@@ -12,16 +12,24 @@ import SwiftUI
 @MainActor
 final class WorkoutSessionViewModel: ObservableObject {
     @Published var planTitle: String = "Workout"
+    @Published var planId: String? = nil
     @Published var movements: [Movement] = []
     @Published var currentIndex: Int = 0
     @Published var isRunning: Bool = false
     @Published var sectionRemainingSeconds: Int = 0
     @Published var moveRemainingSeconds: Int = 0
     @Published var isComplete: Bool = false
+    @Published var elapsedSeconds: Int = 0
+    var planType: WorkoutType?
+    var planDifficulty: Difficulty?
+    var planDurationMinutes: Int = 0
 
     var warmUpPlaylistId: String?
     var mainPlaylistId: String?
     var coolDownPlaylistId: String?
+
+    /// Normalized `spotify:playlist:…` → last track/position when leaving that playlist; used when the same playlist appears again in this session.
+    private var sessionPlaylistResume: [String: PlaylistResumeSnapshot] = [:]
 
     let defaultMoveSeconds = 30
 
@@ -146,14 +154,22 @@ final class WorkoutSessionViewModel: ObservableObject {
 
     func load(plan: WorkoutPlan) {
         planTitle = plan.title
+        planId = plan.id
         movements = plan.movements
         currentIndex = 0
         isRunning = true
+        elapsedSeconds = 0
+        planType = plan.type
+        planDifficulty = plan.difficulty
+        planDurationMinutes = plan.durationMinutes
         warmUpPlaylistId = plan.warmUpPlaylistId
         mainPlaylistId = plan.mainPlaylistId
         coolDownPlaylistId = plan.coolDownPlaylistId
+        sessionPlaylistResume = [:]
         resetSectionTimer()
         resetMoveTimer()
+        // Ensure App Remote is connected so UI receives live now-playing updates.
+        _ = SpotifyManager.shared.connectAppRemoteIfNeeded()
         startPlaylistForCurrentSectionIfAny()
     }
 
@@ -178,7 +194,7 @@ final class WorkoutSessionViewModel: ObservableObject {
             // Only change playlist when moving between warm-up / main / cool-down,
             // not when changing subsections within main.
             if oldMove?.section != newMove?.section {
-                startPlaylistForCurrentSectionIfAny()
+                startPlaylistForCurrentSectionIfAny(previousSection: oldMove?.section)
             }
         }
         resetMoveTimer()
@@ -197,7 +213,7 @@ final class WorkoutSessionViewModel: ObservableObject {
         if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
             resetSectionTimer()
             if oldMove?.section != newMove?.section {
-                startPlaylistForCurrentSectionIfAny()
+                startPlaylistForCurrentSectionIfAny(previousSection: oldMove?.section)
             }
         }
         resetMoveTimer()
@@ -211,7 +227,7 @@ final class WorkoutSessionViewModel: ObservableObject {
         if oldMove?.section != newMove?.section || oldMove?.sectionName != newMove?.sectionName {
             resetSectionTimer()
             if oldMove?.section != newMove?.section {
-                startPlaylistForCurrentSectionIfAny()
+                startPlaylistForCurrentSectionIfAny(previousSection: oldMove?.section)
             }
         }
         resetMoveTimer()
@@ -219,6 +235,7 @@ final class WorkoutSessionViewModel: ObservableObject {
 
     func tick() {
         guard isRunning else { return }
+        elapsedSeconds += 1
         if sectionRemainingSeconds > 0 {
             sectionRemainingSeconds -= 1
         }
@@ -231,13 +248,45 @@ final class WorkoutSessionViewModel: ObservableObject {
     }
 
     func reset() {
+        SpotifyManager.shared.pausePlayback()
         planTitle = "Workout"
+        planId = nil
         movements = []
         currentIndex = 0
         isRunning = false
         isComplete = false
+        elapsedSeconds = 0
+        planType = nil
+        planDifficulty = nil
+        planDurationMinutes = 0
         sectionRemainingSeconds = 0
         moveRemainingSeconds = 0
+        sessionPlaylistResume = [:]
+    }
+
+    var elapsedTimeFormatted: String {
+        formatTime(elapsedSeconds)
+    }
+
+    var remainingSeconds: Int {
+        max(0, planDurationMinutes * 60 - elapsedSeconds)
+    }
+
+    var remainingTimeFormatted: String {
+        formatTime(remainingSeconds)
+    }
+
+    var warmUpCount: Int { movements.filter { $0.section == .warmUp }.count }
+    var mainCount: Int { movements.filter { $0.section == .main }.count }
+    var coolDownCount: Int { movements.filter { $0.section == .coolDown }.count }
+
+    var currentSectionPosition: (index: Int, total: Int) {
+        guard let move = currentMove else { return (0, 0) }
+        let sectionMoves = movements.filter {
+            $0.section == move.section && $0.sectionName == move.sectionName
+        }
+        let posInSection = sectionMoves.firstIndex(where: { $0.id == move.id }) ?? 0
+        return (posInSection + 1, sectionMoves.count)
     }
 
     // MARK: - Helpers
@@ -268,19 +317,56 @@ final class WorkoutSessionViewModel: ObservableObject {
         }
     }
 
-    private func startPlaylistForCurrentSectionIfAny() {
-        guard let move = currentMove else { return }
-        let playlistId: String?
-        switch move.section {
+    private func playlistId(for section: WorkoutSection) -> String? {
+        switch section {
         case .warmUp:
-            playlistId = warmUpPlaylistId
+            return warmUpPlaylistId
         case .main:
-            playlistId = mainPlaylistId
+            return mainPlaylistId
         case .coolDown:
-            playlistId = coolDownPlaylistId
+            return coolDownPlaylistId
         }
-        guard let pid = playlistId, !pid.isEmpty else { return }
-        SpotifyManager.shared.playPlaylistFromStart(playlistUri: pid)
+    }
+
+    /// - Parameter previousSection: When moving between warm-up / main / cool-down, pass the section you left. If its playlist matches the new section’s playlist, playback continues without restarting. Otherwise we snapshot the previous playlist for later re-entry in this session.
+    private func startPlaylistForCurrentSectionIfAny(previousSection: WorkoutSection? = nil) {
+        Task { @MainActor in
+            guard let move = currentMove else { return }
+            let newPid = playlistId(for: move.section)
+            let prevPid = previousSection.flatMap { playlistId(for: $0) }
+
+            if let prevP = prevPid, !prevP.isEmpty,
+               let np = newPid, !np.isEmpty,
+               SpotifyManager.shared.isSamePlaylist(prevP, np) {
+                return
+            }
+
+            if let pp = prevPid, !pp.isEmpty {
+                if let snap = await SpotifyManager.shared.fetchPlaylistResumeSnapshotIfPlaying(playlistUri: pp),
+                   let key = SpotifyManager.shared.normalizedPlaylistURI(from: pp) {
+                    sessionPlaylistResume[key] = snap
+                }
+            }
+
+            guard let pid = newPid, !pid.isEmpty else { return }
+
+            let normKey = SpotifyManager.shared.normalizedPlaylistURI(from: pid)
+            let resume = normKey.flatMap { sessionPlaylistResume[$0] }
+
+            await SpotifyManager.shared.playPlaylist(playlistUri: pid, resume: resume)
+
+            if resume != nil, let k = normKey {
+                sessionPlaylistResume.removeValue(forKey: k)
+            }
+
+            SpotifyManager.shared.requestAppRemotePlayerStateNow()
+            SpotifyManager.shared.refreshPlaybackStateNow()
+            SpotifyManager.shared.refreshQueueWithBurst()
+            try? await Task.sleep(nanoseconds: 800_000_000)
+            SpotifyManager.shared.requestAppRemotePlayerStateNow()
+            SpotifyManager.shared.refreshPlaybackStateNow()
+            SpotifyManager.shared.refreshQueueWithBurst()
+        }
     }
 
     private func formatTime(_ seconds: Int) -> String {

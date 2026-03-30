@@ -30,7 +30,7 @@ struct PlanReviewStepView: View {
 
                     HStack(spacing: 8) {
                         if let type = vm.draft.type {
-                            ReviewChip(label: type.rawValue.capitalized)
+                            ReviewChip(label: type.displayName)
                         }
                         if let difficulty = vm.draft.difficulty {
                             ReviewChip(label: difficulty.rawValue.capitalized)
@@ -45,7 +45,9 @@ struct PlanReviewStepView: View {
                 if !vm.draft.warmUpMovements.isEmpty {
                     ReviewMovementSection(
                         title: "WARM-UP",
-                        movements: vm.draft.warmUpMovements
+                        durationMinutes: vm.draft.warmUpDurationMinutes,
+                        movements: vm.draft.warmUpMovements,
+                        playlistName: vm.playlistName(for: vm.draft.warmUpPlaylistId)
                     )
                     Divider()
                 }
@@ -53,12 +55,23 @@ struct PlanReviewStepView: View {
                 // Main sections
                 if !vm.draft.mainSections.isEmpty {
                     VStack(alignment: .leading, spacing: 16) {
-                        ReviewSectionHeader(title: "MAIN WORKOUT")
+                        ReviewSectionHeader(
+                            title: "MAIN WORKOUT",
+                            durationMinutes: vm.totalMainMinutes
+                        )
+                        if let name = vm.playlistName(for: vm.draft.mainPlaylistId) {
+                            ReviewPlaylistLabel(name: name)
+                        }
                         ForEach(vm.draft.mainSections) { section in
                             VStack(alignment: .leading, spacing: 8) {
-                                Text(section.name.isEmpty ? "Unnamed Section" : section.name)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(.secondary)
+                                HStack(spacing: 6) {
+                                    Text(section.name.isEmpty ? "Unnamed Section" : section.name)
+                                        .font(.system(size: 13, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                    Text("· \(section.durationMinutes) min")
+                                        .font(.system(size: 12))
+                                        .foregroundStyle(.tertiary)
+                                }
                                 ForEach(section.movements) { movement in
                                     ReviewMovementItem(movement: movement)
                                 }
@@ -72,7 +85,9 @@ struct PlanReviewStepView: View {
                 if !vm.draft.coolDownMovements.isEmpty {
                     ReviewMovementSection(
                         title: "COOL-DOWN",
-                        movements: vm.draft.coolDownMovements
+                        durationMinutes: vm.draft.coolDownDurationMinutes,
+                        movements: vm.draft.coolDownMovements,
+                        playlistName: vm.playlistName(for: vm.draft.coolDownPlaylistId)
                     )
                 }
             }
@@ -88,11 +103,19 @@ struct PlanReviewStepView: View {
 
 private struct ReviewSectionHeader: View {
     let title: String
+    var durationMinutes: Int? = nil
     var body: some View {
-        Text(title)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(.secondary)
-            .kerning(1.2)
+        HStack(spacing: 6) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .kerning(1.2)
+            if let mins = durationMinutes {
+                Text("· \(mins) min")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+        }
     }
 }
 
@@ -110,14 +133,33 @@ private struct ReviewChip: View {
 
 private struct ReviewMovementSection: View {
     let title: String
+    var durationMinutes: Int? = nil
     let movements: [Movement]
+    var playlistName: String? = nil
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ReviewSectionHeader(title: title)
+            ReviewSectionHeader(title: title, durationMinutes: durationMinutes)
+            if let name = playlistName {
+                ReviewPlaylistLabel(name: name)
+            }
             ForEach(movements) { movement in
                 ReviewMovementItem(movement: movement)
             }
         }
+    }
+}
+
+private struct ReviewPlaylistLabel: View {
+    let name: String
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "music.note.list")
+                .font(.system(size: 12))
+            Text(name)
+                .font(.system(size: 13, weight: .medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.secondary)
     }
 }
 

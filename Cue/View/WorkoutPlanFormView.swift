@@ -50,9 +50,11 @@ struct WorkoutPlanFormView: View {
     @State private var movements: [MovementDraft]
 
     let isEditing: Bool
+    let availableTypes: [WorkoutType]
     let onSave: (WorkoutPlanDraft) -> Void
 
-    init(draft: WorkoutPlanDraft? = nil, onSave: @escaping (WorkoutPlanDraft) -> Void) {
+    init(draft: WorkoutPlanDraft? = nil, availableTypes: [WorkoutType] = WorkoutType.allCases, onSave: @escaping (WorkoutPlanDraft) -> Void) {
+        self.availableTypes = availableTypes
         self.isEditing = draft != nil
         self.onSave = onSave
         _title = State(initialValue: draft?.title ?? "")
@@ -109,15 +111,15 @@ struct WorkoutPlanFormView: View {
                 HStack(spacing: 10) {
                     FormDropdown(
                         placeholder: "Select Type",
-                        selected: selectedType?.rawValue.capitalized
+                        selected: selectedType?.displayName
                     ) {
-                        ForEach(WorkoutType.allCases, id: \.self) { type in
-                            Button(type.rawValue.capitalized) { selectedType = type }
+                        ForEach(availableTypes, id: \.self) { type in
+                            Button(type.displayName) { selectedType = type }
                         }
                     }
 
                     FormDropdown(
-                        placeholder: "Select Difficulty",
+                        placeholder: "Select Intensity",
                         selected: selectedDifficulty?.rawValue.capitalized
                     ) {
                         ForEach(Difficulty.allCases, id: \.self) { diff in

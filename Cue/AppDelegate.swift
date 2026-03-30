@@ -9,6 +9,7 @@
 
 import UIKit
 import ObjectiveC
+import FirebaseCore
 
 private let openURLSwizzled: Void = {
     guard let original = class_getInstanceMethod(UIApplication.self, NSSelectorFromString("openURL:")),
@@ -31,6 +32,21 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
         _ = openURLSwizzled
+        // Configure after UIApplication’s delegate is set so Firebase/GoogleUtilities swizzling sees a real UIApplicationDelegate.
+        if FirebaseApp.app() == nil {
+            FirebaseApp.configure()
+        }
+        return true
+    }
+
+    /// Fallback URL handler for Spotify App Remote callback.
+    /// SwiftUI's onOpenURL can miss the redirect when returning from the Spotify app on device.
+    func application(
+        _ app: UIApplication,
+        open url: URL,
+        options: [UIApplication.OpenURLOptionsKey: Any] = [:]
+    ) -> Bool {
+        SpotifyManager.shared.handleURL(url)
         return true
     }
 }

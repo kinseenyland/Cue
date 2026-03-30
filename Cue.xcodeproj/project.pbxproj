@@ -9,11 +9,18 @@
 /* Begin PBXBuildFile section */
 		940498B72F34EC9100B01961 /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 940498B62F34EC9100B01961 /* FirebaseAuth */; };
 		940498B92F34EC9100B01961 /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 940498B82F34EC9100B01961 /* FirebaseFirestore */; };
+		A94F60842F2C51D6005167C1 /* AccountCreationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94F60832F2C51D6005167C1 /* AccountCreationViewModelTests.swift */; };
+		A94F60852F2C51D6005167C1 /* PlanCreationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94F60822F2C51D6005167C1 /* PlanCreationViewModelTests.swift */; };
+		A94F60862F2C51D6005167C1 /* WorkoutTypeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94F60812F2C51D6005167C1 /* WorkoutTypeTests.swift */; };
 		FC44B60E2F4532FB00ACBA1E /* SpotifyiOS in Frameworks */ = {isa = PBXBuildFile; productRef = FC44B60D2F4532FB00ACBA1E /* SpotifyiOS */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		944F60592F2C51D5005167C3 /* Cue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cue.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A94F60802F2C51D6005167C1 /* CueTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CueTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A94F60812F2C51D6005167C1 /* WorkoutTypeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutTypeTests.swift; sourceTree = "<group>"; };
+		A94F60822F2C51D6005167C1 /* PlanCreationViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCreationViewModelTests.swift; sourceTree = "<group>"; };
+		A94F60832F2C51D6005167C1 /* AccountCreationViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountCreationViewModelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -48,6 +55,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A94F608A2F2C51D6005167C1 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -55,6 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				944F605B2F2C51D5005167C3 /* Cue */,
+				A94F60872F2C51D6005167C1 /* CueTests */,
 				944F605A2F2C51D5005167C3 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -63,8 +78,19 @@
 			isa = PBXGroup;
 			children = (
 				944F60592F2C51D5005167C3 /* Cue.app */,
+				A94F60802F2C51D6005167C1 /* CueTests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A94F60872F2C51D6005167C1 /* CueTests */ = {
+			isa = PBXGroup;
+			children = (
+				A94F60812F2C51D6005167C1 /* WorkoutTypeTests.swift */,
+				A94F60822F2C51D6005167C1 /* PlanCreationViewModelTests.swift */,
+				A94F60832F2C51D6005167C1 /* AccountCreationViewModelTests.swift */,
+			);
+			path = CueTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -95,7 +121,45 @@
 			productReference = 944F60592F2C51D5005167C3 /* Cue.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A94F60882F2C51D6005167C1 /* CueTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A94F608E2F2C51D6005167C1 /* Build configuration list for PBXNativeTarget "CueTests" */;
+			buildPhases = (
+				A94F60892F2C51D6005167C1 /* Sources */,
+				A94F608A2F2C51D6005167C1 /* Frameworks */,
+				A94F608B2F2C51D6005167C1 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A94F608C2F2C51D6005167C1 /* PBXTargetDependency */,
+			);
+			name = CueTests;
+			packageProductDependencies = (
+			);
+			productName = CueTests;
+			productReference = A94F60802F2C51D6005167C1 /* CueTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 944F60512F2C51D5005167C3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 944F60582F2C51D5005167C3 /* Cue */;
+			remoteInfo = Cue;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		A94F608C2F2C51D6005167C1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 944F60582F2C51D5005167C3 /* Cue */;
+			targetProxy = A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		944F60512F2C51D5005167C3 /* Project object */ = {
@@ -107,6 +171,10 @@
 				TargetAttributes = {
 					944F60582F2C51D5005167C3 = {
 						CreatedOnToolsVersion = 26.0;
+					};
+					A94F60882F2C51D6005167C1 = {
+						CreatedOnToolsVersion = 26.0;
+						TestTargetID = 944F60582F2C51D5005167C3;
 					};
 				};
 			};
@@ -129,12 +197,20 @@
 			projectRoot = "";
 			targets = (
 				944F60582F2C51D5005167C3 /* Cue */,
+				A94F60882F2C51D6005167C1 /* CueTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		944F60572F2C51D5005167C3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A94F608B2F2C51D6005167C1 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -148,6 +224,16 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A94F60892F2C51D6005167C1 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A94F60842F2C51D6005167C1 /* AccountCreationViewModelTests.swift in Sources */,
+				A94F60852F2C51D6005167C1 /* PlanCreationViewModelTests.swift in Sources */,
+				A94F60862F2C51D6005167C1 /* WorkoutTypeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -280,7 +366,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = LN8HZZ227T;
+				DEVELOPMENT_TEAM = SV49SAJ2SD;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Cue/Info.plist;
@@ -296,7 +382,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "-ObjC";
-				PRODUCT_BUNDLE_IDENTIFIER = iforgot.Cue;
+				PRODUCT_BUNDLE_IDENTIFIER = com.avawilliams.Cue;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -316,7 +402,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = LN8HZZ227T;
+				DEVELOPMENT_TEAM = SV49SAJ2SD;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Cue/Info.plist;
@@ -332,7 +418,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "-ObjC";
-				PRODUCT_BUNDLE_IDENTIFIER = iforgot.Cue;
+				PRODUCT_BUNDLE_IDENTIFIER = com.avawilliams.Cue;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -342,6 +428,58 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		A94F608F2F2C51D6005167C1 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SV49SAJ2SD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.avawilliams.CueTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cue.app/Cue";
+			};
+			name = Debug;
+		};
+		A94F60912F2C51D6005167C1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = SV49SAJ2SD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.6;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.avawilliams.CueTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Cue.app/Cue";
 			};
 			name = Release;
 		};
@@ -362,6 +500,15 @@
 			buildConfigurations = (
 				944F60672F2C51D6005167C3 /* Debug */,
 				944F60682F2C51D6005167C3 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A94F608E2F2C51D6005167C1 /* Build configuration list for PBXNativeTarget "CueTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A94F608F2F2C51D6005167C1 /* Debug */,
+				A94F60912F2C51D6005167C1 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
