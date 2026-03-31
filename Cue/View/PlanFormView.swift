@@ -18,17 +18,15 @@ struct PlanFormView: View {
         )
     }
 
-    enum FormSection: Hashable {
-        case warmUp, main, coolDown
-    }
-
     let availableTypes: [WorkoutType]
     let mode: Mode
 
     @StateObject private var vm: PlanCreationViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var showDiscardConfirmation = false
-    @State private var expandedSections: Set<FormSection>
+    @State private var showWarmUpEditor = false
+    @State private var showMainEditor = false
+    @State private var showCoolDownEditor = false
 
     // MARK: - Init
 
@@ -41,13 +39,11 @@ struct PlanFormView: View {
                 availableTypes: availableTypes,
                 workoutStructure: workoutStructure
             ))
-            _expandedSections = State(initialValue: [])
         case .edit(let plan, _):
             _vm = StateObject(wrappedValue: PlanCreationViewModel(
                 editingPlan: plan,
                 availableTypes: availableTypes
             ))
-            _expandedSections = State(initialValue: [])
         }
     }
 
@@ -112,19 +108,53 @@ struct PlanFormView: View {
                         metadataSection
                         durationSection
                     }
-                    warmUpSection
-                    mainSectionsBlock
-                    coolDownSection
+
+                    // Section cards
+                    VStack(spacing: 12) {
+                        sectionCard(
+                            title: "WARM-UP",
+                            movementCount: vm.draft.warmUpMovements.count,
+                            durationMinutes: vm.draft.warmUpDurationMinutes,
+                            playlistId: vm.draft.warmUpPlaylistId
+                        ) {
+                            showWarmUpEditor = true
+                        }
+
+                        sectionCard(
+                            title: "MAIN",
+                            movementCount: vm.draft.mainSections.reduce(0) { $0 + $1.movements.count },
+                            durationMinutes: vm.totalMainMinutes,
+                            playlistId: vm.draft.mainPlaylistId,
+                            subsectionSummary: mainSubsectionSummary
+                        ) {
+                            showMainEditor = true
+                        }
+
+                        sectionCard(
+                            title: "COOL-DOWN",
+                            movementCount: vm.draft.coolDownMovements.count,
+                            durationMinutes: vm.draft.coolDownDurationMinutes,
+                            playlistId: vm.draft.coolDownPlaylistId
+                        ) {
+                            showCoolDownEditor = true
+                        }
+                    }
+                    .padding(.horizontal, 24)
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 40)
             }
             .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                showCustomDurationPicker = false
+            }
 
             saveButton
                 .padding(.horizontal, 24)
                 .padding(.bottom, 32)
+                .background(Color.white)
         }
+        .ignoresSafeArea(.keyboard)
         .background(Color.white.ignoresSafeArea())
         .environmentObject(vm)
         .overlay {
@@ -147,16 +177,40 @@ struct PlanFormView: View {
                 .foregroundStyle(.black)
             }
         }
-        .onChange(of: customDurationFocused) { _, focused in
-            if !focused && isEditingCustomDuration {
-                commitCustomDuration()
-            }
-        }
         .onChange(of: vm.draft.durationMinutes) { _, _ in vm.redistributeMainSectionTime() }
-        .onChange(of: vm.draft.warmUpDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
-        .onChange(of: vm.draft.coolDownDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.warmUpDurationMinutes) { _, _ in vm.redistributeMainOnly() }
+        .onChange(of: vm.draft.coolDownDurationMinutes) { _, _ in vm.redistributeMainOnly() }
         .onChange(of: vm.draft.mainSections.count) { _, _ in vm.redistributeMainSectionTime() }
-        .onChange(of: vm.totalMainMinutes) { _, _ in vm.redistributeWarmUpCoolDown() }
+        .onChange(of: vm.totalMainMinutes) { _, _ in vm.redistributeWarmUpCoolDownFromMain() }
+        .sheet(isPresented: $showWarmUpEditor) {
+            SectionEditorView(
+                title: "Warm-Up",
+                movements: $vm.draft.warmUpMovements,
+                durationMinutes: $vm.draft.warmUpDurationMinutes,
+                playlistId: $vm.draft.warmUpPlaylistId,
+                defaultGoalType: nil
+            )
+            .environmentObject(SpotifyManager.shared)
+        }
+        .sheet(isPresented: $showMainEditor) {
+            MainSectionEditorView(
+                sections: $vm.draft.mainSections,
+                playlistId: $vm.draft.mainPlaylistId,
+                totalDurationMinutes: vm.totalMainMinutes,
+                defaultGoalType: nil
+            )
+            .environmentObject(SpotifyManager.shared)
+        }
+        .sheet(isPresented: $showCoolDownEditor) {
+            SectionEditorView(
+                title: "Cool-Down",
+                movements: $vm.draft.coolDownMovements,
+                durationMinutes: $vm.draft.coolDownDurationMinutes,
+                playlistId: $vm.draft.coolDownPlaylistId,
+                defaultGoalType: nil
+            )
+            .environmentObject(SpotifyManager.shared)
+        }
     }
 
     // MARK: - Header
@@ -234,9 +288,7 @@ struct PlanFormView: View {
     // MARK: - Duration
 
     private let durationPresets = [30, 45, 60, 75]
-    @State private var isEditingCustomDuration = false
-    @State private var customDurationText = ""
-    @FocusState private var customDurationFocused: Bool
+    @State private var showCustomDurationPicker = false
 
     /// True when the current duration is a custom (non-preset) value.
     private var hasCustomDuration: Bool {
@@ -256,244 +308,148 @@ struct PlanFormView: View {
             }
             .padding(.horizontal, 24)
 
-            HStack(spacing: 8) {
-                ForEach(durationPresets, id: \.self) { mins in
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 8) {
+                    ForEach(durationPresets, id: \.self) { mins in
+                        Button {
+                            vm.draft.durationMinutes = mins
+                            showCustomDurationPicker = false
+                            vm.redistributeMainSectionTime()
+                        } label: {
+                            Text("\(mins)")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(
+                                    !hasCustomDuration && !showCustomDurationPicker && vm.draft.durationMinutes == mins ? .white : .black
+                                )
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 8)
+                                .background(
+                                    !hasCustomDuration && !showCustomDurationPicker && vm.draft.durationMinutes == mins ? Color.black : Color.clear
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                                .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.black, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
                     Button {
-                        vm.draft.durationMinutes = mins
-                        isEditingCustomDuration = false
-                        customDurationFocused = false
-                        vm.redistributeMainSectionTime()
+                        if !hasCustomDuration {
+                            vm.draft.durationMinutes = 90
+                        }
+                        showCustomDurationPicker.toggle()
                     } label: {
-                        Text("\(mins)")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(
-                                !hasCustomDuration && !isEditingCustomDuration && vm.draft.durationMinutes == mins ? .white : .black
-                            )
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(
-                                !hasCustomDuration && !isEditingCustomDuration && vm.draft.durationMinutes == mins ? Color.black : Color.clear
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.black, lineWidth: 1))
+                        HStack(spacing: 4) {
+                            Text(hasCustomDuration ? "\(vm.draft.durationMinutes)" : "Other")
+                                .font(.system(size: 13, weight: .medium))
+                            if hasCustomDuration || showCustomDurationPicker {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 9, weight: .medium))
+                                    .rotationEffect(.degrees(showCustomDurationPicker ? 180 : 0))
+                            }
+                        }
+                        .foregroundStyle(hasCustomDuration || showCustomDurationPicker ? .white : .black)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(hasCustomDuration || showCustomDurationPicker ? Color.black : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.black, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
+
+                    Spacer()
                 }
 
-                if isEditingCustomDuration {
-                    // Inline text field replacing the Other button
-                    HStack(spacing: 4) {
-                        TextField("", text: $customDurationText)
-                            .keyboardType(.numberPad)
-                            .font(.system(size: 13, weight: .medium))
-                            .multilineTextAlignment(.center)
-                            .frame(width: 40)
-                            .focused($customDurationFocused)
-                            .onSubmit { commitCustomDuration() }
+                if showCustomDurationPicker {
+                    HStack {
+                        Spacer()
+                        WheelPickerPopup(
+                            selection: $vm.draft.durationMinutes,
+                            values: Array(1...120),
+                            label: { "\($0) min" },
+                            onDone: { showCustomDurationPicker = false }
+                        )
                     }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(Color.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.black, lineWidth: 1))
-                    .foregroundStyle(.white)
-                } else {
-                    // Show "Other" or the custom value
-                    Button {
-                        customDurationText = hasCustomDuration ? "\(vm.draft.durationMinutes)" : ""
-                        isEditingCustomDuration = true
-                        customDurationFocused = true
-                    } label: {
-                        Text(hasCustomDuration ? "\(vm.draft.durationMinutes)" : "Other")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(hasCustomDuration ? .white : .black)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 8)
-                            .background(hasCustomDuration ? Color.black : Color.clear)
-                            .clipShape(RoundedRectangle(cornerRadius: 20))
-                            .overlay(RoundedRectangle(cornerRadius: 20).stroke(Color.black, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
                 }
-                Spacer()
             }
             .padding(.horizontal, 24)
         }
     }
 
-    private func commitCustomDuration() {
-        if let mins = Int(customDurationText), mins > 0 {
-            vm.draft.durationMinutes = mins
-            vm.redistributeMainSectionTime()
-        }
-        isEditingCustomDuration = false
-        customDurationFocused = false
+    // MARK: - Section Summary Cards
+
+    private var mainSubsectionSummary: String? {
+        let named = vm.draft.mainSections.filter { !$0.name.isEmpty }
+        guard !named.isEmpty else { return nil }
+        return named.map { "\($0.name) (\($0.movements.count))" }.joined(separator: " \u{00B7} ")
     }
 
-    // MARK: - Collapsible Section Header
+    @EnvironmentObject private var spotifyManager: SpotifyManager
+    @State private var playlistNames: [String: String] = [:]
 
-    private func collapsibleHeader(
+    private func playlistDisplayName(for id: String?) -> String? {
+        guard let id else { return nil }
+        return playlistNames[id]
+    }
+
+    private func sectionCard(
         title: String,
-        section: FormSection,
         movementCount: Int,
-        durationBinding: Binding<Int>
+        durationMinutes: Int,
+        playlistId: String?,
+        subsectionSummary: String? = nil,
+        onTap: @escaping () -> Void
     ) -> some View {
-        HStack {
-            HStack(spacing: 6) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .rotationEffect(.degrees(expandedSections.contains(section) ? 90 : 0))
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.secondary)
-                    .kerning(1.0)
-                if !expandedSections.contains(section) && movementCount > 0 {
-                    Text("\(movementCount)")
-                        .font(.system(size: 11, weight: .medium))
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack {
+                    Text(title)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .kerning(1.2)
+                    Spacer()
+                    Text("\(durationMinutes) min")
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
-                        .frame(width: 20, height: 20)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
                         .background(Color.black)
-                        .clipShape(Circle())
-                }
-            }
-            Spacer()
-            EditableDurationBadge(minutes: durationBinding)
-        }
-        .padding(.horizontal, 24)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                if expandedSections.contains(section) {
-                    expandedSections.remove(section)
-                } else {
-                    expandedSections.insert(section)
-                }
-            }
-        }
-    }
-
-    // MARK: - Warm-Up
-
-    private var warmUpSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            collapsibleHeader(
-                title: "WARM-UP",
-                section: .warmUp,
-                movementCount: vm.draft.warmUpMovements.count,
-                durationBinding: $vm.draft.warmUpDurationMinutes
-            )
-
-            if expandedSections.contains(.warmUp) {
-                if !vm.draft.warmUpMovements.isEmpty {
-                    ReorderableMovementList(movements: $vm.draft.warmUpMovements)
-                        .padding(.horizontal, 24)
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
 
-                MovementAddFormView(
-                    defaultGoalType: nil,
-                    movements: $vm.draft.warmUpMovements
-                )
-                .padding(.horizontal, 24)
-
-                PlanSectionPlaylistPicker(
-                    title: "Warm-up playlist",
-                    selectedPlaylistId: $vm.draft.warmUpPlaylistId
-                )
-            }
-
-            Divider().padding(.horizontal, 24)
-        }
-    }
-
-    // MARK: - Main Sections
-
-    private var mainSectionsBlock: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            let totalMainMovements = vm.draft.mainSections.reduce(0) { $0 + $1.movements.count }
-            collapsibleHeader(
-                title: "MAIN",
-                section: .main,
-                movementCount: totalMainMovements,
-                durationBinding: .constant(vm.totalMainMinutes)
-            )
-
-            if expandedSections.contains(.main) {
-                VStack(alignment: .leading, spacing: 16) {
-                    ForEach($vm.draft.mainSections) { $section in
-                        PlanFormMainSubSection(
-                            section: $section,
-                            defaultGoalType: nil,
-                            canDelete: vm.draft.mainSections.count > 1,
-                            onDelete: {
-                                vm.draft.mainSections.removeAll { $0.id == section.id }
-                            }
-                        )
-                    }
-                    .onMove { from, to in
-                        vm.draft.mainSections.move(fromOffsets: from, toOffset: to)
-                    }
-
-                    HStack {
-                        Button {
-                            vm.draft.mainSections.append(WorkoutSubSection())
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: "plus")
-                                    .font(.system(size: 13, weight: .semibold))
-                                Text("Add Section")
-                                    .font(.system(size: 14, weight: .medium))
-                            }
+                if movementCount > 0 {
+                    if let summary = subsectionSummary {
+                        Text(summary)
+                            .font(.system(size: 13, weight: .medium))
                             .foregroundStyle(.black)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .overlay(Capsule().stroke(Color.black, lineWidth: 1))
-                        }
-                        .buttonStyle(.plain)
-                        Spacer()
+                            .lineLimit(1)
+                    } else {
+                        Text("\(movementCount) movement\(movementCount == 1 ? "" : "s")")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(.black)
                     }
-                    .padding(.horizontal, 24)
-
-                    PlanSectionPlaylistPicker(
-                        title: "Main workout playlist",
-                        selectedPlaylistId: $vm.draft.mainPlaylistId
-                    )
-                }
-            }
-
-            Divider().padding(.horizontal, 24)
-        }
-    }
-
-    // MARK: - Cool-Down
-
-    private var coolDownSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            collapsibleHeader(
-                title: "COOL-DOWN",
-                section: .coolDown,
-                movementCount: vm.draft.coolDownMovements.count,
-                durationBinding: $vm.draft.coolDownDurationMinutes
-            )
-
-            if expandedSections.contains(.coolDown) {
-                if !vm.draft.coolDownMovements.isEmpty {
-                    ReorderableMovementList(movements: $vm.draft.coolDownMovements)
-                        .padding(.horizontal, 24)
+                } else {
+                    Text("Add movements")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
                 }
 
-                MovementAddFormView(
-                    defaultGoalType: nil,
-                    movements: $vm.draft.coolDownMovements
-                )
-                .padding(.horizontal, 24)
-
-                PlanSectionPlaylistPicker(
-                    title: "Cool-down playlist",
-                    selectedPlaylistId: $vm.draft.coolDownPlaylistId
-                )
+                if let name = playlistDisplayName(for: playlistId) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 11))
+                        Text(name)
+                            .font(.system(size: 12))
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(.secondary)
+                }
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(.systemGray6))
+            .clipShape(RoundedRectangle(cornerRadius: 12))
         }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Save Button
@@ -587,6 +543,7 @@ private struct PlanFormMainSubSection: View {
     let defaultGoalType: GoalType?
     let canDelete: Bool
     let onDelete: () -> Void
+    var dismissPickersTrigger: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -602,7 +559,7 @@ private struct PlanFormMainSubSection: View {
 
                 Spacer()
 
-                EditableDurationBadge(minutes: $section.durationMinutes)
+                EditableDurationBadge(minutes: $section.durationMinutes, dismissTrigger: dismissPickersTrigger)
 
                 if canDelete {
                     Button(action: onDelete) {
