@@ -15,6 +15,16 @@
 		FC44B60E2F4532FB00ACBA1E /* SpotifyiOS in Frameworks */ = {isa = PBXBuildFile; productRef = FC44B60D2F4532FB00ACBA1E /* SpotifyiOS */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 944F60512F2C51D5005167C3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 944F60582F2C51D5005167C3;
+			remoteInfo = Cue;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		944F60592F2C51D5005167C3 /* Cue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cue.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A94F60802F2C51D6005167C1 /* CueTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CueTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -143,24 +153,6 @@
 		};
 /* End PBXNativeTarget section */
 
-/* Begin PBXContainerItemProxy section */
-		A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 944F60512F2C51D5005167C3 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 944F60582F2C51D5005167C3 /* Cue */;
-			remoteInfo = Cue;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXTargetDependency section */
-		A94F608C2F2C51D6005167C1 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 944F60582F2C51D5005167C3 /* Cue */;
-			targetProxy = A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
-
 /* Begin PBXProject section */
 		944F60512F2C51D5005167C3 /* Project object */ = {
 			isa = PBXProject;
@@ -238,6 +230,14 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A94F608C2F2C51D6005167C1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 944F60582F2C51D5005167C3 /* Cue */;
+			targetProxy = A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		944F60642F2C51D6005167C3 /* Debug */ = {
@@ -366,10 +366,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = SV49SAJ2SD;
+				DEVELOPMENT_TEAM = LN8HZZ227T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Cue/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Cue needs access to your camera to take a profile photo.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Cue needs access to your photo library to choose a profile photo.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -382,7 +384,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "-ObjC";
-				PRODUCT_BUNDLE_IDENTIFIER = com.avawilliams.Cue;
+				PRODUCT_BUNDLE_IDENTIFIER = iforgot.Cue;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -402,10 +404,12 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = SV49SAJ2SD;
+				DEVELOPMENT_TEAM = LN8HZZ227T;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Cue/Info.plist;
+				INFOPLIST_KEY_NSCameraUsageDescription = "Cue needs access to your camera to take a profile photo.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Cue needs access to your photo library to choose a profile photo.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -418,7 +422,7 @@
 				);
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "-ObjC";
-				PRODUCT_BUNDLE_IDENTIFIER = com.avawilliams.Cue;
+				PRODUCT_BUNDLE_IDENTIFIER = iforgot.Cue;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

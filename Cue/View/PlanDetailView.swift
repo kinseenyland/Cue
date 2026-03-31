@@ -445,9 +445,16 @@ struct PlanDetailView: View {
     // MARK: - Spotify Playlists (display-only)
 
     private func loadPlaylistsIfNeeded() async {
-        guard spotifyManager.isAuthenticated,
-              (currentPlan.warmUpPlaylistId != nil || currentPlan.mainPlaylistId != nil || currentPlan.coolDownPlaylistId != nil),
+        guard currentPlan.warmUpPlaylistId != nil || currentPlan.mainPlaylistId != nil || currentPlan.coolDownPlaylistId != nil,
               !isLoadingPlaylists else { return }
+
+        // Spotify tokens may not be loaded yet when .task fires — wait briefly.
+        for _ in 0..<10 {
+            if spotifyManager.isAuthenticated { break }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+        guard spotifyManager.isAuthenticated else { return }
+
         isLoadingPlaylists = true
         defer { isLoadingPlaylists = false }
         playlists = (try? await SpotifySearchService.shared.getMyPlaylists(limit: 50)) ?? []

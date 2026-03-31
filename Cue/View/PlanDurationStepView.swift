@@ -7,8 +7,7 @@ import SwiftUI
 
 struct PlanDurationStepView: View {
     @EnvironmentObject var vm: PlanCreationViewModel
-    @State private var showCustomInput = false
-    @State private var customText = ""
+    @State private var showCustomPicker = false
 
     private let standardDurations = [45, 60, 75]
 
@@ -22,55 +21,62 @@ struct PlanDurationStepView: View {
                 ForEach(standardDurations, id: \.self) { duration in
                     DurationCard(
                         duration: duration,
-                        isSelected: vm.draft.durationMinutes == duration && !showCustomInput
+                        isSelected: vm.draft.durationMinutes == duration && !showCustomPicker
                     ) {
                         vm.draft.durationMinutes = duration
-                        showCustomInput = false
+                        showCustomPicker = false
                     }
                 }
 
-                Button {
-                    showCustomInput = true
-                    vm.draft.durationMinutes = Int(customText) ?? 0
-                } label: {
-                    VStack(spacing: 4) {
-                        Text("Other")
-                            .font(.system(size: 32, weight: .bold))
-                        Text("custom")
-                            .font(.system(size: 12))
-                            .foregroundStyle(showCustomInput ? .white.opacity(0.7) : .secondary)
+                ZStack(alignment: .topTrailing) {
+                    Button {
+                        if !showCustomPicker && standardDurations.contains(vm.draft.durationMinutes) {
+                            vm.draft.durationMinutes = 90
+                        }
+                        showCustomPicker.toggle()
+                    } label: {
+                        VStack(spacing: 4) {
+                            Text(showCustomPicker || !standardDurations.contains(vm.draft.durationMinutes)
+                                 ? "\(vm.draft.durationMinutes)"
+                                 : "Other")
+                                .font(.system(size: 32, weight: .bold))
+                            Text(showCustomPicker || !standardDurations.contains(vm.draft.durationMinutes)
+                                 ? "minutes"
+                                 : "custom")
+                                .font(.system(size: 12))
+                                .foregroundStyle(showCustomPicker ? .white.opacity(0.7) : .secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 90)
+                        .foregroundStyle(showCustomPicker ? .white : .black)
+                        .background(showCustomPicker ? Color.black : Color.clear)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(Color.black, lineWidth: 1)
+                        )
                     }
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 90)
-                    .foregroundStyle(showCustomInput ? .white : .black)
-                    .background(showCustomInput ? Color.black : Color.clear)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(Color.black, lineWidth: 1)
-                    )
-                }
-                .buttonStyle(.plain)
-            }
+                    .buttonStyle(.plain)
 
-            if showCustomInput {
-                TextField("Enter minutes...", text: $customText)
-                    .keyboardType(.numberPad)
-                    .font(.system(size: 16))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 14)
-                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                    .onChange(of: customText) { _, newValue in
-                        vm.draft.durationMinutes = Int(newValue) ?? 0
+                    if showCustomPicker {
+                        WheelPickerPopup(
+                            selection: $vm.draft.durationMinutes,
+                            values: Array(1...120),
+                            label: { "\($0) min" },
+                            onDone: { showCustomPicker = false }
+                        )
+                        .offset(y: 94)
+                        .zIndex(1)
                     }
+                }
+                .zIndex(showCustomPicker ? 50 : 0)
             }
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .onAppear {
             if !standardDurations.contains(vm.draft.durationMinutes) && vm.draft.durationMinutes > 0 {
-                showCustomInput = true
-                customText = "\(vm.draft.durationMinutes)"
+                showCustomPicker = true
             }
         }
     }

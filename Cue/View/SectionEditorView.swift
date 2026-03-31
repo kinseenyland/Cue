@@ -16,6 +16,8 @@ struct SectionEditorView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var showPlaylistEditor = false
+    @State private var playlistPreviewRefreshKey = 0
+    @State private var dismissDurationPickersTrigger = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,20 +44,26 @@ struct SectionEditorView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .kerning(1.2)
+                            .padding(.trailing, 8)
+                        EditableDurationBadge(
+                            minutes: $durationMinutes,
+                            dismissTrigger: dismissDurationPickersTrigger
+                        )
                         Spacer()
-                        EditableDurationBadge(minutes: $durationMinutes)
                     }
                     .padding(.horizontal, 24)
+                    .compositingGroup()
+                    .zIndex(100)
 
                     // Movements
                     VStack(alignment: .leading, spacing: 12) {
-                        if !movements.isEmpty {
-                            Text("MOVEMENTS")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .kerning(1.2)
-                                .padding(.horizontal, 24)
+                        Text("MOVEMENTS")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .kerning(1.2)
+                            .padding(.horizontal, 24)
 
+                        if !movements.isEmpty {
                             ReorderableMovementList(movements: $movements)
                                 .padding(.horizontal, 24)
                         }
@@ -66,6 +74,7 @@ struct SectionEditorView: View {
                         )
                         .padding(.horizontal, 24)
                     }
+                    .zIndex(0)
 
                     Divider().padding(.horizontal, 24)
 
@@ -76,6 +85,10 @@ struct SectionEditorView: View {
                 .padding(.bottom, 40)
             }
             .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                dismissDurationPickersTrigger.toggle()
+            }
         }
         .background(Color.white.ignoresSafeArea())
         .toolbar {
@@ -95,6 +108,11 @@ struct SectionEditorView: View {
             SectionPlaylistEditor(selectedPlaylistId: $playlistId)
                 .presentationDetents([.medium, .large])
         }
+        .onChange(of: showPlaylistEditor) { _, isShowing in
+            if !isShowing {
+                playlistPreviewRefreshKey += 1
+            }
+        }
     }
 
     // MARK: - Playlist Section
@@ -110,6 +128,7 @@ struct SectionEditorView: View {
             if playlistId != nil {
                 PlaylistPreviewCard(
                     playlistId: playlistId!,
+                    refreshKey: playlistPreviewRefreshKey,
                     onEdit: { showPlaylistEditor = true },
                     onRemove: { playlistId = nil }
                 )
@@ -148,6 +167,8 @@ struct MainSectionEditorView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var showPlaylistEditor = false
+    @State private var playlistPreviewRefreshKey = 0
+    @State private var dismissDurationPickersTrigger = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -168,13 +189,15 @@ struct MainSectionEditorView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    ForEach($sections) { $section in
+                    ForEach(Array(sections.indices), id: \.self) { index in
                         MainSubSectionBlock(
-                            section: $section,
+                            section: $sections[index],
                             defaultGoalType: defaultGoalType,
                             canDelete: sections.count > 1,
+                            dismissPickersTrigger: dismissDurationPickersTrigger,
                             onDelete: {
-                                sections.removeAll { $0.id == section.id }
+                                guard sections.indices.contains(index), sections.count > 1 else { return }
+                                sections.remove(at: index)
                             }
                         )
                     }
@@ -212,6 +235,7 @@ struct MainSectionEditorView: View {
                         if playlistId != nil {
                             PlaylistPreviewCard(
                                 playlistId: playlistId!,
+                                refreshKey: playlistPreviewRefreshKey,
                                 onEdit: { showPlaylistEditor = true },
                                 onRemove: { playlistId = nil }
                             )
@@ -241,6 +265,10 @@ struct MainSectionEditorView: View {
                 .padding(.bottom, 40)
             }
             .scrollDismissesKeyboard(.interactively)
+            .onTapGesture {
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+                dismissDurationPickersTrigger.toggle()
+            }
         }
         .background(Color.white.ignoresSafeArea())
         .toolbar {
@@ -260,6 +288,11 @@ struct MainSectionEditorView: View {
             SectionPlaylistEditor(selectedPlaylistId: $playlistId)
                 .presentationDetents([.medium, .large])
         }
+        .onChange(of: showPlaylistEditor) { _, isShowing in
+            if !isShowing {
+                playlistPreviewRefreshKey += 1
+            }
+        }
     }
 }
 
@@ -269,6 +302,7 @@ private struct MainSubSectionBlock: View {
     @Binding var section: WorkoutSubSection
     let defaultGoalType: GoalType?
     let canDelete: Bool
+    let dismissPickersTrigger: Bool
     let onDelete: () -> Void
 
     var body: some View {
@@ -285,7 +319,10 @@ private struct MainSubSectionBlock: View {
 
                 Spacer()
 
-                EditableDurationBadge(minutes: $section.durationMinutes)
+                EditableDurationBadge(
+                    minutes: $section.durationMinutes,
+                    dismissTrigger: dismissPickersTrigger
+                )
 
                 if canDelete {
                     Button(action: onDelete) {
@@ -297,6 +334,8 @@ private struct MainSubSectionBlock: View {
                 }
             }
             .padding(.horizontal, 24)
+            .compositingGroup()
+            .zIndex(100)
 
             if !section.movements.isEmpty {
                 ReorderableMovementList(movements: $section.movements)
@@ -319,6 +358,7 @@ private struct MainSubSectionBlock: View {
 
 struct PlaylistPreviewCard: View {
     let playlistId: String
+    let refreshKey: Int
     let onEdit: () -> Void
     let onRemove: () -> Void
 
@@ -326,6 +366,16 @@ struct PlaylistPreviewCard: View {
     @State private var playlistName: String?
     @State private var tracks: [SpotifySearchService.PlaylistTrackItem] = []
     @State private var isLoading = false
+    
+    private var totalDurationLabel: String {
+        let totalSeconds = tracks.reduce(0) { $0 + $1.track.durationSeconds }
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(minutes)m"
+    }
 
     private var spotifyId: String {
         // Convert URI (spotify:playlist:xxx) to plain ID
@@ -338,13 +388,20 @@ struct PlaylistPreviewCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "music.note.list")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                    Text(playlistName ?? "Loading...")
-                        .font(.system(size: 14, weight: .medium))
-                        .lineLimit(1)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Text(playlistName ?? "Loading...")
+                            .font(.system(size: 14, weight: .medium))
+                            .lineLimit(1)
+                    }
+                    if !isLoading && !tracks.isEmpty {
+                        Text("\(tracks.count) tracks \u{00B7} \(totalDurationLabel)")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 Spacer()
@@ -426,7 +483,7 @@ struct PlaylistPreviewCard: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             }
         }
-        .task {
+        .task(id: "\(playlistId)-\(refreshKey)") {
             await loadPlaylistInfo()
         }
     }
@@ -450,7 +507,8 @@ struct PlaylistPreviewCard: View {
 struct ReorderableMovementList: View {
     @Binding var movements: [Movement]
 
-    private static let rowHeight: CGFloat = 52
+    // Keep this aligned with MovementRow's visual height to avoid trailing empty space.
+    private static let rowHeight: CGFloat = 44
 
     var body: some View {
         List {

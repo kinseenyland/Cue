@@ -135,12 +135,42 @@ final class PlanCreationViewModel: ObservableObject {
 
     /// Prevents onChange loops when one redistribution triggers another.
     private var isRedistributing = false
+    /// Set when main-driven redistribution changes warm-up/cool-down, so their onChange doesn't recurse.
+    private var skipWarmUpCoolDownReaction = false
 
     /// Redistributes remaining time (total − warm-up − cool-down) equally across all main sections.
     func redistributeMainSectionTime() {
         guard !isRedistributing else { return }
         isRedistributing = true
         defer { isRedistributing = false }
+        distributeMainEvenly()
+    }
+
+    /// When warm-up or cool-down changes, only recalculate main sections (don't touch the other).
+    func redistributeMainOnly() {
+        guard !isRedistributing, !skipWarmUpCoolDownReaction else {
+            skipWarmUpCoolDownReaction = false
+            return
+        }
+        isRedistributing = true
+        defer { isRedistributing = false }
+        distributeMainEvenly()
+    }
+
+    /// When main section time changes, split the difference evenly between warm-up and cool-down.
+    func redistributeWarmUpCoolDownFromMain() {
+        guard !isRedistributing else { return }
+        isRedistributing = true
+        defer { isRedistributing = false }
+        let remaining = max(0, draft.durationMinutes - totalMainMinutes)
+        let halfRemaining = remaining / 2
+        skipWarmUpCoolDownReaction = true
+        draft.warmUpDurationMinutes = halfRemaining
+        skipWarmUpCoolDownReaction = true
+        draft.coolDownDurationMinutes = remaining - halfRemaining
+    }
+
+    private func distributeMainEvenly() {
         let mainMinutes = max(0, draft.durationMinutes
             - draft.warmUpDurationMinutes
             - draft.coolDownDurationMinutes)
@@ -150,16 +180,6 @@ final class PlanCreationViewModel: ObservableObject {
         for i in draft.mainSections.indices {
             draft.mainSections[i].durationMinutes = perSection + (i == 0 ? remainder : 0)
         }
-    }
-
-    /// When main section time changes, split the remaining time evenly between warm-up and cool-down.
-    func redistributeWarmUpCoolDown() {
-        guard !isRedistributing else { return }
-        isRedistributing = true
-        defer { isRedistributing = false }
-        let remaining = max(0, draft.durationMinutes - totalMainMinutes)
-        draft.warmUpDurationMinutes = remaining / 2
-        draft.coolDownDurationMinutes = remaining - (remaining / 2)
     }
 
     var canAdvance: Bool {

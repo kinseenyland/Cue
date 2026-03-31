@@ -57,11 +57,30 @@ struct WheelValueInput: View {
                 WheelPickerPopup(
                     selection: $pickerValue,
                     values: values,
-                    label: { "\($0)" }
+                    label: { "\($0)" },
+                    onDone: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showPicker = false
+                        }
+                    }
                 )
                 .onChange(of: pickerValue) { _, newValue in
                     value = "\(newValue)"
                 }
+            }
+        }
+        .zIndex(showPicker ? 50 : 0)
+        // Large clear background catches taps outside the picker to dismiss it
+        .background {
+            if showPicker {
+                Color.clear
+                    .frame(width: 1000, height: 1000)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showPicker = false
+                        }
+                    }
             }
         }
     }

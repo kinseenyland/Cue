@@ -87,13 +87,10 @@ struct MovementListStepView: View {
 
             if assigningGoal {
                 HStack(alignment: .center, spacing: 10) {
-                    TextField("0", text: newGoalType == .reps ? $newReps : $newSeconds)
-                        .keyboardType(.numberPad)
-                        .font(.system(size: 20, weight: .semibold))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 64)
-                        .padding(.vertical, 10)
-                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                    WheelValueInput(
+                        value: newGoalType == .reps ? $newReps : $newSeconds,
+                        mode: newGoalType
+                    )
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(newGoalType == .reps ? "reps" : "seconds")
@@ -211,13 +208,10 @@ struct MovementAddFormView: View {
 
             if assigningGoal {
                 HStack(alignment: .center, spacing: 10) {
-                    TextField("0", text: newGoalType == .reps ? $newReps : $newSeconds)
-                        .keyboardType(.numberPad)
-                        .font(.system(size: 20, weight: .semibold))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 64)
-                        .padding(.vertical, 10)
-                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                    WheelValueInput(
+                        value: newGoalType == .reps ? $newReps : $newSeconds,
+                        mode: newGoalType
+                    )
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(newGoalType == .reps ? "reps" : "seconds")
@@ -347,54 +341,53 @@ struct MovementRow: View {
 
 struct EditableDurationBadge: View {
     @Binding var minutes: Int
-    @State private var isEditing = false
-    @State private var editText = ""
-    @FocusState private var focused: Bool
+    var dismissTrigger: Bool = false
+    @State private var showPicker = false
 
     var body: some View {
-        Group {
-            if isEditing {
-                HStack(spacing: 4) {
-                    TextField("", text: $editText)
-                        .keyboardType(.numberPad)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 28)
-                        .multilineTextAlignment(.center)
-                        .focused($focused)
-                        .onSubmit { commit() }
-                    Text("min")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Color.black)
-                .clipShape(RoundedRectangle(cornerRadius: 6))
-                .onAppear { focused = true }
-            } else {
-                Button {
-                    editText = "\(minutes)"
-                    isEditing = true
-                } label: {
-                    Text("\(minutes) min")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-                }
-                .buttonStyle(.plain)
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showPicker.toggle()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text("\(minutes) min")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.7))
+                    .rotationEffect(.degrees(showPicker ? 180 : 0))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(Color.black)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .topTrailing) {
+            if showPicker {
+                WheelPickerPopup(
+                    selection: $minutes,
+                    values: Array(1...120),
+                    label: { "\($0) min" },
+                    onDone: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showPicker = false
+                        }
+                    }
+                )
+                .offset(x: -8, y: 34)
+                .zIndex(2)
             }
         }
-        .onChange(of: focused) { _, isFocused in
-            if !isFocused && isEditing { commit() }
+        .zIndex(showPicker ? 50 : 0)
+        .onChange(of: dismissTrigger) { _, _ in
+            if showPicker {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showPicker = false
+                }
+            }
         }
-    }
-
-    private func commit() {
-        if let val = Int(editText), val > 0 { minutes = val }
-        isEditing = false
     }
 }

@@ -15,10 +15,21 @@ struct SectionPlaylistEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var mode: EditorMode = .pickPlaylist
+    @State private var pendingDeleteItem: SpotifySearchService.PlaylistTrackItem?
 
     enum EditorMode {
         case pickPlaylist
         case editTracks
+    }
+    
+    private var totalDurationLabel: String {
+        let totalSeconds = viewModel.playlistTracks.reduce(0) { $0 + $1.track.durationSeconds }
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(minutes)m"
     }
 
     var body: some View {
@@ -59,27 +70,27 @@ struct SectionPlaylistEditor: View {
         }
         .task {
             await viewModel.loadMyPlaylists()
-        }
-        .onAppear {
-            // If a playlist is already selected, go straight to edit mode
+            // If a playlist is already selected, jump straight to track editing
             if let id = selectedPlaylistId,
                let playlist = viewModel.myPlaylists.first(where: { $0.uri == id }) {
-                Task {
-                    await viewModel.selectPlaylistForEditing(playlist)
-                    mode = .editTracks
-                }
+                await viewModel.selectPlaylistForEditing(playlist)
+                mode = .editTracks
             }
         }
-        .onChange(of: viewModel.myPlaylists) { _, playlists in
-            // Once playlists load, if one is already selected, open it
-            if let id = selectedPlaylistId,
-               let playlist = playlists.first(where: { $0.uri == id }),
-               viewModel.selectedPlaylistForEditing == nil {
-                Task {
-                    await viewModel.selectPlaylistForEditing(playlist)
-                    mode = .editTracks
-                }
+        .alert("Remove song?", isPresented: Binding(
+            get: { pendingDeleteItem != nil },
+            set: { if !$0 { pendingDeleteItem = nil } }
+        )) {
+            Button("Cancel", role: .cancel) {
+                pendingDeleteItem = nil
             }
+            Button("Remove", role: .destructive) {
+                guard let item = pendingDeleteItem else { return }
+                pendingDeleteItem = nil
+                Task { await viewModel.removeTrackFromPlaylist(item) }
+            }
+        } message: {
+            Text("Are you sure you want to remove this song from the playlist?")
         }
     }
 
@@ -256,7 +267,7 @@ struct SectionPlaylistEditor: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
-                Text("\(viewModel.playlistTracks.count) track\(viewModel.playlistTracks.count == 1 ? "" : "s")")
+                Text("\(viewModel.playlistTracks.count) track\(viewModel.playlistTracks.count == 1 ? "" : "s") \u{00B7} \(totalDurationLabel)")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -266,22 +277,18 @@ struct SectionPlaylistEditor: View {
                 List {
                     ForEach(viewModel.playlistTracks) { item in
                         HStack(spacing: 12) {
-                            TrackRowView(track: item.track)
-                            Spacer()
                             Button {
-                                Task { await viewModel.removeTrackFromPlaylist(item) }
+                                pendingDeleteItem = item
                             } label: {
                                 Image(systemName: "trash")
                                     .foregroundStyle(Color(.systemGray3))
                                     .font(.system(size: 13))
                             }
                             .buttonStyle(.plain)
+
+                            TrackRowView(track: item.track)
+                            Spacer()
                         }
-                    }
-                    .onDelete { indexSet in
-                        guard let idx = indexSet.first, idx < viewModel.playlistTracks.count else { return }
-                        let item = viewModel.playlistTracks[idx]
-                        Task { await viewModel.removeTrackFromPlaylist(item) }
                     }
                     .onMove { source, destination in
                         guard let src = source.first, src != destination else { return }

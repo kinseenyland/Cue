@@ -108,13 +108,10 @@ struct SectionMovementBlock: View {
 
             if assigningGoal {
                 HStack(alignment: .center, spacing: 10) {
-                    TextField("0", text: newGoalType == .reps ? $newReps : $newSeconds)
-                        .keyboardType(.numberPad)
-                        .font(.system(size: 20, weight: .semibold))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 64)
-                        .padding(.vertical, 10)
-                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                    WheelValueInput(
+                        value: newGoalType == .reps ? $newReps : $newSeconds,
+                        mode: newGoalType
+                    )
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(newGoalType == .reps ? "reps" : "seconds")

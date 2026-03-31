@@ -27,6 +27,10 @@ struct PlanFormView: View {
     @State private var showWarmUpEditor = false
     @State private var showMainEditor = false
     @State private var showCoolDownEditor = false
+    @State private var isKeyboardVisible = false
+    @State private var suppressCardTapUntil = Date.distantPast
+    @State private var showDurationLimitAlert = false
+    @State private var durationLimitAlertMessage = "This time exceeds the total workout duration."
 
     // MARK: - Init
 
@@ -108,6 +112,7 @@ struct PlanFormView: View {
                         metadataSection
                         durationSection
                     }
+                    .zIndex(showCustomDurationPicker ? 100 : 1)
 
                     // Section cards
                     VStack(spacing: 12) {
@@ -117,7 +122,7 @@ struct PlanFormView: View {
                             durationMinutes: vm.draft.warmUpDurationMinutes,
                             playlistId: vm.draft.warmUpPlaylistId
                         ) {
-                            showWarmUpEditor = true
+                            dismissKeyboardOrOpen { showWarmUpEditor = true }
                         }
 
                         sectionCard(
@@ -127,7 +132,7 @@ struct PlanFormView: View {
                             playlistId: vm.draft.mainPlaylistId,
                             subsectionSummary: mainSubsectionSummary
                         ) {
-                            showMainEditor = true
+                            dismissKeyboardOrOpen { showMainEditor = true }
                         }
 
                         sectionCard(
@@ -136,10 +141,11 @@ struct PlanFormView: View {
                             durationMinutes: vm.draft.coolDownDurationMinutes,
                             playlistId: vm.draft.coolDownPlaylistId
                         ) {
-                            showCoolDownEditor = true
+                            dismissKeyboardOrOpen { showCoolDownEditor = true }
                         }
                     }
                     .padding(.horizontal, 24)
+                    .zIndex(0)
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 40)
@@ -147,6 +153,7 @@ struct PlanFormView: View {
             .scrollDismissesKeyboard(.interactively)
             .onTapGesture {
                 showCustomDurationPicker = false
+                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
             }
 
             saveButton
@@ -158,11 +165,14 @@ struct PlanFormView: View {
         .background(Color.white.ignoresSafeArea())
         .environmentObject(vm)
         .overlay {
-            if showDiscardConfirmation {
+            if showDurationLimitAlert {
+                durationLimitOverlay
+            } else if showDiscardConfirmation {
                 discardOverlay
             }
         }
         .animation(.easeInOut(duration: 0.2), value: showDiscardConfirmation)
+        .animation(.easeInOut(duration: 0.2), value: showDurationLimitAlert)
         .interactiveDismissDisabled(true)
         .toolbar {
             ToolbarItemGroup(placement: .keyboard) {
@@ -177,11 +187,54 @@ struct PlanFormView: View {
                 .foregroundStyle(.black)
             }
         }
-        .onChange(of: vm.draft.durationMinutes) { _, _ in vm.redistributeMainSectionTime() }
-        .onChange(of: vm.draft.warmUpDurationMinutes) { _, _ in vm.redistributeMainOnly() }
-        .onChange(of: vm.draft.coolDownDurationMinutes) { _, _ in vm.redistributeMainOnly() }
+        .task { await loadPlaylistNames() }
+        .onChange(of: showWarmUpEditor) { _, showing in if !showing { Task { await loadPlaylistNames() } } }
+        .onChange(of: showMainEditor) { _, showing in if !showing { Task { await loadPlaylistNames() } } }
+        .onChange(of: showCoolDownEditor) { _, showing in if !showing { Task { await loadPlaylistNames() } } }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            isKeyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            isKeyboardVisible = false
+        }
+        .onChange(of: vm.draft.durationMinutes) { oldValue, newValue in
+            if vm.draft.warmUpDurationMinutes + vm.draft.coolDownDurationMinutes > newValue {
+                var remaining = newValue
+                vm.draft.warmUpDurationMinutes = min(vm.draft.warmUpDurationMinutes, remaining)
+                remaining -= vm.draft.warmUpDurationMinutes
+                vm.draft.coolDownDurationMinutes = min(vm.draft.coolDownDurationMinutes, remaining)
+                durationLimitAlertMessage = "This time exceeds the duration of the total workout."
+                showDurationLimitAlert = true
+            }
+            if oldValue != newValue {
+                vm.redistributeMainSectionTime()
+            }
+        }
+        .onChange(of: vm.draft.warmUpDurationMinutes) { oldValue, newValue in
+            let total = vm.draft.durationMinutes
+            let coolDown = vm.draft.coolDownDurationMinutes
+            if newValue + coolDown > total {
+                vm.draft.warmUpDurationMinutes = max(0, total - coolDown)
+            }
+            vm.redistributeMainOnly()
+        }
+        .onChange(of: vm.draft.coolDownDurationMinutes) { oldValue, newValue in
+            let total = vm.draft.durationMinutes
+            let warmUp = vm.draft.warmUpDurationMinutes
+            if newValue + warmUp > total {
+                vm.draft.coolDownDurationMinutes = max(0, total - warmUp)
+            }
+            vm.redistributeMainOnly()
+        }
         .onChange(of: vm.draft.mainSections.count) { _, _ in vm.redistributeMainSectionTime() }
-        .onChange(of: vm.totalMainMinutes) { _, _ in vm.redistributeWarmUpCoolDownFromMain() }
+        .onChange(of: vm.totalMainMinutes) { _, newMainMinutes in
+            let maxMain = max(0, vm.draft.durationMinutes - vm.draft.warmUpDurationMinutes - vm.draft.coolDownDurationMinutes)
+            if newMainMinutes > maxMain {
+                vm.redistributeMainOnly()
+                durationLimitAlertMessage = "This time exceeds the duration of the total workout."
+                showDurationLimitAlert = true
+            }
+        }
         .sheet(isPresented: $showWarmUpEditor) {
             SectionEditorView(
                 title: "Warm-Up",
@@ -259,7 +312,8 @@ struct PlanFormView: View {
                     .kerning(1.2)
                 FormDropdown(
                     placeholder: "Select type",
-                    selected: vm.draft.type?.displayName
+                    selected: vm.draft.type?.displayName,
+                    onTap: { suppressCardTapTemporarily() }
                 ) {
                     ForEach(availableTypes, id: \.self) { type in
                         Button(type.displayName) { vm.draft.type = type }
@@ -274,7 +328,8 @@ struct PlanFormView: View {
                     .kerning(1.2)
                 FormDropdown(
                     placeholder: "Select intensity",
-                    selected: vm.draft.difficulty?.rawValue.capitalized
+                    selected: vm.draft.difficulty?.rawValue.capitalized,
+                    onTap: { suppressCardTapTemporarily() }
                 ) {
                     ForEach(Difficulty.allCases, id: \.self) { difficulty in
                         Button(difficulty.rawValue.capitalized) { vm.draft.difficulty = difficulty }
@@ -359,20 +414,22 @@ struct PlanFormView: View {
                     Spacer()
                 }
 
-                if showCustomDurationPicker {
-                    HStack {
-                        Spacer()
-                        WheelPickerPopup(
-                            selection: $vm.draft.durationMinutes,
-                            values: Array(1...120),
-                            label: { "\($0) min" },
-                            onDone: { showCustomDurationPicker = false }
-                        )
-                    }
-                }
             }
             .padding(.horizontal, 24)
+            .overlay(alignment: .topTrailing) {
+                if showCustomDurationPicker {
+                    WheelPickerPopup(
+                        selection: $vm.draft.durationMinutes,
+                        values: Array(1...120),
+                        label: { "\($0) min" },
+                        onDone: { showCustomDurationPicker = false }
+                    )
+                    .offset(x: -12, y: 38)
+                    .zIndex(2)
+                }
+            }
         }
+        .zIndex(showCustomDurationPicker ? 50 : 0)
     }
 
     // MARK: - Section Summary Cards
@@ -389,6 +446,26 @@ struct PlanFormView: View {
     private func playlistDisplayName(for id: String?) -> String? {
         guard let id else { return nil }
         return playlistNames[id]
+    }
+
+    private func loadPlaylistNames() async {
+        guard spotifyManager.isAuthenticated else { return }
+        let playlists = (try? await SpotifySearchService.shared.getMyPlaylists()) ?? []
+        playlistNames = Dictionary(uniqueKeysWithValues: playlists.map { ($0.uri, $0.name) })
+    }
+
+    private func dismissKeyboardOrOpen(_ open: @escaping () -> Void) {
+        if Date() < suppressCardTapUntil || isKeyboardVisible || showCustomDurationPicker {
+            showCustomDurationPicker = false
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            suppressCardTapTemporarily()
+        } else {
+            open()
+        }
+    }
+    
+    private func suppressCardTapTemporarily() {
+        suppressCardTapUntil = Date().addingTimeInterval(0.35)
     }
 
     private func sectionCard(
@@ -534,87 +611,53 @@ struct PlanFormView: View {
             .padding(.horizontal, 40)
         }
     }
-}
 
-// MARK: - Main Sub-Section
+    // MARK: - Duration Limit Overlay
 
-private struct PlanFormMainSubSection: View {
-    @Binding var section: WorkoutSubSection
-    let defaultGoalType: GoalType?
-    let canDelete: Bool
-    let onDelete: () -> Void
-    var dismissPickersTrigger: Bool = false
+    private var durationLimitOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture { showDurationLimitAlert = false }
 
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                TextField("Section name", text: $section.name)
-                    .font(.system(size: 15))
-                    .padding(.bottom, 4)
-                    .overlay(alignment: .bottom) {
-                        Rectangle()
-                            .fill(Color(UIColor.systemGray3))
-                            .frame(height: 1)
-                    }
-
-                Spacer()
-
-                EditableDurationBadge(minutes: $section.durationMinutes, dismissTrigger: dismissPickersTrigger)
-
-                if canDelete {
-                    Button(action: onDelete) {
-                        Image(systemName: "minus.circle")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color(UIColor.systemGray3))
+            VStack(spacing: 16) {
+                HStack {
+                    Spacer()
+                    Button { showDurationLimitAlert = false } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, height: 30)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
                     }
                     .buttonStyle(.plain)
                 }
-            }
-            .padding(.horizontal, 24)
 
-            if !section.movements.isEmpty {
-                ReorderableMovementList(movements: $section.movements)
-                    .padding(.horizontal, 24)
-            }
+                Text("Duration Limit")
+                    .font(.system(size: 18, weight: .bold))
 
-            MovementAddFormView(
-                defaultGoalType: defaultGoalType,
-                movements: $section.movements
-            )
-            .padding(.horizontal, 24)
+                Text(durationLimitAlertMessage)
+                    .font(.system(size: 14))
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
 
-            Divider()
-                .padding(.horizontal, 24)
-        }
-    }
-}
-
-// MARK: - Reorderable Movement List
-
-private struct ReorderableMovementList: View {
-    @Binding var movements: [Movement]
-
-    private static let rowHeight: CGFloat = 52
-
-    var body: some View {
-        List {
-            ForEach($movements) { $movement in
-                MovementRow(movement: movement) {
-                    movements.removeAll { $0.id == movement.id }
+                Button { showDurationLimitAlert = false } label: {
+                    Text("OK")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(Color.black)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color(.systemGray6))
-                .listRowSeparator(.hidden)
+                .buttonStyle(.plain)
             }
-            .onMove { from, to in
-                movements.move(fromOffsets: from, toOffset: to)
-            }
+            .padding(20)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+            .padding(.horizontal, 40)
         }
-        .environment(\.editMode, .constant(.active))
-        .scrollDisabled(true)
-        .listStyle(.plain)
-        .frame(height: CGFloat(movements.count) * Self.rowHeight)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 }
