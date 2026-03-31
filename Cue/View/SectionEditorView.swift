@@ -68,7 +68,7 @@ struct SectionEditorView: View {
                                 .padding(.horizontal, 24)
                         }
 
-                        MovementAddFormView(
+                        MovementComposerView(
                             defaultGoalType: defaultGoalType,
                             movements: $movements
                         )
@@ -342,7 +342,7 @@ private struct MainSubSectionBlock: View {
                     .padding(.horizontal, 24)
             }
 
-            MovementAddFormView(
+            MovementComposerView(
                 defaultGoalType: defaultGoalType,
                 movements: $section.movements
             )
@@ -506,6 +506,7 @@ struct PlaylistPreviewCard: View {
 
 struct ReorderableMovementList: View {
     @Binding var movements: [Movement]
+    @State private var pendingDeleteMovement: Movement?
 
     // Keep this aligned with MovementRow's visual height to avoid trailing empty space.
     private static let rowHeight: CGFloat = 44
@@ -514,7 +515,7 @@ struct ReorderableMovementList: View {
         List {
             ForEach($movements) { $movement in
                 MovementRow(movement: movement) {
-                    movements.removeAll { $0.id == movement.id }
+                    pendingDeleteMovement = movement
                 }
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color(.systemGray6))
@@ -530,5 +531,20 @@ struct ReorderableMovementList: View {
         .frame(height: CGFloat(movements.count) * Self.rowHeight)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+        .alert("Remove movement?", isPresented: Binding(
+            get: { pendingDeleteMovement != nil },
+            set: { if !$0 { pendingDeleteMovement = nil } }
+        )) {
+            Button("Cancel", role: .cancel) {
+                pendingDeleteMovement = nil
+            }
+            Button("Remove", role: .destructive) {
+                guard let movement = pendingDeleteMovement else { return }
+                pendingDeleteMovement = nil
+                movements.removeAll { $0.id == movement.id }
+            }
+        } message: {
+            Text("Are you sure you want to remove this movement?")
+        }
     }
 }

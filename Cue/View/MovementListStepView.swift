@@ -11,14 +11,7 @@ struct MovementListStepView: View {
     @Binding var durationMinutes: Int
     @Binding var movements: [Movement]
 
-    @State private var assigningGoal = false
-    @State private var newName = ""
-    @State private var newGoalType: GoalType = .reps
-    @State private var newReps = ""
-    @State private var newSeconds = ""
-    @State private var showNoteField = false
-    @State private var newNote = ""
-    @FocusState private var nameFieldFocused: Bool
+    @State private var dismissDurationPickersTrigger = false
 
     var body: some View {
         ScrollView {
@@ -28,270 +21,39 @@ struct MovementListStepView: View {
                         .font(.system(size: 30, weight: .bold))
                         .foregroundStyle(.black)
                     Spacer()
-                    EditableDurationBadge(minutes: $durationMinutes)
+                    EditableDurationBadge(
+                        minutes: $durationMinutes,
+                        dismissTrigger: dismissDurationPickersTrigger
+                    )
                         .padding(.top, 8)
                 }
                 .padding(.horizontal, 24)
 
-                if !movements.isEmpty {
-                    VStack(spacing: 0) {
-                        ForEach(movements) { movement in
-                            MovementRow(movement: movement) {
-                                movements.removeAll { $0.id == movement.id }
-                            }
-                            if movement.id != movements.last?.id {
-                                Divider()
-                                    .padding(.leading, 16)
-                            }
-                        }
-                    }
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                Text("MOVEMENTS")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .kerning(1.2)
                     .padding(.horizontal, 24)
+
+                if !movements.isEmpty {
+                    ReorderableMovementList(movements: $movements)
+                        .padding(.horizontal, 24)
                 }
 
-                addForm
+                MovementComposerView(
+                    defaultGoalType: defaultGoalType,
+                    movements: $movements
+                )
                     .padding(.horizontal, 24)
             }
             .padding(.top, 4)
             .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .onAppear {
-            newGoalType = defaultGoalType ?? .reps
-            assigningGoal = defaultGoalType != nil
-            nameFieldFocused = true
+        .onTapGesture {
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+            dismissDurationPickersTrigger.toggle()
         }
-    }
-
-    private var addForm: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                TextField("Movement name", text: $newName)
-                    .font(.system(size: 16))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 12)
-                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                    .focused($nameFieldFocused)
-
-                Button {
-                    submitMovement()
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 26))
-                        .foregroundStyle(canSubmit ? Color.black : Color(.systemGray4))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSubmit)
-            }
-
-            if assigningGoal {
-                HStack(alignment: .center, spacing: 10) {
-                    WheelValueInput(
-                        value: newGoalType == .reps ? $newReps : $newSeconds,
-                        mode: newGoalType
-                    )
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(newGoalType == .reps ? "reps" : "seconds")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.black)
-
-                        Button {
-                            newGoalType = newGoalType == .reps ? .timed : .reps
-                            newReps = ""
-                            newSeconds = ""
-                        } label: {
-                            Text("switch to \(newGoalType == .reps ? "timed" : "reps")")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .underline()
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Spacer()
-                }
-            } else {
-                Button {
-                    assigningGoal = true
-                    newGoalType = .reps
-                } label: {
-                    Text("Assign reps/time")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .underline()
-                }
-                .buttonStyle(.plain)
-            }
-
-            if showNoteField {
-                TextField("e.g. 5lb weight, use a band", text: $newNote)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .overlay(Rectangle().stroke(Color(.systemGray3), lineWidth: 1))
-            } else {
-                Button {
-                    showNoteField = true
-                } label: {
-                    Text("Add a note")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .underline()
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private var canSubmit: Bool {
-        !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private func submitMovement() {
-        let note = newNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        let m = Movement(
-            name: newName.trimmingCharacters(in: .whitespacesAndNewlines),
-            notes: note.isEmpty ? nil : note,
-            goalType: newGoalType,
-            seconds: assigningGoal && newGoalType == .timed ? Int(newSeconds) : nil,
-            reps: assigningGoal && newGoalType == .reps ? Int(newReps) : nil
-        )
-        movements.append(m)
-        newName = ""
-        newReps = ""
-        newSeconds = ""
-        assigningGoal = false
-        showNoteField = false
-        newNote = ""
-        nameFieldFocused = true
-    }
-}
-
-// MARK: - Movement Add Form
-
-struct MovementAddFormView: View {
-    let defaultGoalType: GoalType?
-    @Binding var movements: [Movement]
-
-    @State private var assigningGoal = false
-    @State private var newName = ""
-    @State private var newGoalType: GoalType = .reps
-    @State private var newReps = ""
-    @State private var newSeconds = ""
-    @State private var showNoteField = false
-    @State private var newNote = ""
-    @FocusState private var nameFieldFocused: Bool
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                TextField("Movement name", text: $newName)
-                    .font(.system(size: 16))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 12)
-                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                    .focused($nameFieldFocused)
-
-                Button {
-                    submitMovement()
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 26))
-                        .foregroundStyle(canSubmit ? Color.black : Color(.systemGray4))
-                }
-                .buttonStyle(.plain)
-                .disabled(!canSubmit)
-            }
-
-            if assigningGoal {
-                HStack(alignment: .center, spacing: 10) {
-                    WheelValueInput(
-                        value: newGoalType == .reps ? $newReps : $newSeconds,
-                        mode: newGoalType
-                    )
-
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(newGoalType == .reps ? "reps" : "seconds")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.black)
-
-                        Button {
-                            newGoalType = newGoalType == .reps ? .timed : .reps
-                            newReps = ""
-                            newSeconds = ""
-                        } label: {
-                            Text("switch to \(newGoalType == .reps ? "timed" : "reps")")
-                                .font(.system(size: 12))
-                                .foregroundStyle(.secondary)
-                                .underline()
-                        }
-                        .buttonStyle(.plain)
-                    }
-
-                    Spacer()
-                }
-            } else {
-                Button {
-                    assigningGoal = true
-                    newGoalType = .reps
-                } label: {
-                    Text("Assign reps/time")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .underline()
-                }
-                .buttonStyle(.plain)
-            }
-
-            if showNoteField {
-                TextField("e.g. 5lb weight, use a band", text: $newNote)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.primary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .overlay(Rectangle().stroke(Color(.systemGray3), lineWidth: 1))
-            } else {
-                Button {
-                    showNoteField = true
-                } label: {
-                    Text("Add a note")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                        .underline()
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .onAppear {
-            newGoalType = defaultGoalType ?? .reps
-            assigningGoal = defaultGoalType != nil
-        }
-    }
-
-    private var canSubmit: Bool {
-        !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
-    private func submitMovement() {
-        let note = newNote.trimmingCharacters(in: .whitespacesAndNewlines)
-        let m = Movement(
-            name: newName.trimmingCharacters(in: .whitespacesAndNewlines),
-            notes: note.isEmpty ? nil : note,
-            goalType: newGoalType,
-            seconds: assigningGoal && newGoalType == .timed ? Int(newSeconds) : nil,
-            reps: assigningGoal && newGoalType == .reps ? Int(newReps) : nil
-        )
-        movements.append(m)
-        newName = ""
-        newReps = ""
-        newSeconds = ""
-        assigningGoal = false
-        showNoteField = false
-        newNote = ""
-        nameFieldFocused = true
     }
 }
 
