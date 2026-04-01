@@ -216,7 +216,8 @@ struct MovementListStepView: View {
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .overlay(Rectangle().stroke(Color(.systemGray3), lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray3), lineWidth: 1))
             } else {
                 Button {
                     showNoteField = true
@@ -277,7 +278,8 @@ struct MovementAddFormView: View {
                     .font(.system(size: 16))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 12)
-                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.black, lineWidth: 1))
                     .focused($nameFieldFocused)
 
                 Button {
@@ -299,7 +301,8 @@ struct MovementAddFormView: View {
                         .multilineTextAlignment(.center)
                         .frame(width: 64)
                         .padding(.vertical, 10)
-                        .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.black, lineWidth: 1))
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text(newGoalType == .reps ? "reps" : "seconds")
@@ -340,7 +343,8 @@ struct MovementAddFormView: View {
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .overlay(Rectangle().stroke(Color(.systemGray3), lineWidth: 1))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray3), lineWidth: 1))
             } else {
                 Button {
                     showNoteField = true
