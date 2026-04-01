@@ -308,10 +308,7 @@ private struct CreateSectionSheet: View {
                             .font(.system(size: 16))
                             .padding(.horizontal, 12)
                             .padding(.vertical, 12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.black, lineWidth: 1)
-                            )
+                            .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
                     }
 
                     // Duration
