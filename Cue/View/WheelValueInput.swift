@@ -1,7 +1,6 @@
 //
 //  WheelValueInput.swift
 //  Cue
-//
 
 import SwiftUI
 
@@ -10,6 +9,7 @@ import SwiftUI
 struct WheelValueInput: View {
     @Binding var value: String
     let mode: GoalType
+    var onOpen: (() -> Void)? = nil
     @State private var showPicker = false
     @State private var pickerValue: Int = 0
 
@@ -27,32 +27,32 @@ struct WheelValueInput: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
-            Button {
-                if let current = Int(value), values.contains(current) {
-                    pickerValue = current
-                } else {
-                    pickerValue = mode == .reps ? 10 : 30
-                }
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    showPicker.toggle()
-                }
-            } label: {
-                HStack(spacing: 3) {
-                    Text(displayText)
-                        .font(.system(size: 20, weight: .semibold))
-                        .multilineTextAlignment(.center)
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundStyle(.black.opacity(0.5))
-                        .rotationEffect(.degrees(showPicker ? 180 : 0))
-                }
-                .frame(width: 64)
-                .padding(.vertical, 10)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+        Button {
+            if let current = Int(value), values.contains(current) {
+                pickerValue = current
+            } else {
+                pickerValue = mode == .reps ? 10 : 30
             }
-            .buttonStyle(.plain)
-
+            if !showPicker { onOpen?() }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                showPicker.toggle()
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(displayText)
+                    .font(.system(size: 20, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.black.opacity(0.5))
+                    .rotationEffect(.degrees(showPicker ? 180 : 0))
+            }
+            .frame(width: 64)
+            .padding(.vertical, 10)
+            .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .overlay(alignment: .topLeading) {
             if showPicker {
                 WheelPickerPopup(
                     selection: $pickerValue,
@@ -67,6 +67,7 @@ struct WheelValueInput: View {
                 .onChange(of: pickerValue) { _, newValue in
                     value = "\(newValue)"
                 }
+                .offset(y: 46)
             }
         }
         .zIndex(showPicker ? 50 : 0)

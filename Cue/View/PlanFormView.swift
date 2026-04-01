@@ -241,7 +241,8 @@ struct PlanFormView: View {
                 movements: $vm.draft.warmUpMovements,
                 durationMinutes: $vm.draft.warmUpDurationMinutes,
                 playlistId: $vm.draft.warmUpPlaylistId,
-                defaultGoalType: nil
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption
             )
             .environmentObject(SpotifyManager.shared)
         }
@@ -250,7 +251,8 @@ struct PlanFormView: View {
                 sections: $vm.draft.mainSections,
                 playlistId: $vm.draft.mainPlaylistId,
                 totalDurationMinutes: vm.totalMainMinutes,
-                defaultGoalType: nil
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption
             )
             .environmentObject(SpotifyManager.shared)
         }
@@ -260,7 +262,8 @@ struct PlanFormView: View {
                 movements: $vm.draft.coolDownMovements,
                 durationMinutes: $vm.draft.coolDownDurationMinutes,
                 playlistId: $vm.draft.coolDownPlaylistId,
-                defaultGoalType: nil
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption
             )
             .environmentObject(SpotifyManager.shared)
         }

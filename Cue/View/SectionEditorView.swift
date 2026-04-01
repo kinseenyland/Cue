@@ -13,6 +13,8 @@ struct SectionEditorView: View {
     @Binding var durationMinutes: Int
     @Binding var playlistId: String?
     let defaultGoalType: GoalType?
+    var showGoalOption: Bool = true
+    var showPlaylist: Bool = true
 
     @Environment(\.dismiss) private var dismiss
     @State private var showPlaylistEditor = false
@@ -70,16 +72,21 @@ struct SectionEditorView: View {
 
                         MovementComposerView(
                             defaultGoalType: defaultGoalType,
+                            showGoalOption: showGoalOption,
                             movements: $movements
                         )
+                        .compositingGroup()
+                        .zIndex(50)
                         .padding(.horizontal, 24)
                     }
-                    .zIndex(0)
+                    .zIndex(50)
 
-                    Divider().padding(.horizontal, 24)
+                    if showPlaylist {
+                        Divider().padding(.horizontal, 24)
 
-                    // Playlist
-                    playlistSection
+                        // Playlist
+                        playlistSection
+                    }
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 40)
@@ -105,8 +112,10 @@ struct SectionEditorView: View {
             }
         }
         .sheet(isPresented: $showPlaylistEditor) {
-            SectionPlaylistEditor(selectedPlaylistId: $playlistId)
-                .presentationDetents([.medium, .large])
+            if showPlaylist {
+                SectionPlaylistEditor(selectedPlaylistId: $playlistId)
+                    .presentationDetents([.medium, .large])
+            }
         }
         .onChange(of: showPlaylistEditor) { _, isShowing in
             if !isShowing {
@@ -158,17 +167,24 @@ struct SectionEditorView: View {
 
 // MARK: - Main Section Editor
 
-/// Editor for the main workout section, which contains named sub-sections.
+/// Editor for the main workout section — shows section cards that drill down into individual editors.
 struct MainSectionEditorView: View {
     @Binding var sections: [WorkoutSubSection]
     @Binding var playlistId: String?
     let totalDurationMinutes: Int
     let defaultGoalType: GoalType?
+    var showGoalOption: Bool = true
 
     @Environment(\.dismiss) private var dismiss
     @State private var showPlaylistEditor = false
     @State private var playlistPreviewRefreshKey = 0
-    @State private var dismissDurationPickersTrigger = false
+    @State private var editingSectionIndex: Int?
+
+    // Stable IDs for binding to sheets
+    private var editingSection: Binding<WorkoutSubSection>? {
+        guard let index = editingSectionIndex, sections.indices.contains(index) else { return nil }
+        return $sections[index]
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -188,23 +204,43 @@ struct MainSectionEditorView: View {
             .padding(.bottom, 10)
 
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    ForEach(Array(sections.indices), id: \.self) { index in
-                        MainSubSectionBlock(
-                            section: $sections[index],
-                            defaultGoalType: defaultGoalType,
-                            canDelete: sections.count > 1,
-                            dismissPickersTrigger: dismissDurationPickersTrigger,
-                            onDelete: {
-                                guard sections.indices.contains(index), sections.count > 1 else { return }
-                                sections.remove(at: index)
-                            }
-                        )
-                    }
+                VStack(alignment: .leading, spacing: 16) {
+                    // Section cards
+                    Text("SECTIONS")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .kerning(1.2)
+                        .padding(.horizontal, 24)
 
+                    VStack(spacing: 0) {
+                        ForEach(Array(sections.indices), id: \.self) { index in
+                            MainSectionCard(
+                                section: sections[index],
+                                canDelete: sections.count > 1,
+                                onTap: { editingSectionIndex = index },
+                                onDelete: {
+                                    guard sections.indices.contains(index), sections.count > 1 else { return }
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        sections.remove(at: index)
+                                    }
+                                }
+                            )
+
+                            if index < sections.count - 1 {
+                                Divider().padding(.leading, 16)
+                            }
+                        }
+                    }
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                    .padding(.horizontal, 24)
+
+                    // Add section button
                     HStack {
                         Button {
-                            sections.append(WorkoutSubSection())
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                sections.append(WorkoutSubSection())
+                            }
                         } label: {
                             HStack(spacing: 6) {
                                 Image(systemName: "plus")
@@ -264,24 +300,22 @@ struct MainSectionEditorView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 40)
             }
-            .scrollDismissesKeyboard(.interactively)
-            .onTapGesture {
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                dismissDurationPickersTrigger.toggle()
-            }
         }
         .background(Color.white.ignoresSafeArea())
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") {
-                    UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder),
-                        to: nil, from: nil, for: nil
-                    )
-                }
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.black)
+        .sheet(item: Binding(
+            get: { editingSectionIndex.map { SectionSheetId(index: $0) } },
+            set: { editingSectionIndex = $0?.index }
+        )) { item in
+            if sections.indices.contains(item.index) {
+                SectionEditorView(
+                    title: sections[item.index].name.isEmpty ? "Section \(item.index + 1)" : sections[item.index].name,
+                    movements: $sections[item.index].movements,
+                    durationMinutes: $sections[item.index].durationMinutes,
+                    playlistId: .constant(nil),
+                    defaultGoalType: defaultGoalType,
+                    showGoalOption: showGoalOption,
+                    showPlaylist: false
+                )
             }
         }
         .sheet(isPresented: $showPlaylistEditor) {
@@ -296,61 +330,51 @@ struct MainSectionEditorView: View {
     }
 }
 
-// MARK: - Main Sub-Section Block (inside MainSectionEditorView)
+/// Identifiable wrapper for sheet presentation by index.
+private struct SectionSheetId: Identifiable {
+    let index: Int
+    var id: Int { index }
+}
 
-private struct MainSubSectionBlock: View {
-    @Binding var section: WorkoutSubSection
-    let defaultGoalType: GoalType?
+// MARK: - Main Section Card
+
+private struct MainSectionCard: View {
+    let section: WorkoutSubSection
     let canDelete: Bool
-    let dismissPickersTrigger: Bool
+    let onTap: () -> Void
     let onDelete: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 10) {
-                TextField("Section name", text: $section.name)
-                    .font(.system(size: 15))
-                    .padding(.bottom, 4)
-                    .overlay(alignment: .bottom) {
-                        Rectangle()
-                            .fill(Color(UIColor.systemGray3))
-                            .frame(height: 1)
-                    }
+        Button(action: onTap) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(section.name.isEmpty ? "Unnamed Section" : section.name)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.black)
+                    Text("\(section.movements.count) movement\(section.movements.count == 1 ? "" : "s") · \(section.durationMinutes) min")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
 
                 Spacer()
-
-                EditableDurationBadge(
-                    minutes: $section.durationMinutes,
-                    dismissTrigger: dismissPickersTrigger
-                )
 
                 if canDelete {
                     Button(action: onDelete) {
                         Image(systemName: "minus.circle")
-                            .font(.system(size: 18))
-                            .foregroundStyle(Color(UIColor.systemGray3))
+                            .font(.system(size: 16))
+                            .foregroundStyle(Color(.systemGray3))
                     }
                     .buttonStyle(.plain)
                 }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(Color(.systemGray3))
             }
-            .padding(.horizontal, 24)
-            .compositingGroup()
-            .zIndex(100)
-
-            if !section.movements.isEmpty {
-                ReorderableMovementList(movements: $section.movements)
-                    .padding(.horizontal, 24)
-            }
-
-            MovementComposerView(
-                defaultGoalType: defaultGoalType,
-                movements: $section.movements
-            )
-            .padding(.horizontal, 24)
-
-            Divider()
-                .padding(.horizontal, 24)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -506,17 +530,48 @@ struct PlaylistPreviewCard: View {
 
 struct ReorderableMovementList: View {
     @Binding var movements: [Movement]
-    @State private var pendingDeleteMovement: Movement?
+    @State private var confirmingDeleteId: String?
+    @State private var resetTask: Task<Void, Never>?
 
-    // Keep this aligned with MovementRow's visual height to avoid trailing empty space.
-    private static let rowHeight: CGFloat = 44
+    private var totalHeight: CGFloat {
+        movements.reduce(0) { total, movement in
+            var h: CGFloat = 39 // base: name + vertical padding
+            if movement.reps != nil || movement.seconds != nil { h += 16 }
+            if let notes = movement.notes, !notes.isEmpty { h += 16 }
+            return total + h
+        }
+    }
 
     var body: some View {
         List {
             ForEach($movements) { $movement in
-                MovementRow(movement: movement) {
-                    pendingDeleteMovement = movement
-                }
+                MovementRow(
+                    movement: movement,
+                    isConfirmingDelete: confirmingDeleteId == movement.id,
+                    onDeleteTap: {
+                        if confirmingDeleteId == movement.id {
+                            resetTask?.cancel()
+                            confirmingDeleteId = nil
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                movements.removeAll { $0.id == movement.id }
+                            }
+                        } else {
+                            resetTask?.cancel()
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                confirmingDeleteId = movement.id
+                            }
+                            resetTask = Task {
+                                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                guard !Task.isCancelled else { return }
+                                await MainActor.run {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        confirmingDeleteId = nil
+                                    }
+                                }
+                            }
+                        }
+                    }
+                )
                 .listRowInsets(EdgeInsets())
                 .listRowBackground(Color(.systemGray6))
                 .listRowSeparator(.hidden)
@@ -528,23 +583,8 @@ struct ReorderableMovementList: View {
         .environment(\.editMode, .constant(.active))
         .scrollDisabled(true)
         .listStyle(.plain)
-        .frame(height: CGFloat(movements.count) * Self.rowHeight)
+        .frame(height: totalHeight)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 10))
-        .alert("Remove movement?", isPresented: Binding(
-            get: { pendingDeleteMovement != nil },
-            set: { if !$0 { pendingDeleteMovement = nil } }
-        )) {
-            Button("Cancel", role: .cancel) {
-                pendingDeleteMovement = nil
-            }
-            Button("Remove", role: .destructive) {
-                guard let movement = pendingDeleteMovement else { return }
-                pendingDeleteMovement = nil
-                movements.removeAll { $0.id == movement.id }
-            }
-        } message: {
-            Text("Are you sure you want to remove this movement?")
-        }
     }
 }

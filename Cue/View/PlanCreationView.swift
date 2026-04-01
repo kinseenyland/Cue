@@ -184,6 +184,7 @@ struct PlanCreationView: View {
                 MovementListStepView(
                     headline: "Warm-Up Movements",
                     defaultGoalType: vm.draft.goalType,
+                    showGoalOption: vm.showGoalOption,
                     durationMinutes: $vm.draft.warmUpDurationMinutes,
                     movements: $vm.draft.warmUpMovements
                 )
@@ -217,6 +218,7 @@ struct PlanCreationView: View {
                 MovementListStepView(
                     headline: "Cool-Down Movements",
                     defaultGoalType: vm.draft.goalType,
+                    showGoalOption: vm.showGoalOption,
                     durationMinutes: $vm.draft.coolDownDurationMinutes,
                     movements: $vm.draft.coolDownMovements
                 )

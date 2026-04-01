@@ -58,6 +58,11 @@ final class PlanCreationViewModel: ObservableObject {
         resolvedMusicApproach != .musicFirst
     }
 
+    /// Whether the composer should offer reps/time input at all.
+    var showGoalOption: Bool {
+        workoutStructure != .freeform
+    }
+
     var steps: [PlanCreationStep] {
         var s: [PlanCreationStep] = [.name, .type, .duration]
         if musicApproach == .flexible {

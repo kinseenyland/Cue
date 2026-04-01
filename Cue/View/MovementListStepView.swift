@@ -8,6 +8,7 @@ import SwiftUI
 struct MovementListStepView: View {
     let headline: String
     let defaultGoalType: GoalType?
+    var showGoalOption: Bool = true
     @Binding var durationMinutes: Int
     @Binding var movements: [Movement]
 
@@ -42,6 +43,7 @@ struct MovementListStepView: View {
 
                 MovementComposerView(
                     defaultGoalType: defaultGoalType,
+                    showGoalOption: showGoalOption,
                     movements: $movements
                 )
                     .padding(.horizontal, 24)
@@ -61,7 +63,8 @@ struct MovementListStepView: View {
 
 struct MovementRow: View {
     let movement: Movement
-    let onDelete: () -> Void
+    let isConfirmingDelete: Bool
+    let onDeleteTap: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -87,10 +90,10 @@ struct MovementRow: View {
                 }
             }
             Spacer()
-            Button(action: onDelete) {
-                Image(systemName: "trash")
+            Button(action: onDeleteTap) {
+                Image(systemName: isConfirmingDelete ? "trash.fill" : "trash")
                     .font(.system(size: 13))
-                    .foregroundStyle(Color(.systemGray3))
+                    .foregroundStyle(isConfirmingDelete ? .red : Color(.systemGray3))
             }
             .buttonStyle(.plain)
         }

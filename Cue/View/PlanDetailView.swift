@@ -470,6 +470,7 @@ private struct MovementReadRow: View {
         switch movement.goalType {
         case .timed: return movement.seconds.map { "\($0) sec" } ?? "—"
         case .reps:  return movement.reps.map { "\($0) reps" } ?? "—"
+        case .none:  return "—"
         }
     }
 

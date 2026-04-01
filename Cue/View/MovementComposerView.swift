@@ -9,13 +9,15 @@ import SwiftUI
 /// Defaults to `defaultGoalType` when provided, but users can switch modes.
 struct MovementComposerView: View {
     let defaultGoalType: GoalType?
+    var showGoalOption: Bool = true
     @Binding var movements: [Movement]
 
     @State private var isExpanded = false
     @State private var newName = ""
     @State private var selectedGoalType: GoalType = .reps
-    @State private var repsValue = ""
-    @State private var secondsValue = ""
+    @State private var repsValue = "10"
+    @State private var secondsValue = "30"
+    @State private var showGoalInput = false
     @State private var showNoteField = false
     @State private var newNote = ""
     @FocusState private var nameFieldFocused: Bool
@@ -32,6 +34,7 @@ struct MovementComposerView: View {
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {
                         isExpanded = true
+                        showGoalInput = defaultGoalType != nil
                     }
                     if defaultGoalType != nil {
                         selectedGoalType = defaultGoalType ?? .reps
@@ -63,36 +66,58 @@ struct MovementComposerView: View {
 
     private var expandedComposer: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 10) {
-                TextField("Movement name", text: $newName)
-                    .font(.system(size: 16))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 12)
-                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                    .focused($nameFieldFocused)
+            TextField("Movement name", text: $newName)
+                .font(.system(size: 16))
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                .focused($nameFieldFocused)
 
-                Button {
-                    submitMovement()
-                } label: {
-                    Image(systemName: "plus.circle.fill")
-                        .font(.system(size: 26))
-                        .foregroundStyle(canSubmit ? Color.black : Color(.systemGray4))
+            if showGoalOption {
+                if showGoalInput {
+                    HStack(alignment: .center, spacing: 10) {
+                        WheelValueInput(
+                            value: valueBinding,
+                            mode: selectedGoalType,
+                            onOpen: { nameFieldFocused = false }
+                        )
+
+                        goalTypeToggle
+
+                        Spacer()
+
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                showGoalInput = false
+                            }
+                            repsValue = ""
+                            secondsValue = ""
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .zIndex(10)
+                } else {
+                    Button {
+                        nameFieldFocused = false
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            showGoalInput = true
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "timer")
+                                .font(.system(size: 12))
+                            Text("Assign reps / time")
+                                .font(.system(size: 13))
+                        }
+                        .foregroundStyle(.secondary)
+                        .underline()
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                .disabled(!canSubmit)
-            }
-
-            HStack(alignment: .center, spacing: 10) {
-                Picker("Goal Type", selection: $selectedGoalType) {
-                    Text("Reps").tag(GoalType.reps)
-                    Text("Seconds").tag(GoalType.timed)
-                }
-                .pickerStyle(.segmented)
-
-                WheelValueInput(
-                    value: valueBinding,
-                    mode: selectedGoalType
-                )
             }
 
             if showNoteField {
@@ -114,22 +139,69 @@ struct MovementComposerView: View {
                 .buttonStyle(.plain)
             }
 
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded = false
+            HStack(spacing: 12) {
+                Button {
+                    submitMovement()
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 18))
+                        Text("Add")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundStyle(canSubmit ? Color.white : Color(.systemGray4))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(canSubmit ? Color.black : Color(.systemGray5))
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
                 }
-                clearComposerInputs()
-            } label: {
-                Text("Cancel")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.secondary)
-                    .underline()
+                .buttonStyle(.plain)
+                .disabled(!canSubmit)
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isExpanded = false
+                    }
+                    clearComposerInputs()
+                } label: {
+                    Text("Cancel")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .underline()
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
         }
         .padding(12)
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color(.systemGray6))
+        )
+    }
+
+    private var goalTypeToggle: some View {
+        HStack(spacing: 0) {
+            goalTypeButton("Reps", type: .reps)
+            goalTypeButton("Seconds", type: .timed)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(.systemGray4), lineWidth: 1))
+    }
+
+    private func goalTypeButton(_ label: String, type: GoalType) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedGoalType = type
+            }
+        } label: {
+            Text(label)
+                .font(.system(size: 13, weight: selectedGoalType == type ? .semibold : .regular))
+                .foregroundStyle(selectedGoalType == type ? .white : .primary)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .background(selectedGoalType == type ? Color.black : Color.clear)
+        }
+        .buttonStyle(.plain)
     }
 
     private var canSubmit: Bool {
@@ -138,12 +210,13 @@ struct MovementComposerView: View {
 
     private func submitMovement() {
         let note = newNote.trimmingCharacters(in: .whitespacesAndNewlines)
+        let goalType = showGoalInput ? selectedGoalType : nil
         let movement = Movement(
             name: newName.trimmingCharacters(in: .whitespacesAndNewlines),
             notes: note.isEmpty ? nil : note,
-            goalType: selectedGoalType,
-            seconds: selectedGoalType == .timed ? Int(secondsValue) : nil,
-            reps: selectedGoalType == .reps ? Int(repsValue) : nil
+            goalType: goalType,
+            seconds: goalType == .timed ? Int(secondsValue) : nil,
+            reps: goalType == .reps ? Int(repsValue) : nil
         )
 
         movements.append(movement)
@@ -155,8 +228,9 @@ struct MovementComposerView: View {
 
     private func clearComposerInputs() {
         newName = ""
-        repsValue = ""
-        secondsValue = ""
+        repsValue = "10"
+        secondsValue = "30"
+        showGoalInput = defaultGoalType != nil
         showNoteField = false
         newNote = ""
         selectedGoalType = defaultGoalType ?? .reps

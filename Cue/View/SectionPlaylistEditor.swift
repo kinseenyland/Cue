@@ -15,7 +15,8 @@ struct SectionPlaylistEditor: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var mode: EditorMode = .pickPlaylist
-    @State private var pendingDeleteItem: SpotifySearchService.PlaylistTrackItem?
+    @State private var confirmingDeleteId: String?
+    @State private var resetTask: Task<Void, Never>?
 
     enum EditorMode {
         case pickPlaylist
@@ -77,20 +78,8 @@ struct SectionPlaylistEditor: View {
                 mode = .editTracks
             }
         }
-        .alert("Remove song?", isPresented: Binding(
-            get: { pendingDeleteItem != nil },
-            set: { if !$0 { pendingDeleteItem = nil } }
-        )) {
-            Button("Cancel", role: .cancel) {
-                pendingDeleteItem = nil
-            }
-            Button("Remove", role: .destructive) {
-                guard let item = pendingDeleteItem else { return }
-                pendingDeleteItem = nil
-                Task { await viewModel.removeTrackFromPlaylist(item) }
-            }
-        } message: {
-            Text("Are you sure you want to remove this song from the playlist?")
+        .onDisappear {
+            resetTask?.cancel()
         }
     }
 
@@ -278,10 +267,28 @@ struct SectionPlaylistEditor: View {
                     ForEach(viewModel.playlistTracks) { item in
                         HStack(spacing: 12) {
                             Button {
-                                pendingDeleteItem = item
+                                if confirmingDeleteId == item.id {
+                                    resetTask?.cancel()
+                                    confirmingDeleteId = nil
+                                    Task { await viewModel.removeTrackFromPlaylist(item) }
+                                } else {
+                                    resetTask?.cancel()
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        confirmingDeleteId = item.id
+                                    }
+                                    resetTask = Task {
+                                        try? await Task.sleep(nanoseconds: 2_500_000_000)
+                                        guard !Task.isCancelled else { return }
+                                        await MainActor.run {
+                                            withAnimation(.easeInOut(duration: 0.15)) {
+                                                confirmingDeleteId = nil
+                                            }
+                                        }
+                                    }
+                                }
                             } label: {
-                                Image(systemName: "trash")
-                                    .foregroundStyle(Color(.systemGray3))
+                                Image(systemName: confirmingDeleteId == item.id ? "trash.fill" : "trash")
+                                    .foregroundStyle(confirmingDeleteId == item.id ? .red : Color(.systemGray3))
                                     .font(.system(size: 13))
                             }
                             .buttonStyle(.plain)

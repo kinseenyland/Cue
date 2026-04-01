@@ -19,7 +19,8 @@ struct PlanMainMovementsStepView: View {
                 ForEach($vm.draft.mainSections) { $section in
                     SectionMovementBlock(
                         section: $section,
-                        defaultGoalType: vm.draft.goalType
+                        defaultGoalType: vm.draft.goalType,
+                        showGoalOption: vm.showGoalOption
                     )
                 }
             }
@@ -33,6 +34,7 @@ struct PlanMainMovementsStepView: View {
 struct SectionMovementBlock: View {
     @Binding var section: WorkoutSubSection
     let defaultGoalType: GoalType?
+    var showGoalOption: Bool = true
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -60,6 +62,7 @@ struct SectionMovementBlock: View {
 
             MovementComposerView(
                 defaultGoalType: defaultGoalType,
+                showGoalOption: showGoalOption,
                 movements: $section.movements
             )
                 .padding(.horizontal, 24)
