@@ -15,6 +15,12 @@ service cloud.firestore {
       allow read, update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
     }
 
+    // Saved Sections: users can only read/write their own saved sections
+    match /savedSections/{sectionId} {
+      allow create: if request.auth != null && request.resource.data.ownerId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.ownerId == request.auth.uid;
+    }
+
     // Users: each user can only read/write their own profile document
     match /users/{userId} {
       allow read, write: if request.auth != null && request.auth.uid == userId;
