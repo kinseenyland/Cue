@@ -381,17 +381,6 @@ private struct CreateSectionSheet: View {
                     .foregroundColor(canSave ? .black : .gray)
                     .disabled(!canSave)
                 }
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("Done") {
-                        UIApplication.shared.sendAction(
-                            #selector(UIResponder.resignFirstResponder),
-                            to: nil, from: nil, for: nil
-                        )
-                    }
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.black)
-                }
             }
         }
     }

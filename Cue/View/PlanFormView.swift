@@ -142,19 +142,6 @@ struct PlanFormView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: showDiscardConfirmation)
         .interactiveDismissDisabled(true)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") {
-                    UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder),
-                        to: nil, from: nil, for: nil
-                    )
-                }
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.black)
-            }
-        }
         .onChange(of: customDurationFocused) { _, focused in
             if !focused && isEditingCustomDuration {
                 commitCustomDuration()
@@ -220,7 +207,8 @@ struct PlanFormView: View {
                 .font(.system(size: 16))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.black, lineWidth: 1))
         }
         .padding(.horizontal, 24)
     }
