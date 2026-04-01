@@ -3,6 +3,7 @@
 //  Cue
 //
 
+import FirebaseAuth
 import SwiftUI
 
 struct PlanFormView: View {
@@ -26,9 +27,16 @@ struct PlanFormView: View {
     let mode: Mode
 
     @StateObject private var vm: PlanCreationViewModel
+    @StateObject private var savedSectionsVM = SavedSectionsViewModel()
     @Environment(\.dismiss) private var dismiss
     @State private var showDiscardConfirmation = false
     @State private var expandedSections: Set<FormSection>
+
+    @State private var saveSectionType: WorkoutSection? = nil
+    @State private var saveSectionMovements: [Movement] = []
+    @State private var saveSectionDuration: Int = 5
+    @State private var saveSectionDefaultName: String = ""
+    @State private var loadSectionType: WorkoutSection? = nil
 
     // MARK: - Init
 
@@ -157,6 +165,29 @@ struct PlanFormView: View {
         .onChange(of: vm.draft.coolDownDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
         .onChange(of: vm.draft.mainSections.count) { _, _ in vm.redistributeMainSectionTime() }
         .onChange(of: vm.totalMainMinutes) { _, _ in vm.redistributeWarmUpCoolDown() }
+        .sheet(item: $saveSectionType) { type in
+            SaveSectionSheet(
+                sectionType: type,
+                movements: saveSectionMovements,
+                durationMinutes: saveSectionDuration,
+                defaultName: saveSectionDefaultName
+            ) { name in
+                guard let uid = FirebaseAuth.Auth.auth().currentUser?.uid else { return }
+                let section = SavedSection(
+                    ownerId: uid,
+                    name: name,
+                    sectionType: type,
+                    durationMinutes: saveSectionDuration,
+                    movements: saveSectionMovements
+                )
+                Task { await savedSectionsVM.saveSection(section) }
+            }
+        }
+        .sheet(item: $loadSectionType) { type in
+            SavedSectionPickerView(sectionType: type) { saved in
+                handleLoadedSection(saved)
+            }
+        }
     }
 
     // MARK: - Header
@@ -396,6 +427,13 @@ struct PlanFormView: View {
                 )
                 .padding(.horizontal, 24)
 
+                sectionActions(
+                    type: .warmUp,
+                    movements: vm.draft.warmUpMovements,
+                    duration: vm.draft.warmUpDurationMinutes,
+                    defaultName: "Warm-Up"
+                )
+
                 PlanSectionPlaylistPicker(
                     title: "Warm-up playlist",
                     selectedPlaylistId: $vm.draft.warmUpPlaylistId
@@ -427,6 +465,12 @@ struct PlanFormView: View {
                             canDelete: vm.draft.mainSections.count > 1,
                             onDelete: {
                                 vm.draft.mainSections.removeAll { $0.id == section.id }
+                            },
+                            onSave: { sub in
+                                saveSectionType = .main
+                                saveSectionMovements = sub.movements
+                                saveSectionDuration = sub.durationMinutes
+                                saveSectionDefaultName = sub.name
                             }
                         )
                     }
@@ -434,7 +478,7 @@ struct PlanFormView: View {
                         vm.draft.mainSections.move(fromOffsets: from, toOffset: to)
                     }
 
-                    HStack {
+                    HStack(spacing: 10) {
                         Button {
                             vm.draft.mainSections.append(WorkoutSubSection())
                         } label: {
@@ -450,6 +494,23 @@ struct PlanFormView: View {
                             .overlay(Capsule().stroke(Color.black, lineWidth: 1))
                         }
                         .buttonStyle(.plain)
+
+                        Button {
+                            loadSectionType = .main
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "square.and.arrow.down")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text("Load Saved")
+                                    .font(.system(size: 14, weight: .medium))
+                            }
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+
                         Spacer()
                     }
                     .padding(.horizontal, 24)
@@ -488,11 +549,95 @@ struct PlanFormView: View {
                 )
                 .padding(.horizontal, 24)
 
+                sectionActions(
+                    type: .coolDown,
+                    movements: vm.draft.coolDownMovements,
+                    duration: vm.draft.coolDownDurationMinutes,
+                    defaultName: "Cool-Down"
+                )
+
                 PlanSectionPlaylistPicker(
                     title: "Cool-down playlist",
                     selectedPlaylistId: $vm.draft.coolDownPlaylistId
                 )
             }
+        }
+    }
+
+    // MARK: - Section Save / Load Actions
+
+    private func sectionActions(
+        type: WorkoutSection,
+        movements: [Movement],
+        duration: Int,
+        defaultName: String
+    ) -> some View {
+        HStack(spacing: 10) {
+            if !movements.isEmpty {
+                Button {
+                    saveSectionType = type
+                    saveSectionMovements = movements
+                    saveSectionDuration = duration
+                    saveSectionDefaultName = defaultName
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "bookmark")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("Save Section")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+            }
+
+            Button {
+                loadSectionType = type
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Load Saved")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .foregroundStyle(.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+    }
+
+    private func handleLoadedSection(_ saved: SavedSection) {
+        let freshMovements = saved.movements.map { m in
+            Movement(
+                name: m.name, notes: m.notes, goalType: m.goalType,
+                seconds: m.seconds, reps: m.reps, section: m.section,
+                sectionName: m.sectionName, sectionDurationMinutes: m.sectionDurationMinutes
+            )
+        }
+
+        switch saved.sectionType {
+        case .warmUp:
+            vm.draft.warmUpMovements.append(contentsOf: freshMovements)
+            vm.draft.warmUpDurationMinutes = saved.durationMinutes
+        case .main:
+            let sub = WorkoutSubSection(
+                name: saved.name,
+                durationMinutes: saved.durationMinutes,
+                movements: freshMovements
+            )
+            vm.draft.mainSections.append(sub)
+        case .coolDown:
+            vm.draft.coolDownMovements.append(contentsOf: freshMovements)
+            vm.draft.coolDownDurationMinutes = saved.durationMinutes
         }
     }
 
@@ -587,6 +732,7 @@ private struct PlanFormMainSubSection: View {
     let defaultGoalType: GoalType?
     let canDelete: Bool
     let onDelete: () -> Void
+    var onSave: ((WorkoutSubSection) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -603,6 +749,17 @@ private struct PlanFormMainSubSection: View {
                 Spacer()
 
                 EditableDurationBadge(minutes: $section.durationMinutes)
+
+                if !section.movements.isEmpty, let onSave {
+                    Button {
+                        onSave(section)
+                    } label: {
+                        Image(systemName: "bookmark")
+                            .font(.system(size: 15))
+                            .foregroundStyle(Color(UIColor.systemGray3))
+                    }
+                    .buttonStyle(.plain)
+                }
 
                 if canDelete {
                     Button(action: onDelete) {

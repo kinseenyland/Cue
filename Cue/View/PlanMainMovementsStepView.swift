@@ -3,6 +3,7 @@
 //  Cue
 //
 
+import FirebaseAuth
 import SwiftUI
 
 struct PlanMainMovementsStepView: View {
@@ -43,6 +44,9 @@ struct SectionMovementBlock: View {
     @State private var newNote = ""
     @FocusState private var nameFieldFocused: Bool
 
+    @State private var showSaveSheet = false
+    @State private var showLoadSheet = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center) {
@@ -76,12 +80,76 @@ struct SectionMovementBlock: View {
             sectionAddForm
                 .padding(.horizontal, 24)
 
+            HStack(spacing: 10) {
+                if !section.movements.isEmpty {
+                    Button { showSaveSheet = true } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "bookmark")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Save Section")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Button { showLoadSheet = true } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("Load Saved")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+
             Divider()
                 .padding(.top, 8)
         }
         .onAppear {
             newGoalType = defaultGoalType ?? .reps
             assigningGoal = defaultGoalType != nil
+        }
+        .sheet(isPresented: $showSaveSheet) {
+            SaveSectionSheet(
+                sectionType: .main,
+                movements: section.movements,
+                durationMinutes: section.durationMinutes,
+                defaultName: section.name
+            ) { name in
+                guard let uid = Auth.auth().currentUser?.uid else { return }
+                let saved = SavedSection(
+                    ownerId: uid, name: name, sectionType: .main,
+                    durationMinutes: section.durationMinutes, movements: section.movements
+                )
+                let vm = SavedSectionsViewModel()
+                Task { await vm.saveSection(saved) }
+            }
+        }
+        .sheet(isPresented: $showLoadSheet) {
+            SavedSectionPickerView(sectionType: .main) { saved in
+                let fresh = saved.movements.map { m in
+                    Movement(
+                        name: m.name, notes: m.notes, goalType: m.goalType,
+                        seconds: m.seconds, reps: m.reps, section: m.section,
+                        sectionName: m.sectionName, sectionDurationMinutes: m.sectionDurationMinutes
+                    )
+                }
+                section.movements.append(contentsOf: fresh)
+                section.durationMinutes = saved.durationMinutes
+                if section.name.isEmpty { section.name = saved.name }
+            }
         }
     }
 

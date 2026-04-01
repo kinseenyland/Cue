@@ -14,6 +14,7 @@ struct ProfileView: View {
     @StateObject private var profileVM = ProfileViewModel()
     @State private var showEditSheet = false
 
+    @State private var showSavedSections = false
     @State private var showPhotoOptions = false
     @State private var showCamera = false
     @State private var showPhotoPicker = false
@@ -94,6 +95,9 @@ struct ProfileView: View {
                         preferencesSection
                     }
 
+                    // MARK: Saved Sections
+                    savedSectionsRow
+
                     // MARK: Music
                     musicSection
 
@@ -106,6 +110,9 @@ struct ProfileView: View {
             .navigationDestination(isPresented: $isShowingSpotifyPage) {
                 SpotifySearchView(onTrackSelected: { _ in })
                     .environmentObject(spotifyManager)
+            }
+            .navigationDestination(isPresented: $showSavedSections) {
+                SavedSectionsListView()
             }
         }
         .onAppear {
@@ -327,6 +334,48 @@ struct ProfileView: View {
             .padding(.horizontal, 40)
         }
         .animation(.easeInOut(duration: 0.2), value: pendingImage != nil)
+    }
+
+    // MARK: - Saved Sections Row
+
+    private var savedSectionsRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Workout Sections")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 12) {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.black)
+                Text("Saved Sections")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.black)
+                Spacer()
+                Button {
+                    showSavedSections = true
+                } label: {
+                    Text("View All")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(10)
+                        .frame(height: 38)
+                        .background(.black)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 72)
+            .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .inset(by: 0.50)
+                    .stroke(.black, lineWidth: 0.50)
+            )
+        }
     }
 
     // MARK: - Preferences Section

@@ -3,10 +3,12 @@
 //  Cue
 //
 
+import FirebaseAuth
 import SwiftUI
 
 struct MovementListStepView: View {
     let headline: String
+    let sectionType: WorkoutSection
     let defaultGoalType: GoalType?
     @Binding var durationMinutes: Int
     @Binding var movements: [Movement]
@@ -19,6 +21,23 @@ struct MovementListStepView: View {
     @State private var showNoteField = false
     @State private var newNote = ""
     @FocusState private var nameFieldFocused: Bool
+
+    @State private var showSaveSheet = false
+    @State private var showLoadSheet = false
+
+    init(
+        headline: String,
+        sectionType: WorkoutSection = .warmUp,
+        defaultGoalType: GoalType?,
+        durationMinutes: Binding<Int>,
+        movements: Binding<[Movement]>
+    ) {
+        self.headline = headline
+        self.sectionType = sectionType
+        self.defaultGoalType = defaultGoalType
+        self._durationMinutes = durationMinutes
+        self._movements = movements
+    }
 
     var body: some View {
         ScrollView {
@@ -52,6 +71,40 @@ struct MovementListStepView: View {
 
                 addForm
                     .padding(.horizontal, 24)
+
+                HStack(spacing: 10) {
+                    if !movements.isEmpty {
+                        Button { showSaveSheet = true } label: {
+                            HStack(spacing: 5) {
+                                Image(systemName: "bookmark")
+                                    .font(.system(size: 12, weight: .medium))
+                                Text("Save Section")
+                                    .font(.system(size: 13, weight: .medium))
+                            }
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button { showLoadSheet = true } label: {
+                        HStack(spacing: 5) {
+                            Image(systemName: "square.and.arrow.down")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Load Saved")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
             }
             .padding(.top, 4)
             .padding(.bottom, 40)
@@ -61,6 +114,35 @@ struct MovementListStepView: View {
             newGoalType = defaultGoalType ?? .reps
             assigningGoal = defaultGoalType != nil
             nameFieldFocused = true
+        }
+        .sheet(isPresented: $showSaveSheet) {
+            SaveSectionSheet(
+                sectionType: sectionType,
+                movements: movements,
+                durationMinutes: durationMinutes,
+                defaultName: headline
+            ) { name in
+                guard let uid = Auth.auth().currentUser?.uid else { return }
+                let section = SavedSection(
+                    ownerId: uid, name: name, sectionType: sectionType,
+                    durationMinutes: durationMinutes, movements: movements
+                )
+                let vm = SavedSectionsViewModel()
+                Task { await vm.saveSection(section) }
+            }
+        }
+        .sheet(isPresented: $showLoadSheet) {
+            SavedSectionPickerView(sectionType: sectionType) { saved in
+                let fresh = saved.movements.map { m in
+                    Movement(
+                        name: m.name, notes: m.notes, goalType: m.goalType,
+                        seconds: m.seconds, reps: m.reps, section: m.section,
+                        sectionName: m.sectionName, sectionDurationMinutes: m.sectionDurationMinutes
+                    )
+                }
+                movements.append(contentsOf: fresh)
+                durationMinutes = saved.durationMinutes
+            }
         }
     }
 

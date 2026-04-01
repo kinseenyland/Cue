@@ -183,6 +183,7 @@ struct PlanCreationView: View {
             VStack(alignment: .leading, spacing: 12) {
                 MovementListStepView(
                     headline: "Warm-Up Movements",
+                    sectionType: .warmUp,
                     defaultGoalType: vm.draft.goalType,
                     durationMinutes: $vm.draft.warmUpDurationMinutes,
                     movements: $vm.draft.warmUpMovements
@@ -216,6 +217,7 @@ struct PlanCreationView: View {
             VStack(alignment: .leading, spacing: 12) {
                 MovementListStepView(
                     headline: "Cool-Down Movements",
+                    sectionType: .coolDown,
                     defaultGoalType: vm.draft.goalType,
                     durationMinutes: $vm.draft.coolDownDurationMinutes,
                     movements: $vm.draft.coolDownMovements

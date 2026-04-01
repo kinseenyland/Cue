@@ -38,10 +38,12 @@ enum GoalType: String, CaseIterable, Codable {
     case timed, reps
 }
 
-enum WorkoutSection: String, CaseIterable, Codable {
+enum WorkoutSection: String, CaseIterable, Codable, Identifiable {
     case warmUp = "warmUp"
     case main = "main"
     case coolDown = "coolDown"
+
+    var id: String { rawValue }
 }
 
 enum WorkoutStructurePreference: String, CaseIterable, Codable {
