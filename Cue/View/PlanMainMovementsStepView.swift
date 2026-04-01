@@ -44,6 +44,7 @@ struct SectionMovementBlock: View {
     @State private var newNote = ""
     @FocusState private var nameFieldFocused: Bool
 
+    @StateObject private var savedSectionsVM = SavedSectionsViewModel()
     @State private var showSaveSheet = false
     @State private var showLoadSheet = false
 
@@ -133,8 +134,7 @@ struct SectionMovementBlock: View {
                     ownerId: uid, name: name, sectionType: .main,
                     durationMinutes: section.durationMinutes, movements: section.movements
                 )
-                let vm = SavedSectionsViewModel()
-                Task { await vm.saveSection(saved) }
+                Task { await savedSectionsVM.saveSection(saved) }
             }
         }
         .sheet(isPresented: $showLoadSheet) {

@@ -22,6 +22,7 @@ struct MovementListStepView: View {
     @State private var newNote = ""
     @FocusState private var nameFieldFocused: Bool
 
+    @StateObject private var savedSectionsVM = SavedSectionsViewModel()
     @State private var showSaveSheet = false
     @State private var showLoadSheet = false
 
@@ -127,8 +128,7 @@ struct MovementListStepView: View {
                     ownerId: uid, name: name, sectionType: sectionType,
                     durationMinutes: durationMinutes, movements: movements
                 )
-                let vm = SavedSectionsViewModel()
-                Task { await vm.saveSection(section) }
+                Task { await savedSectionsVM.saveSection(section) }
             }
         }
         .sheet(isPresented: $showLoadSheet) {

@@ -24,7 +24,6 @@ final class SavedSectionsViewModel: ObservableObject {
         do {
             let snapshot = try await db.collection("savedSections")
                 .whereField("ownerId", isEqualTo: uid)
-                .order(by: "createdAt", descending: true)
                 .getDocuments()
 
             sections = snapshot.documents.compactMap { doc in
@@ -47,6 +46,7 @@ final class SavedSectionsViewModel: ObservableObject {
                     createdAt: d["createdAt"] as? Double ?? 0
                 )
             }
+            .sorted { $0.createdAt > $1.createdAt }
             isLoading = false
         } catch {
             print("SavedSectionsViewModel: fetch error — \(error.localizedDescription)")
