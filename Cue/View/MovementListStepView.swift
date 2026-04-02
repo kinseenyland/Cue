@@ -12,6 +12,8 @@ struct MovementListStepView: View {
     let durationMinutes: Int
     @Binding var movements: [Movement]
 
+    @State private var editingMovementId: String?
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
@@ -38,14 +40,18 @@ struct MovementListStepView: View {
                     .padding(.horizontal, 24)
 
                 if !movements.isEmpty {
-                    ReorderableMovementList(movements: $movements)
-                        .padding(.horizontal, 24)
+                    ReorderableMovementList(
+                        movements: $movements,
+                        editingMovementId: $editingMovementId
+                    )
+                    .padding(.horizontal, 24)
                 }
 
                 MovementComposerView(
                     defaultGoalType: defaultGoalType,
                     showGoalOption: showGoalOption,
-                    movements: $movements
+                    movements: $movements,
+                    editingMovementId: $editingMovementId
                 )
                     .padding(.horizontal, 24)
             }
@@ -60,7 +66,9 @@ struct MovementListStepView: View {
 
 struct MovementRow: View {
     let movement: Movement
+    let isEditing: Bool
     let isConfirmingDelete: Bool
+    let onEditTap: () -> Void
     let onDeleteTap: () -> Void
 
     var body: some View {
@@ -70,32 +78,32 @@ struct MovementRow: View {
                 VStack(spacing: 1) {
                     Text("\(reps)")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(isEditing ? Color.white : Color.black)
                     Text("reps")
                         .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isEditing ? Color.white.opacity(0.75) : Color.secondary)
                 }
                 .frame(width: 38, alignment: .center)
             } else if let secs = movement.seconds {
                 VStack(spacing: 1) {
                     Text("\(secs)")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.black)
+                        .foregroundStyle(isEditing ? Color.white : Color.black)
                     Text("sec")
                         .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isEditing ? Color.white.opacity(0.75) : Color.secondary)
                 }
                 .frame(width: 38, alignment: .center)
             } else {
                 Image(systemName: "infinity")
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(Color(.systemGray3))
+                    .foregroundStyle(isEditing ? Color.white.opacity(0.7) : Color(.systemGray3))
                     .frame(width: 38, alignment: .center)
             }
 
             // Divider
             Rectangle()
-                .fill(Color(.systemGray4))
+                .fill(isEditing ? Color.white.opacity(0.28) : Color(.systemGray4))
                 .frame(width: 1)
                 .frame(maxHeight: .infinity)
                 .padding(.vertical, 6)
@@ -104,21 +112,28 @@ struct MovementRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(movement.name)
                     .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(.black)
+                    .foregroundStyle(isEditing ? Color.white : Color.black)
                 if let note = movement.notes, !note.isEmpty {
                     Text(note)
                         .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isEditing ? Color.white.opacity(0.85) : Color.secondary)
                         .italic()
                 }
             }
 
             Spacer()
 
+            Button(action: onEditTap) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 13))
+                    .foregroundStyle(isEditing ? Color.white.opacity(0.9) : Color(.systemGray3))
+            }
+            .buttonStyle(.plain)
+
             Button(action: onDeleteTap) {
                 Image(systemName: isConfirmingDelete ? "trash.fill" : "trash")
                     .font(.system(size: 13))
-                    .foregroundStyle(isConfirmingDelete ? .red : Color(.systemGray3))
+                    .foregroundStyle(isConfirmingDelete ? Color.red : (isEditing ? Color.white.opacity(0.9) : Color(.systemGray3)))
             }
             .buttonStyle(.plain)
         }
@@ -126,4 +141,3 @@ struct MovementRow: View {
         .padding(.vertical, 12)
     }
 }
-

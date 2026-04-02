@@ -36,6 +36,8 @@ struct SectionMovementBlock: View {
     let defaultGoalType: GoalType?
     var showGoalOption: Bool = true
 
+    @State private var editingMovementId: String?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .center) {
@@ -62,14 +64,18 @@ struct SectionMovementBlock: View {
                 .padding(.horizontal, 24)
 
             if !section.movements.isEmpty {
-                ReorderableMovementList(movements: $section.movements)
-                    .padding(.horizontal, 24)
+                ReorderableMovementList(
+                    movements: $section.movements,
+                    editingMovementId: $editingMovementId
+                )
+                .padding(.horizontal, 24)
             }
 
             MovementComposerView(
                 defaultGoalType: defaultGoalType,
                 showGoalOption: showGoalOption,
-                movements: $section.movements
+                movements: $section.movements,
+                editingMovementId: $editingMovementId
             )
                 .padding(.horizontal, 24)
 

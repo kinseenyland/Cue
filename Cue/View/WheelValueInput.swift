@@ -49,7 +49,7 @@ struct WheelValueInput: View {
             }
             .frame(width: 64)
             .padding(.vertical, 10)
-            .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+            .cueFormFieldOutline()
         }
         .buttonStyle(.plain)
         .overlay(alignment: .topLeading) {

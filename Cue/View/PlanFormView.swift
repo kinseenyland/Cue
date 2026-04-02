@@ -29,8 +29,7 @@ struct PlanFormView: View {
     @State private var showCoolDownEditor = false
     @State private var isKeyboardVisible = false
     @State private var suppressCardTapUntil = Date.distantPast
-    @State private var showDurationLimitAlert = false
-    @State private var durationLimitAlertMessage = "This time exceeds the total workout duration."
+    @State private var showPreSaveReview = false
 
     // MARK: - Init
 
@@ -102,6 +101,127 @@ struct PlanFormView: View {
     // MARK: - Body
 
     var body: some View {
+        Group {
+            if isEditMode {
+                formContent
+            } else {
+                quickCreateSlideContainer
+            }
+        }
+        .ignoresSafeArea(.keyboard)
+        .background(Color.white.ignoresSafeArea())
+        .environmentObject(vm)
+        .overlay {
+            if showDiscardConfirmation {
+                discardOverlay
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showDiscardConfirmation)
+        .interactiveDismissDisabled(true)
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder),
+                        to: nil, from: nil, for: nil
+                    )
+                }
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(.black)
+            }
+        }
+        .task { await loadPlaylistNames() }
+        .onChange(of: showWarmUpEditor) { _, showing in if !showing { Task { await loadPlaylistNames() } } }
+        .onChange(of: showMainEditor) { _, showing in if !showing { Task { await loadPlaylistNames() } } }
+        .onChange(of: showCoolDownEditor) { _, showing in if !showing { Task { await loadPlaylistNames() } } }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+            isKeyboardVisible = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            isKeyboardVisible = false
+        }
+        .onChange(of: vm.draft.durationMinutes) { oldValue, newValue in
+            if oldValue != newValue {
+                vm.applyDefaultWarmUpCoolDownForTotalDuration()
+            }
+            if vm.draft.warmUpDurationMinutes + vm.draft.coolDownDurationMinutes > newValue {
+                var remaining = newValue
+                vm.draft.warmUpDurationMinutes = min(vm.draft.warmUpDurationMinutes, remaining)
+                remaining -= vm.draft.warmUpDurationMinutes
+                vm.draft.coolDownDurationMinutes = min(vm.draft.coolDownDurationMinutes, remaining)
+                vm.redistributeMainSectionTime()
+            }
+        }
+        .onChange(of: vm.draft.warmUpDurationMinutes) { oldValue, newValue in
+            let total = vm.draft.durationMinutes
+            let coolDown = vm.draft.coolDownDurationMinutes
+            if newValue + coolDown > total {
+                vm.draft.warmUpDurationMinutes = max(0, total - coolDown)
+            }
+            vm.redistributeMainOnly()
+        }
+        .onChange(of: vm.draft.coolDownDurationMinutes) { oldValue, newValue in
+            let total = vm.draft.durationMinutes
+            let warmUp = vm.draft.warmUpDurationMinutes
+            if newValue + warmUp > total {
+                vm.draft.coolDownDurationMinutes = max(0, total - warmUp)
+            }
+            vm.redistributeMainOnly()
+        }
+        .onChange(of: vm.draft.mainSections.count) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.totalMainMinutes) { _, newMainMinutes in
+            let maxMain = max(0, vm.draft.durationMinutes - vm.draft.warmUpDurationMinutes - vm.draft.coolDownDurationMinutes)
+            if newMainMinutes > maxMain {
+                vm.redistributeMainOnly()
+            }
+        }
+        .sheet(isPresented: $showWarmUpEditor) {
+            SectionEditorView(
+                title: "Warm-Up",
+                movements: $vm.draft.warmUpMovements,
+                durationMinutes: vm.draft.warmUpDurationMinutes,
+                playlistId: $vm.draft.warmUpPlaylistId,
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption
+            )
+            .environmentObject(SpotifyManager.shared)
+        }
+        .sheet(isPresented: $showMainEditor) {
+            MainSectionEditorView(
+                sections: $vm.draft.mainSections,
+                playlistId: $vm.draft.mainPlaylistId,
+                totalDurationMinutes: vm.totalMainMinutes,
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption
+            )
+            .environmentObject(SpotifyManager.shared)
+        }
+        .sheet(isPresented: $showCoolDownEditor) {
+            SectionEditorView(
+                title: "Cool-Down",
+                movements: $vm.draft.coolDownMovements,
+                durationMinutes: vm.draft.coolDownDurationMinutes,
+                playlistId: $vm.draft.coolDownPlaylistId,
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption
+            )
+            .environmentObject(SpotifyManager.shared)
+        }
+        .onChange(of: showPreSaveReview) { _, show in
+            if show {
+                Task { await vm.loadSpotifyPlaylistsIfNeeded() }
+            }
+        }
+        .onChange(of: showCustomDurationPicker) { _, isShowing in
+            if isShowing {
+                vm.draft.durationMinutes = snapDurationToFiveMinuteStep(vm.draft.durationMinutes)
+            }
+        }
+    }
+
+    /// Shared form chrome (used for Edit and as the first “page” of Quick Create).
+    private var formContent: some View {
         VStack(spacing: 0) {
             header
 
@@ -161,112 +281,39 @@ struct PlanFormView: View {
                 .padding(.bottom, 32)
                 .background(Color.white)
         }
-        .ignoresSafeArea(.keyboard)
-        .background(Color.white.ignoresSafeArea())
-        .environmentObject(vm)
-        .overlay {
-            if showDurationLimitAlert {
-                durationLimitOverlay
-            } else if showDiscardConfirmation {
-                discardOverlay
+    }
+
+    /// Quick Create only: form and “Looking good” review are laid out horizontally; animating `offset` slides the form off and the review on—same sheet, not a second window.
+    private var quickCreateSlideContainer: some View {
+        GeometryReader { geo in
+            HStack(spacing: 0) {
+                formContent
+                    .accessibilityHidden(showPreSaveReview)
+                    .frame(width: geo.size.width, height: geo.size.height)
+
+                QuickCreatePreSaveReviewView(
+                    onConfirmSave: {
+                        onSaveCallback(vm.toWorkoutPlanDraft())
+                        showPreSaveReview = false
+                        dismiss()
+                    },
+                    onDismiss: {
+                        withAnimation(reviewSlideAnimation) {
+                            showPreSaveReview = false
+                        }
+                    }
+                )
+                .accessibilityHidden(!showPreSaveReview)
+                .frame(width: geo.size.width, height: geo.size.height)
             }
+            .offset(x: showPreSaveReview ? -geo.size.width : 0)
         }
-        .animation(.easeInOut(duration: 0.2), value: showDiscardConfirmation)
-        .animation(.easeInOut(duration: 0.2), value: showDurationLimitAlert)
-        .interactiveDismissDisabled(true)
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") {
-                    UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder),
-                        to: nil, from: nil, for: nil
-                    )
-                }
-                .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.black)
-            }
-        }
-        .task { await loadPlaylistNames() }
-        .onChange(of: showWarmUpEditor) { _, showing in if !showing { Task { await loadPlaylistNames() } } }
-        .onChange(of: showMainEditor) { _, showing in if !showing { Task { await loadPlaylistNames() } } }
-        .onChange(of: showCoolDownEditor) { _, showing in if !showing { Task { await loadPlaylistNames() } } }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
-            isKeyboardVisible = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
-            isKeyboardVisible = false
-        }
-        .onChange(of: vm.draft.durationMinutes) { oldValue, newValue in
-            if vm.draft.warmUpDurationMinutes + vm.draft.coolDownDurationMinutes > newValue {
-                var remaining = newValue
-                vm.draft.warmUpDurationMinutes = min(vm.draft.warmUpDurationMinutes, remaining)
-                remaining -= vm.draft.warmUpDurationMinutes
-                vm.draft.coolDownDurationMinutes = min(vm.draft.coolDownDurationMinutes, remaining)
-                durationLimitAlertMessage = "This time exceeds the duration of the total workout."
-                showDurationLimitAlert = true
-            }
-            if oldValue != newValue {
-                vm.redistributeMainSectionTime()
-            }
-        }
-        .onChange(of: vm.draft.warmUpDurationMinutes) { oldValue, newValue in
-            let total = vm.draft.durationMinutes
-            let coolDown = vm.draft.coolDownDurationMinutes
-            if newValue + coolDown > total {
-                vm.draft.warmUpDurationMinutes = max(0, total - coolDown)
-            }
-            vm.redistributeMainOnly()
-        }
-        .onChange(of: vm.draft.coolDownDurationMinutes) { oldValue, newValue in
-            let total = vm.draft.durationMinutes
-            let warmUp = vm.draft.warmUpDurationMinutes
-            if newValue + warmUp > total {
-                vm.draft.coolDownDurationMinutes = max(0, total - warmUp)
-            }
-            vm.redistributeMainOnly()
-        }
-        .onChange(of: vm.draft.mainSections.count) { _, _ in vm.redistributeMainSectionTime() }
-        .onChange(of: vm.totalMainMinutes) { _, newMainMinutes in
-            let maxMain = max(0, vm.draft.durationMinutes - vm.draft.warmUpDurationMinutes - vm.draft.coolDownDurationMinutes)
-            if newMainMinutes > maxMain {
-                vm.redistributeMainOnly()
-                durationLimitAlertMessage = "This time exceeds the duration of the total workout."
-                showDurationLimitAlert = true
-            }
-        }
-        .sheet(isPresented: $showWarmUpEditor) {
-            SectionEditorView(
-                title: "Warm-Up",
-                movements: $vm.draft.warmUpMovements,
-                durationMinutes: vm.draft.warmUpDurationMinutes,
-                playlistId: $vm.draft.warmUpPlaylistId,
-                defaultGoalType: vm.draft.goalType,
-                showGoalOption: vm.showGoalOption
-            )
-            .environmentObject(SpotifyManager.shared)
-        }
-        .sheet(isPresented: $showMainEditor) {
-            MainSectionEditorView(
-                sections: $vm.draft.mainSections,
-                playlistId: $vm.draft.mainPlaylistId,
-                totalDurationMinutes: vm.totalMainMinutes,
-                defaultGoalType: vm.draft.goalType,
-                showGoalOption: vm.showGoalOption
-            )
-            .environmentObject(SpotifyManager.shared)
-        }
-        .sheet(isPresented: $showCoolDownEditor) {
-            SectionEditorView(
-                title: "Cool-Down",
-                movements: $vm.draft.coolDownMovements,
-                durationMinutes: vm.draft.coolDownDurationMinutes,
-                playlistId: $vm.draft.coolDownPlaylistId,
-                defaultGoalType: vm.draft.goalType,
-                showGoalOption: vm.showGoalOption
-            )
-            .environmentObject(SpotifyManager.shared)
-        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+    }
+
+    private var reviewSlideAnimation: Animation {
+        .spring(response: 0.38, dampingFraction: 0.88)
     }
 
     // MARK: - Header
@@ -299,7 +346,7 @@ struct PlanFormView: View {
                 .font(.system(size: 16))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                .cueFormFieldOutline()
         }
         .padding(.horizontal, 24)
     }
@@ -346,11 +393,18 @@ struct PlanFormView: View {
     // MARK: - Duration
 
     private let durationPresets = [30, 45, 60, 75]
+    private let customDurationWheelValues = Array(stride(from: 5, through: 120, by: 5))
     @State private var showCustomDurationPicker = false
 
     /// True when the current duration is a custom (non-preset) value.
     private var hasCustomDuration: Bool {
         !durationPresets.contains(vm.draft.durationMinutes)
+    }
+
+    private func snapDurationToFiveMinuteStep(_ minutes: Int) -> Int {
+        let clamped = min(120, max(5, minutes))
+        let rounded = ((clamped + 2) / 5) * 5
+        return min(120, max(5, rounded))
     }
 
     private var durationSection: some View {
@@ -394,6 +448,9 @@ struct PlanFormView: View {
                         if !hasCustomDuration {
                             vm.draft.durationMinutes = 90
                         }
+                        if !showCustomDurationPicker {
+                            vm.draft.durationMinutes = snapDurationToFiveMinuteStep(vm.draft.durationMinutes)
+                        }
                         showCustomDurationPicker.toggle()
                     } label: {
                         HStack(spacing: 4) {
@@ -423,7 +480,7 @@ struct PlanFormView: View {
                 if showCustomDurationPicker {
                     WheelPickerPopup(
                         selection: $vm.draft.durationMinutes,
-                        values: Array(1...120),
+                        values: customDurationWheelValues,
                         label: { "\($0) min" },
                         onDone: { showCustomDurationPicker = false }
                     )
@@ -487,7 +544,7 @@ struct PlanFormView: View {
                         .foregroundStyle(.secondary)
                         .kerning(1.2)
                     Spacer()
-                    Text("\(durationMinutes) min")
+                    Text("~\(durationMinutes) min")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
                         .padding(.horizontal, 10)
@@ -536,8 +593,19 @@ struct PlanFormView: View {
 
     private var saveButton: some View {
         Button {
-            onSaveCallback(vm.toWorkoutPlanDraft())
-            dismiss()
+            if isEditMode {
+                onSaveCallback(vm.toWorkoutPlanDraft())
+                dismiss()
+            } else {
+                showCustomDurationPicker = false
+                UIApplication.shared.sendAction(
+                    #selector(UIResponder.resignFirstResponder),
+                    to: nil, from: nil, for: nil
+                )
+                withAnimation(reviewSlideAnimation) {
+                    showPreSaveReview = true
+                }
+            }
         } label: {
             Text(saveButtonTitle)
                 .font(.system(size: 16, weight: .semibold))
@@ -615,52 +683,62 @@ struct PlanFormView: View {
         }
     }
 
-    // MARK: - Duration Limit Overlay
+}
 
-    private var durationLimitOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-                .onTapGesture { showDurationLimitAlert = false }
+// MARK: - Pre-save review (Quick Create only)
 
-            VStack(spacing: 16) {
-                HStack {
-                    Spacer()
-                    Button { showDurationLimitAlert = false } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 30, height: 30)
-                            .background(Color(.systemGray5))
-                            .clipShape(Circle())
-                    }
-                    .buttonStyle(.plain)
-                }
+/// Guided-style review: scroll content + bottom Save; presented inline via horizontal slide (same sheet as the form).
+private struct QuickCreatePreSaveReviewView: View {
+    let onConfirmSave: () -> Void
+    let onDismiss: () -> Void
 
-                Text("Duration Limit")
-                    .font(.system(size: 18, weight: .bold))
+    var body: some View {
+        VStack(spacing: 0) {
+            header
 
-                Text(durationLimitAlertMessage)
-                    .font(.system(size: 14))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-
-                Button { showDurationLimitAlert = false } label: {
-                    Text("OK")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(Color.black)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                }
-                .buttonStyle(.plain)
+            ScrollView {
+                PlanReviewContent()
+                    .padding(.top, 4)
             }
-            .padding(20)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            Button(action: onConfirmSave) {
+                Text("Save Plan")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 32)
             .background(Color.white)
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-            .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
-            .padding(.horizontal, 40)
         }
+        .background(Color.white.ignoresSafeArea())
+    }
+
+    private var header: some View {
+        ZStack {
+            HStack {
+                Button(action: onDismiss) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundStyle(.black)
+                }
+                Spacer()
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.black)
+                }
+            }
+
+            Text("Review")
+                .font(.system(size: 17, weight: .semibold))
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 8)
+        .padding(.bottom, 8)
     }
 }

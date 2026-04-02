@@ -9,6 +9,7 @@ import SwiftUI
 /// Presented as a sheet from PlanFormView's section summary cards.
 struct SectionEditorView: View {
     let title: String
+    var sectionName: Binding<String>? = nil
     @Binding var movements: [Movement]
     let durationMinutes: Int
     @Binding var playlistId: String?
@@ -19,6 +20,7 @@ struct SectionEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showPlaylistEditor = false
     @State private var playlistRefreshKey = 0
+    @State private var editingMovementId: String?
     @StateObject private var inlinePlaylistVM = SpotifySearchViewModel()
 
     var body: some View {
@@ -40,23 +42,40 @@ struct SectionEditorView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Duration (read-only)
-                    HStack {
-                        Text("DURATION")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .kerning(1.2)
-                            .padding(.trailing, 8)
-                        Text("~\(durationMinutes) min")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(Color.black)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                        Spacer()
+                    if let nameBinding = sectionName {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("SECTION NAME")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .kerning(1.2)
+                            TextField("Section name", text: nameBinding)
+                                .font(.system(size: 16))
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 13)
+                                .cueFormFieldOutline()
+                        }
+                        .padding(.horizontal, 24)
                     }
-                    .padding(.horizontal, 24)
+
+                    // Duration estimate (warm-up / cool-down only; not main subsection)
+                    if sectionName == nil {
+                        HStack {
+                            Text("DURATION")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .kerning(1.2)
+                                .padding(.trailing, 8)
+                            Text("~\(durationMinutes) min")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.black)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            Spacer()
+                        }
+                        .padding(.horizontal, 24)
+                    }
 
                     // Movements
                     VStack(alignment: .leading, spacing: 12) {
@@ -67,14 +86,18 @@ struct SectionEditorView: View {
                             .padding(.horizontal, 24)
 
                         if !movements.isEmpty {
-                            ReorderableMovementList(movements: $movements)
-                                .padding(.horizontal, 24)
+                            ReorderableMovementList(
+                                movements: $movements,
+                                editingMovementId: $editingMovementId
+                            )
+                            .padding(.horizontal, 24)
                         }
 
                         MovementComposerView(
                             defaultGoalType: defaultGoalType,
                             showGoalOption: showGoalOption,
-                            movements: $movements
+                            movements: $movements,
+                            editingMovementId: $editingMovementId
                         )
                         .compositingGroup()
                         .zIndex(50)
@@ -241,6 +264,9 @@ struct MainSectionEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var activeSheet: MainSectionSheet?
     @State private var playlistRefreshKey = 0
+    @State private var confirmingDeleteSectionIndex: Int?
+    @State private var deleteConfirmResetTask: Task<Void, Never>?
+    @State private var expandedSectionIds: Set<String> = []
     @StateObject private var inlinePlaylistVM = SpotifySearchViewModel()
 
     var body: some View {
@@ -263,24 +289,40 @@ struct MainSectionEditorView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     // Section cards
-                    Text("SECTIONS")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .kerning(1.2)
-                        .padding(.horizontal, 24)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("SECTIONS")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .kerning(1.2)
+                        Text("Use the arrow to preview moves; tap the section to edit.")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 24)
 
                     VStack(spacing: 0) {
                         ForEach(Array(sections.indices), id: \.self) { index in
                             MainSectionCard(
                                 section: sections[index],
                                 canDelete: sections.count > 1,
-                                onTap: { activeSheet = .editSection(index) },
-                                onDelete: {
-                                    guard sections.indices.contains(index), sections.count > 1 else { return }
+                                isConfirmingDelete: confirmingDeleteSectionIndex == index,
+                                isExpanded: expandedSectionIds.contains(sections[index].id),
+                                onRowTap: {
+                                    confirmingDeleteSectionIndex = nil
+                                    deleteConfirmResetTask?.cancel()
+                                    activeSheet = .editSection(index)
+                                },
+                                onChevronTap: {
+                                    let id = sections[index].id
                                     withAnimation(.easeInOut(duration: 0.2)) {
-                                        sections.remove(at: index)
+                                        if expandedSectionIds.contains(id) {
+                                            expandedSectionIds.remove(id)
+                                        } else {
+                                            expandedSectionIds.insert(id)
+                                        }
                                     }
-                                }
+                                },
+                                onDeleteTap: { handleSectionDeleteTap(at: index) }
                             )
 
                             if index < sections.count - 1 {
@@ -330,7 +372,8 @@ struct MainSectionEditorView: View {
             case .editSection(let index):
                 if sections.indices.contains(index) {
                     SectionEditorView(
-                        title: sections[index].name.isEmpty ? "Section \(index + 1)" : sections[index].name,
+                        title: "Main Workout",
+                        sectionName: $sections[index].name,
                         movements: $sections[index].movements,
                         durationMinutes: sections[index].durationMinutes,
                         playlistId: .constant(nil),
@@ -351,6 +394,31 @@ struct MainSectionEditorView: View {
         }
         .task(id: "\(playlistId ?? "")-\(playlistRefreshKey)") {
             await loadInlinePlaylist()
+        }
+    }
+
+    private func handleSectionDeleteTap(at index: Int) {
+        guard sections.count > 1, sections.indices.contains(index) else { return }
+        if confirmingDeleteSectionIndex == index {
+            deleteConfirmResetTask?.cancel()
+            confirmingDeleteSectionIndex = nil
+            withAnimation(.easeInOut(duration: 0.2)) {
+                sections.remove(at: index)
+            }
+        } else {
+            deleteConfirmResetTask?.cancel()
+            withAnimation(.easeInOut(duration: 0.15)) {
+                confirmingDeleteSectionIndex = index
+            }
+            deleteConfirmResetTask = Task {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        confirmingDeleteSectionIndex = nil
+                    }
+                }
+            }
         }
     }
 
@@ -476,40 +544,76 @@ private enum MainSectionSheet: Identifiable, Equatable {
 private struct MainSectionCard: View {
     let section: WorkoutSubSection
     let canDelete: Bool
-    let onTap: () -> Void
-    let onDelete: () -> Void
+    let isConfirmingDelete: Bool
+    let isExpanded: Bool
+    let onRowTap: () -> Void
+    let onChevronTap: () -> Void
+    let onDeleteTap: () -> Void
 
     var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(section.name.isEmpty ? "Unnamed Section" : section.name)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(.black)
-                    Text("\(section.movements.count) movement\(section.movements.count == 1 ? "" : "s") · \(section.durationMinutes) min")
-                        .font(.system(size: 12))
-                        .foregroundStyle(.secondary)
-                }
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 0) {
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(section.name.isEmpty ? "Unnamed Section" : section.name)
+                            .font(.system(size: 15, weight: .medium))
+                            .foregroundStyle(.black)
+                        Text("\(section.movements.count) movement\(section.movements.count == 1 ? "" : "s")")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                    }
 
-                Spacer()
+                    Spacer(minLength: 8)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onRowTap)
 
                 if canDelete {
-                    Button(action: onDelete) {
-                        Image(systemName: "minus.circle")
-                            .font(.system(size: 16))
-                            .foregroundStyle(Color(.systemGray3))
+                    Button(action: onDeleteTap) {
+                        Image(systemName: isConfirmingDelete ? "trash.fill" : "trash")
+                            .font(.system(size: 14))
+                            .foregroundStyle(isConfirmingDelete ? .red : Color(.systemGray3))
+                            .frame(width: 44, height: 44)
+                            .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(isConfirmingDelete ? "Confirm delete section" : "Delete section")
                 }
 
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(Color(.systemGray3))
+                Button(action: onChevronTap) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(Color(.systemGray3))
+                        .frame(width: 40, height: 40)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(isExpanded ? "Hide movements list" : "Show movements in this section")
+                .accessibilityHint("Does not open the editor; tap the section title to edit.")
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.leading, 16)
+            .padding(.trailing, canDelete ? 4 : 8)
+            .padding(.vertical, 6)
+
+            if isExpanded && !section.movements.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(section.movements) { movement in
+                        HStack(alignment: .top, spacing: 8) {
+                            Text("•")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.secondary)
+                            Text(movement.name)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundStyle(.black)
+                        }
+                    }
+                }
+                .padding(.leading, 24)
+                .padding(.trailing, 16)
+                .padding(.bottom, 12)
+                .padding(.top, 2)
+            }
         }
-        .buttonStyle(.plain)
     }
 }
 
@@ -526,15 +630,6 @@ private struct InlineReorderableTrackList: View {
         List {
             ForEach(viewModel.playlistTracks) { item in
                 HStack(spacing: 10) {
-                    Button {
-                        handleDeleteTap(item: item)
-                    } label: {
-                        Image(systemName: confirmingDeleteId == item.id ? "trash.fill" : "trash")
-                            .font(.system(size: 12))
-                            .foregroundStyle(confirmingDeleteId == item.id ? .red : Color(.systemGray3))
-                    }
-                    .buttonStyle(.plain)
-
                     AsyncImage(url: item.track.albumArtURL) { img in
                         img.resizable().aspectRatio(contentMode: .fill)
                     } placeholder: {
@@ -558,6 +653,15 @@ private struct InlineReorderableTrackList: View {
                     Text(item.track.durationFormatted)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
+
+                    Button {
+                        handleDeleteTap(item: item)
+                    } label: {
+                        Image(systemName: confirmingDeleteId == item.id ? "trash.fill" : "trash")
+                            .font(.system(size: 13))
+                            .foregroundStyle(confirmingDeleteId == item.id ? .red : Color(.systemGray3))
+                    }
+                    .buttonStyle(.plain)
                 }
                 .frame(height: rowHeight)
                 .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
@@ -604,6 +708,7 @@ private struct InlineReorderableTrackList: View {
 
 struct ReorderableMovementList: View {
     @Binding var movements: [Movement]
+    @Binding var editingMovementId: String?
     @State private var confirmingDeleteId: String?
     @State private var resetTask: Task<Void, Never>?
 
@@ -630,7 +735,11 @@ struct ReorderableMovementList: View {
             ForEach($movements) { $movement in
                 MovementRow(
                     movement: movement,
+                    isEditing: editingMovementId == movement.id,
                     isConfirmingDelete: confirmingDeleteId == movement.id,
+                    onEditTap: {
+                        editingMovementId = movement.id
+                    },
                     onDeleteTap: {
                         if confirmingDeleteId == movement.id {
                             resetTask?.cancel()
@@ -656,7 +765,9 @@ struct ReorderableMovementList: View {
                     }
                 )
                 .listRowInsets(EdgeInsets())
-                .listRowBackground(Color(.systemGray6))
+                .listRowBackground(
+                    editingMovementId == movement.id ? Color.black : Color(.systemGray6)
+                )
                 .listRowSeparator(.hidden)
             }
             .onMove { from, to in

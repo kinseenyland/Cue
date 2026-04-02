@@ -11,6 +11,7 @@ struct MovementComposerView: View {
     let defaultGoalType: GoalType?
     var showGoalOption: Bool = true
     @Binding var movements: [Movement]
+    @Binding var editingMovementId: String?
 
     @State private var isExpanded = false
     @State private var newName = ""
@@ -32,6 +33,7 @@ struct MovementComposerView: View {
                 expandedComposer
             } else {
                 Button {
+                    editingMovementId = nil
                     withAnimation(.easeInOut(duration: 0.2)) {
                         isExpanded = true
                         showGoalInput = defaultGoalType != nil
@@ -62,6 +64,16 @@ struct MovementComposerView: View {
         .onAppear {
             selectedGoalType = defaultGoalType ?? .reps
         }
+        .onChange(of: editingMovementId) { _, newId in
+            guard let newId, let movement = movements.first(where: { $0.id == newId }) else { return }
+            hydrateFromMovement(movement)
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isExpanded = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                nameFieldFocused = true
+            }
+        }
     }
 
     private var expandedComposer: some View {
@@ -70,7 +82,7 @@ struct MovementComposerView: View {
                 .font(.system(size: 16))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 12)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                .cueFormFieldOutline()
                 .focused($nameFieldFocused)
 
             if showGoalOption {
@@ -126,7 +138,7 @@ struct MovementComposerView: View {
                     .foregroundStyle(.primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 10)
-                    .overlay(Rectangle().stroke(Color(.systemGray3), lineWidth: 1))
+                    .cueFormFieldOutline(color: Color(.systemGray3))
             } else {
                 Button {
                     showNoteField = true
@@ -144,9 +156,9 @@ struct MovementComposerView: View {
                     submitMovement()
                 } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: "plus.circle.fill")
+                        Image(systemName: editingMovementId != nil ? "checkmark.circle.fill" : "plus.circle.fill")
                             .font(.system(size: 18))
-                        Text("Add")
+                        Text(editingMovementId != nil ? "Save" : "Add")
                             .font(.system(size: 14, weight: .semibold))
                     }
                     .foregroundStyle(canSubmit ? Color.white : Color(.systemGray4))
@@ -208,18 +220,49 @@ struct MovementComposerView: View {
         !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private func hydrateFromMovement(_ movement: Movement) {
+        newName = movement.name
+        newNote = movement.notes ?? ""
+        showNoteField = !(movement.notes?.isEmpty ?? true)
+        if let gt = movement.goalType {
+            showGoalInput = true
+            selectedGoalType = gt
+            if gt == .reps {
+                repsValue = movement.reps.map(String.init) ?? "10"
+            } else {
+                secondsValue = movement.seconds.map(String.init) ?? "30"
+            }
+        } else {
+            showGoalInput = false
+            repsValue = "10"
+            secondsValue = "30"
+        }
+    }
+
     private func submitMovement() {
         let note = newNote.trimmingCharacters(in: .whitespacesAndNewlines)
         let goalType = showGoalInput ? selectedGoalType : nil
-        let movement = Movement(
-            name: newName.trimmingCharacters(in: .whitespacesAndNewlines),
-            notes: note.isEmpty ? nil : note,
-            goalType: goalType,
-            seconds: goalType == .timed ? Int(secondsValue) : nil,
-            reps: goalType == .reps ? Int(repsValue) : nil
-        )
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        movements.append(movement)
+        if let editId = editingMovementId, let idx = movements.firstIndex(where: { $0.id == editId }) {
+            var updated = movements[idx]
+            updated.name = trimmedName
+            updated.notes = note.isEmpty ? nil : note
+            updated.goalType = goalType
+            updated.seconds = goalType == .timed ? Int(secondsValue) : nil
+            updated.reps = goalType == .reps ? Int(repsValue) : nil
+            movements[idx] = updated
+        } else {
+            let movement = Movement(
+                name: trimmedName,
+                notes: note.isEmpty ? nil : note,
+                goalType: goalType,
+                seconds: goalType == .timed ? Int(secondsValue) : nil,
+                reps: goalType == .reps ? Int(repsValue) : nil
+            )
+            movements.append(movement)
+        }
+
         withAnimation(.easeInOut(duration: 0.2)) {
             isExpanded = false
         }
@@ -227,6 +270,7 @@ struct MovementComposerView: View {
     }
 
     private func clearComposerInputs() {
+        editingMovementId = nil
         newName = ""
         repsValue = "10"
         secondsValue = "30"

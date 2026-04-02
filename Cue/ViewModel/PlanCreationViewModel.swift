@@ -217,7 +217,40 @@ final class PlanCreationViewModel: ObservableObject {
     var isOnLastStep: Bool { currentStepIndex == steps.count - 1 }
     var progress: Double { Double(currentStepIndex + 1) / Double(steps.count) }
 
-    var suggestedMainMinutes: Int { max(0, draft.durationMinutes - 10) }
+    /// Minutes reserved for warm-up + cool-down at the default split (5+5 or 10+10).
+    private var defaultWarmCoolCombinedMinutes: Int {
+        draft.durationMinutes >= 80 ? 20 : 10
+    }
+
+    var suggestedMainMinutes: Int {
+        max(0, draft.durationMinutes - defaultWarmCoolCombinedMinutes)
+    }
+
+    /// Sets warm-up and cool-down from total duration: 5+5 when under 80 minutes, 10+10 when 80+.
+    /// If the total is too small for those defaults, splits time evenly between warm-up and cool-down.
+    /// Then redistributes main section minutes.
+    func applyDefaultWarmUpCoolDownForTotalDuration() {
+        let total = draft.durationMinutes
+        let defaultEach = total >= 80 ? 10 : 5
+        let defaultSum = defaultEach * 2
+
+        if total >= defaultSum {
+            skipWarmUpCoolDownReaction = true
+            draft.warmUpDurationMinutes = defaultEach
+            skipWarmUpCoolDownReaction = true
+            draft.coolDownDurationMinutes = defaultEach
+        } else if total > 0 {
+            let half = total / 2
+            skipWarmUpCoolDownReaction = true
+            draft.warmUpDurationMinutes = half
+            skipWarmUpCoolDownReaction = true
+            draft.coolDownDurationMinutes = total - half
+        } else {
+            draft.warmUpDurationMinutes = 0
+            draft.coolDownDurationMinutes = 0
+        }
+        redistributeMainSectionTime()
+    }
 
     func advance() {
         guard canAdvance, currentStepIndex < steps.count - 1 else { return }

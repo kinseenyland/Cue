@@ -266,6 +266,12 @@ struct SectionPlaylistEditor: View {
                 List {
                     ForEach(viewModel.playlistTracks) { item in
                         HStack(spacing: 12) {
+                            TrackRowView(track: item.track, showDuration: false)
+
+                            Text(item.track.durationFormatted)
+                                .font(.caption)
+                                .foregroundColor(.gray)
+
                             Button {
                                 if confirmingDeleteId == item.id {
                                     resetTask?.cancel()
@@ -292,9 +298,6 @@ struct SectionPlaylistEditor: View {
                                     .font(.system(size: 13))
                             }
                             .buttonStyle(.plain)
-
-                            TrackRowView(track: item.track)
-                            Spacer()
                         }
                     }
                     .onMove { source, destination in
