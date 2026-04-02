@@ -3,12 +3,14 @@
 //  Cue
 //
 
+import FirebaseAuth
 import SwiftUI
 
 /// Full-screen editor for a single workout section (warm-up, main, or cool-down).
 /// Presented as a sheet from PlanFormView's section summary cards.
 struct SectionEditorView: View {
     let title: String
+    let sectionType: WorkoutSection
     var sectionName: Binding<String>? = nil
     @Binding var movements: [Movement]
     let durationMinutes: Int
@@ -24,6 +26,11 @@ struct SectionEditorView: View {
     @State private var playlistRefreshKey = 0
     @State private var editingMovementId: String?
     @StateObject private var inlinePlaylistVM = SpotifySearchViewModel()
+
+    @StateObject private var savedSectionsVM = SavedSectionsViewModel()
+    @State private var showSaveSheet = false
+    @State private var showLoadSheet = false
+    @State private var showSavedSectionActions = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,6 +66,25 @@ struct SectionEditorView: View {
                                 .cueFormFieldOutline()
                         }
                         .padding(.horizontal, 24)
+
+                        // Main subsection: show an estimated duration to keep layout cohesive.
+                        HStack {
+                            Text("DURATION")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .kerning(1.2)
+                                .padding(.trailing, 8)
+                            Text("~\(durationMinutes) min")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(Color.black)
+                                .clipShape(RoundedRectangle(cornerRadius: 6))
+                            Spacer(minLength: 12)
+                            savedSectionsExpander
+                        }
+                        .padding(.horizontal, 24)
                     }
 
                     // Duration estimate (warm-up / cool-down only; not main subsection)
@@ -76,7 +102,8 @@ struct SectionEditorView: View {
                                 .padding(.vertical, 5)
                                 .background(Color.black)
                                 .clipShape(RoundedRectangle(cornerRadius: 6))
-                            Spacer()
+                            Spacer(minLength: 12)
+                            savedSectionsExpander
                         }
                         .padding(.horizontal, 24)
                     }
@@ -139,6 +166,47 @@ struct SectionEditorView: View {
                     .presentationDetents([.medium, .large])
             }
         }
+        .sheet(isPresented: $showSaveSheet) {
+            SaveSectionSheet(
+                sectionType: sectionType,
+                movements: movements,
+                durationMinutes: durationMinutes,
+                defaultName: defaultSaveSectionName,
+                defaultGoalType: defaultGoalType,
+                showGoalOption: showGoalOption
+            ) { name, updatedMovements in
+                guard let uid = Auth.auth().currentUser?.uid else { return }
+                // Keep the current subsection in sync with any edits made on the save sheet.
+                movements = updatedMovements
+                let section = SavedSection(
+                    ownerId: uid,
+                    name: name,
+                    sectionType: sectionType,
+                    durationMinutes: durationMinutes,
+                    movements: updatedMovements
+                )
+                Task { await savedSectionsVM.saveSection(section) }
+            }
+        }
+        .sheet(isPresented: $showLoadSheet) {
+            SavedSectionPickerView(sectionType: sectionType) { saved in
+                let freshMovements = saved.movements.map { m in
+                    Movement(
+                        name: m.name,
+                        notes: m.notes,
+                        goalType: m.goalType,
+                        seconds: m.seconds,
+                        reps: m.reps
+                    )
+                }
+                movements.append(contentsOf: freshMovements)
+
+                // Main subsection: set the name from the saved section so the UI stays cohesive.
+                if let sectionName {
+                    sectionName.wrappedValue = saved.name
+                }
+            }
+        }
         .onChange(of: showPlaylistEditor) { _, isShowing in
             if !isShowing {
                 playlistRefreshKey += 1
@@ -146,6 +214,86 @@ struct SectionEditorView: View {
         }
         .task(id: "\(playlistId ?? "")-\(playlistRefreshKey)") {
             await loadInlinePlaylist()
+        }
+    }
+
+    // MARK: - Saved sections expander (top-right of the editor)
+
+    private var savedSectionsExpander: some View {
+        VStack(alignment: .trailing, spacing: 10) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    showSavedSectionActions.toggle()
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "bookmark.fill")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Saved Sections")
+                        .font(.system(size: 13, weight: .medium))
+                    Image(systemName: showSavedSectionActions ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                }
+                .foregroundStyle(.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+
+            if showSavedSectionActions {
+                VStack(alignment: .trailing, spacing: 10) {
+                    Button {
+                        showSavedSectionActions = false
+                        showLoadSheet = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "square.and.arrow.down")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Load saved sections")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        guard !movements.isEmpty else { return }
+                        showSavedSectionActions = false
+                        showSaveSheet = true
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: "bookmark")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Save this section")
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                        .foregroundStyle(.black)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(movements.isEmpty)
+                    .opacity(movements.isEmpty ? 0.6 : 1)
+                }
+            }
+        }
+        .frame(maxWidth: 220, alignment: .trailing)
+    }
+
+    private var defaultSaveSectionName: String {
+        if let sectionName, !sectionName.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return sectionName.wrappedValue
+        }
+        switch sectionType {
+        case .warmUp: return "Warm-Up"
+        case .main: return "Main"
+        case .coolDown: return "Cool-Down"
         }
     }
 
@@ -381,6 +529,7 @@ struct MainSectionEditorView: View {
                 if sections.indices.contains(index) {
                     SectionEditorView(
                         title: "Main Workout",
+                        sectionType: .main,
                         sectionName: $sections[index].name,
                         movements: $sections[index].movements,
                         durationMinutes: sections[index].durationMinutes,
@@ -731,7 +880,10 @@ struct ReorderableMovementList: View {
     @State private var resetTask: Task<Void, Never>?
 
     private var totalHeight: CGFloat {
-        movements.reduce(0) { total, movement in
+        // The fixed height is based on heuristics; add a small buffer so the last row
+        // doesn't get clipped by List's internal padding/layout.
+        let buffer: CGFloat = 12
+        let rows = movements.reduce(0) { total, movement in
             let hasMetric = movement.reps != nil || movement.seconds != nil
             let hasNote = movement.notes.map { !$0.isEmpty } ?? false
             // Metric column (number + unit label stacked) ≈ 33pt, name alone ≈ 19pt, note ≈ 15pt.
@@ -746,6 +898,7 @@ struct ReorderableMovementList: View {
             }
             return total + h
         }
+        return rows + buffer
     }
 
     var body: some View {
@@ -795,6 +948,7 @@ struct ReorderableMovementList: View {
         .environment(\.editMode, .constant(.active))
         .scrollDisabled(true)
         .listStyle(.plain)
+        .frame(maxWidth: .infinity)
         .frame(height: totalHeight)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -860,7 +1014,7 @@ struct MovementRow: View {
                 }
             }
 
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Button(action: onEditTap) {
                 Image(systemName: "pencil")
@@ -876,7 +1030,6 @@ struct MovementRow: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 16)
         .padding(.vertical, 12)
     }
 }

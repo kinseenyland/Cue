@@ -182,6 +182,7 @@ struct PlanFormView: View {
         .sheet(isPresented: $showWarmUpEditor) {
             SectionEditorView(
                 title: "Warm-Up",
+                sectionType: .warmUp,
                 movements: $vm.draft.warmUpMovements,
                 durationMinutes: vm.draft.warmUpDurationMinutes,
                 playlistId: $vm.draft.warmUpPlaylistId,
@@ -203,6 +204,7 @@ struct PlanFormView: View {
         .sheet(isPresented: $showCoolDownEditor) {
             SectionEditorView(
                 title: "Cool-Down",
+                sectionType: .coolDown,
                 movements: $vm.draft.coolDownMovements,
                 durationMinutes: vm.draft.coolDownDurationMinutes,
                 playlistId: $vm.draft.coolDownPlaylistId,
