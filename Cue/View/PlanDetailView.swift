@@ -26,6 +26,8 @@ struct PlanDetailView: View {
     @State private var duplicateName = ""
     @State private var playlists: [SpotifySearchService.SpotifyPlaylist] = []
     @State private var isLoadingPlaylists = false
+    @State private var exportedPDFURL: URL? = nil
+    @State private var isShowingShareSheet = false
 
     private var planHasPlaylist: Bool {
         currentPlan.warmUpPlaylistId != nil ||
@@ -138,6 +140,14 @@ struct PlanDetailView: View {
                         isShowingDuplicatePrompt = true
                     } label: {
                         Label("Duplicate Plan", systemImage: "doc.on.doc")
+                    }
+                    Button {
+                        if let url = PlanPDFRenderer.render(plan: currentPlan) {
+                            exportedPDFURL = url
+                            isShowingShareSheet = true
+                        }
+                    } label: {
+                        Label("Export as PDF", systemImage: "square.and.arrow.up")
                     }
                     Button(role: .destructive) {
                         isShowingDeleteConfirmation = true
@@ -279,6 +289,12 @@ struct PlanDetailView: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isShowingSpotifyHandoff)
+        .sheet(isPresented: $isShowingShareSheet) {
+            if let url = exportedPDFURL {
+                ActivityView(activityItems: [url])
+                    .presentationDetents([.medium, .large])
+            }
+        }
         .overlay {
             if isShowingDeleteConfirmation {
                 CustomAlertView(
@@ -533,6 +549,18 @@ private struct PlanDetailCard: View {
                 .stroke(Color.black, lineWidth: 1)
         )
     }
+}
+
+// MARK: - Share Sheet
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {
