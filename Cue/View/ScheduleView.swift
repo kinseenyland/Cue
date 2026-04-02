@@ -12,7 +12,6 @@ struct ScheduleView: View {
     @StateObject private var vm = ScheduleViewModel()
     @StateObject private var plansVM = CueViewModel()
     @State private var isPresentingCreateForm = false
-    @State private var editingItem: ScheduleItem? = nil
     @State private var navigationPath = NavigationPath()
     @State private var selectedDate: Date? = Date()
     @State private var displayedMonth: Date = Date()
@@ -120,22 +119,7 @@ struct ScheduleView: View {
                                     ScheduleCard(item: item)
                                         .contentShape(Rectangle())
                                         .onTapGesture {
-                                            if let planId = item.planId,
-                                               let plan = plansVM.plans.first(where: { $0.id == planId }) {
-                                                navigationPath.append(plan)
-                                            }
-                                        }
-                                        .contextMenu {
-                                            Button {
-                                                editingItem = item
-                                            } label: {
-                                                Label("Edit Schedule", systemImage: "pencil")
-                                            }
-                                            Button(role: .destructive) {
-                                                Task { await vm.deleteSchedule(id: item.id) }
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
+                                            navigationPath.append(item)
                                         }
                                 }
                             }
@@ -145,18 +129,18 @@ struct ScheduleView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            .navigationDestination(for: WorkoutPlan.self) { plan in
-                PlanDetailView(
-                    plan: plan,
-                    selectedTab: $selectedTab,
+            .navigationDestination(for: ScheduleItem.self) { item in
+                ScheduleDetailView(
+                    item: item,
+                    plans: plansVM.plans,
                     onUpdate: { draft in
-                        Task { await plansVM.updatePlan(id: plan.id, from: draft) }
+                        Task { await vm.updateSchedule(id: item.id, from: draft) }
                     },
                     onDelete: {
-                        Task { await plansVM.deletePlan(id: plan.id) }
-                    },
-                    onDuplicate: { name in
-                        Task { await plansVM.duplicatePlan(plan, newName: name) }
+                        Task {
+                            await vm.deleteSchedule(id: item.id)
+                            navigationPath.removeLast()
+                        }
                     }
                 )
             }
@@ -173,20 +157,6 @@ struct ScheduleView: View {
                 ) { draft in
                     Task { await vm.createSchedule(from: draft) }
                 }
-            }
-        }
-        .sheet(item: $editingItem) { item in
-            NavigationStack {
-                ScheduleFormView(
-                    plans: plansVM.plans,
-                    draft: draft(from: item),
-                    onSave: { updated in
-                        Task { await vm.updateSchedule(id: item.id, from: updated) }
-                    },
-                    onDelete: {
-                        Task { await vm.deleteSchedule(id: item.id) }
-                    }
-                )
             }
         }
     }
@@ -284,17 +254,6 @@ struct ScheduleView: View {
         .padding(.top, 4)
     }
 
-    private func draft(from item: ScheduleItem) -> ScheduleDraft {
-        ScheduleDraft(
-            title: item.title,
-            location: item.location,
-            workoutType: item.workoutType,
-            difficulty: item.difficulty,
-            startsAt: Date(timeIntervalSince1970: item.startsAt),
-            durationMinutes: item.durationMinutes,
-            planId: item.planId
-        )
-    }
 }
 
 // MARK: - Schedule Card

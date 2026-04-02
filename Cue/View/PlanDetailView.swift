@@ -514,7 +514,7 @@ private struct MovementReadRow: View {
 
 // MARK: - Plan Detail Card
 
-private struct PlanDetailCard: View {
+struct PlanDetailCard: View {
     let icon: String
     let label: String
     let value: String
