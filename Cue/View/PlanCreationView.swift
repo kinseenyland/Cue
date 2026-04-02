@@ -38,6 +38,7 @@ struct PlanCreationView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 32)
         }
+        .ignoresSafeArea(.keyboard)
         .background(Color.white.ignoresSafeArea())
         .environmentObject(vm)
         .overlay {
@@ -184,58 +185,37 @@ struct PlanCreationView: View {
         case .pickMusic:
             PlanPickMusicStepView()
         case .warmUpMovements:
-            VStack(alignment: .leading, spacing: 12) {
-                MovementListStepView(
-                    headline: "Warm-Up Movements",
-                    defaultGoalType: vm.draft.goalType,
-                    showGoalOption: vm.showGoalOption,
-                    durationMinutes: vm.draft.warmUpDurationMinutes,
-                    movements: $vm.draft.warmUpMovements
-                )
-                if vm.showInlinePlaylistPickers {
-                    PlanSectionPlaylistPicker(
-                        title: "Warm-up playlist",
-                        selectedPlaylistId: $vm.draft.warmUpPlaylistId
-                    )
-                } else if let name = vm.playlistName(for: vm.draft.warmUpPlaylistId) {
-                    AssignedPlaylistLabel(name: name)
-                        .padding(.horizontal, 24)
-                }
-            }
+            SectionEditorView(
+                title: "Warm-Up",
+                movements: $vm.draft.warmUpMovements,
+                durationMinutes: vm.draft.warmUpDurationMinutes,
+                playlistId: $vm.draft.warmUpPlaylistId,
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption,
+                isEmbedded: true
+            )
+            .environmentObject(SpotifyManager.shared)
         case .mainSections:
-            VStack(alignment: .leading, spacing: 12) {
-                PlanMainSectionsStepView()
-                if vm.showInlinePlaylistPickers {
-                    PlanSectionPlaylistPicker(
-                        title: "Main workout playlist",
-                        selectedPlaylistId: $vm.draft.mainPlaylistId
-                    )
-                } else if let name = vm.playlistName(for: vm.draft.mainPlaylistId) {
-                    AssignedPlaylistLabel(name: name)
-                        .padding(.horizontal, 24)
-                }
-            }
-        case .mainMovements:
-            PlanMainMovementsStepView()
+            MainSectionEditorView(
+                sections: $vm.draft.mainSections,
+                playlistId: $vm.draft.mainPlaylistId,
+                totalDurationMinutes: vm.totalMainMinutes,
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption,
+                isEmbedded: true
+            )
+            .environmentObject(SpotifyManager.shared)
         case .coolDownMovements:
-            VStack(alignment: .leading, spacing: 12) {
-                MovementListStepView(
-                    headline: "Cool-Down Movements",
-                    defaultGoalType: vm.draft.goalType,
-                    showGoalOption: vm.showGoalOption,
-                    durationMinutes: vm.draft.coolDownDurationMinutes,
-                    movements: $vm.draft.coolDownMovements
-                )
-                if vm.showInlinePlaylistPickers {
-                    PlanSectionPlaylistPicker(
-                        title: "Cool-down playlist",
-                        selectedPlaylistId: $vm.draft.coolDownPlaylistId
-                    )
-                } else if let name = vm.playlistName(for: vm.draft.coolDownPlaylistId) {
-                    AssignedPlaylistLabel(name: name)
-                        .padding(.horizontal, 24)
-                }
-            }
+            SectionEditorView(
+                title: "Cool-Down",
+                movements: $vm.draft.coolDownMovements,
+                durationMinutes: vm.draft.coolDownDurationMinutes,
+                playlistId: $vm.draft.coolDownPlaylistId,
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption,
+                isEmbedded: true
+            )
+            .environmentObject(SpotifyManager.shared)
         case .review:
             PlanReviewStepView()
         }

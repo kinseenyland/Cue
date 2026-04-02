@@ -16,6 +16,8 @@ struct SectionEditorView: View {
     let defaultGoalType: GoalType?
     var showGoalOption: Bool = true
     var showPlaylist: Bool = true
+    /// When true, hides the header (title + Done button). Used when embedded as a step inside PlanCreationView.
+    var isEmbedded: Bool = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var showPlaylistEditor = false
@@ -25,20 +27,22 @@ struct SectionEditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            ZStack {
-                Text(title)
-                    .font(.system(size: 17, weight: .semibold))
-                HStack {
-                    Spacer()
-                    Button("Done") { dismiss() }
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.black)
+            // Header (hidden when embedded as a guided-flow step)
+            if !isEmbedded {
+                ZStack {
+                    Text(title)
+                        .font(.system(size: 17, weight: .semibold))
+                    HStack {
+                        Spacer()
+                        Button("Done") { dismiss() }
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.black)
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
@@ -260,6 +264,8 @@ struct MainSectionEditorView: View {
     let totalDurationMinutes: Int
     let defaultGoalType: GoalType?
     var showGoalOption: Bool = true
+    /// When true, hides the header (title + Done button). Used when embedded as a step inside PlanCreationView.
+    var isEmbedded: Bool = false
 
     @Environment(\.dismiss) private var dismiss
     @State private var activeSheet: MainSectionSheet?
@@ -271,20 +277,22 @@ struct MainSectionEditorView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            ZStack {
-                Text("Main Workout")
-                    .font(.system(size: 17, weight: .semibold))
-                HStack {
-                    Spacer()
-                    Button("Done") { dismiss() }
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(.black)
+            // Header (hidden when embedded as a guided-flow step)
+            if !isEmbedded {
+                ZStack {
+                    Text("Main Workout")
+                        .font(.system(size: 17, weight: .semibold))
+                    HStack {
+                        Spacer()
+                        Button("Done") { dismiss() }
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(.black)
+                    }
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 14)
+                .padding(.bottom, 10)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 14)
-            .padding(.bottom, 10)
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -553,14 +561,34 @@ private struct MainSectionCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(section.name.isEmpty ? "Unnamed Section" : section.name)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundStyle(.black)
-                        Text("\(section.movements.count) movement\(section.movements.count == 1 ? "" : "s")")
-                            .font(.system(size: 12))
-                            .foregroundStyle(.secondary)
+                // Section name + count badge + expand chevron
+                HStack(spacing: 8) {
+                    Text(section.name.isEmpty ? "Unnamed Section" : section.name)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(.black)
+
+                    if section.movements.count > 0 {
+                        ZStack {
+                            Circle()
+                                .fill(Color.black)
+                                .frame(width: 20, height: 20)
+                            Text("\(section.movements.count)")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.white)
+                        }
+
+                        Button(action: onChevronTap) {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .rotationEffect(.degrees(isExpanded ? 180 : 0))
+                                .animation(.easeInOut(duration: 0.2), value: isExpanded)
+                                .padding(10)
+                                .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(-10)
+                        .accessibilityLabel(isExpanded ? "Hide movements" : "Show movements")
                     }
 
                     Spacer(minLength: 8)
@@ -579,18 +607,8 @@ private struct MainSectionCard: View {
                     .buttonStyle(.plain)
                     .accessibilityLabel(isConfirmingDelete ? "Confirm delete section" : "Delete section")
                 }
-
-                Button(action: onChevronTap) {
-                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(Color(.systemGray3))
-                        .frame(width: 40, height: 40)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(isExpanded ? "Hide movements list" : "Show movements in this section")
-                .accessibilityHint("Does not open the editor; tap the section title to edit.")
             }
+            .frame(minHeight: 44)
             .padding(.leading, 16)
             .padding(.trailing, canDelete ? 4 : 8)
             .padding(.vertical, 6)
@@ -619,7 +637,7 @@ private struct MainSectionCard: View {
 
 // MARK: - Inline Reorderable Track List
 
-private struct InlineReorderableTrackList: View {
+struct InlineReorderableTrackList: View {
     @ObservedObject var viewModel: SpotifySearchViewModel
     @State private var confirmingDeleteId: String?
     @State private var resetTask: Task<Void, Never>?
@@ -768,7 +786,7 @@ struct ReorderableMovementList: View {
                 .listRowBackground(
                     editingMovementId == movement.id ? Color.black : Color(.systemGray6)
                 )
-                .listRowSeparator(.hidden)
+                .listRowSeparator(.hidden, edges: .all)
             }
             .onMove { from, to in
                 movements.move(fromOffsets: from, toOffset: to)
@@ -780,5 +798,85 @@ struct ReorderableMovementList: View {
         .frame(height: totalHeight)
         .background(Color(.systemGray6))
         .clipShape(RoundedRectangle(cornerRadius: 10))
+    }
+}
+
+// MARK: - Movement Row
+
+struct MovementRow: View {
+    let movement: Movement
+    let isEditing: Bool
+    let isConfirmingDelete: Bool
+    let onEditTap: () -> Void
+    let onDeleteTap: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            // Metric column: number above unit, centered vertically
+            if let reps = movement.reps {
+                VStack(spacing: 1) {
+                    Text("\(reps)")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(isEditing ? Color.white : Color.black)
+                    Text("reps")
+                        .font(.system(size: 10))
+                        .foregroundStyle(isEditing ? Color.white.opacity(0.75) : Color.secondary)
+                }
+                .frame(width: 38, alignment: .center)
+            } else if let secs = movement.seconds {
+                VStack(spacing: 1) {
+                    Text("\(secs)")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(isEditing ? Color.white : Color.black)
+                    Text("sec")
+                        .font(.system(size: 10))
+                        .foregroundStyle(isEditing ? Color.white.opacity(0.75) : Color.secondary)
+                }
+                .frame(width: 38, alignment: .center)
+            } else {
+                Image(systemName: "infinity")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(isEditing ? Color.white.opacity(0.7) : Color(.systemGray3))
+                    .frame(width: 38, alignment: .center)
+            }
+
+            // Divider
+            Rectangle()
+                .fill(isEditing ? Color.white.opacity(0.28) : Color(.systemGray4))
+                .frame(width: 1)
+                .frame(maxHeight: .infinity)
+                .padding(.vertical, 6)
+
+            // Name + notes
+            VStack(alignment: .leading, spacing: 3) {
+                Text(movement.name)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(isEditing ? Color.white : Color.black)
+                if let note = movement.notes, !note.isEmpty {
+                    Text(note)
+                        .font(.system(size: 12))
+                        .foregroundStyle(isEditing ? Color.white.opacity(0.85) : Color.secondary)
+                        .italic()
+                }
+            }
+
+            Spacer()
+
+            Button(action: onEditTap) {
+                Image(systemName: "pencil")
+                    .font(.system(size: 13))
+                    .foregroundStyle(isEditing ? Color.white.opacity(0.9) : Color(.systemGray3))
+            }
+            .buttonStyle(.plain)
+
+            Button(action: onDeleteTap) {
+                Image(systemName: isConfirmingDelete ? "trash.fill" : "trash")
+                    .font(.system(size: 13))
+                    .foregroundStyle(isConfirmingDelete ? Color.red : (isEditing ? Color.white.opacity(0.9) : Color(.systemGray3)))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 }

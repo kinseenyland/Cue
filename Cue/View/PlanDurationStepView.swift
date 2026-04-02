@@ -8,8 +8,14 @@ import SwiftUI
 struct PlanDurationStepView: View {
     @EnvironmentObject var vm: PlanCreationViewModel
     @State private var showCustomPicker = false
+    @State private var customText = ""
+    @FocusState private var customFieldFocused: Bool
 
     private let standardDurations = [45, 60, 75]
+
+    private var isCustom: Bool {
+        !standardDurations.contains(vm.draft.durationMinutes)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
@@ -25,58 +31,65 @@ struct PlanDurationStepView: View {
                     ) {
                         vm.draft.durationMinutes = duration
                         showCustomPicker = false
+                        customFieldFocused = false
                     }
                 }
 
-                ZStack(alignment: .topTrailing) {
-                    Button {
-                        if !showCustomPicker && standardDurations.contains(vm.draft.durationMinutes) {
-                            vm.draft.durationMinutes = 90
+                // Custom card — shows a numeric text field when active
+                Button {
+                    if !showCustomPicker {
+                        customText = isCustom ? "\(vm.draft.durationMinutes)" : ""
+                        showCustomPicker = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            customFieldFocused = true
                         }
-                        showCustomPicker.toggle()
-                    } label: {
-                        VStack(spacing: 4) {
-                            Text(showCustomPicker || !standardDurations.contains(vm.draft.durationMinutes)
-                                 ? "\(vm.draft.durationMinutes)"
-                                 : "Other")
+                    }
+                } label: {
+                    VStack(spacing: 4) {
+                        if showCustomPicker {
+                            TextField("90", text: $customText)
                                 .font(.system(size: 32, weight: .bold))
-                            Text(showCustomPicker || !standardDurations.contains(vm.draft.durationMinutes)
-                                 ? "minutes"
-                                 : "custom")
-                                .font(.system(size: 12))
-                                .foregroundStyle(showCustomPicker ? .white.opacity(0.7) : .secondary)
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+                                .keyboardType(.numberPad)
+                                .focused($customFieldFocused)
+                                .frame(maxWidth: .infinity)
+                                .onChange(of: customText) { _, val in
+                                    let digits = val.filter { $0.isNumber }
+                                    if digits != val { customText = digits }
+                                    if let n = Int(digits), n > 0, n <= 300 {
+                                        vm.draft.durationMinutes = n
+                                    }
+                                }
+                        } else {
+                            Text(isCustom ? "\(vm.draft.durationMinutes)" : "Other")
+                                .font(.system(size: 32, weight: .bold))
                         }
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 90)
-                        .foregroundStyle(showCustomPicker ? .white : .black)
-                        .background(showCustomPicker ? Color.black : Color.clear)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.black, lineWidth: 1)
-                        )
+                        Text(showCustomPicker || isCustom ? "minutes" : "custom")
+                            .font(.system(size: 12))
+                            .foregroundStyle(showCustomPicker ? .white.opacity(0.7) : .secondary)
                     }
-                    .buttonStyle(.plain)
-
-                    if showCustomPicker {
-                        WheelPickerPopup(
-                            selection: $vm.draft.durationMinutes,
-                            values: Array(1...120),
-                            label: { "\($0) min" },
-                            onDone: { showCustomPicker = false }
-                        )
-                        .offset(y: 94)
-                        .zIndex(1)
-                    }
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 90)
+                    .foregroundStyle(showCustomPicker || isCustom ? .white : .black)
+                    .background(showCustomPicker || isCustom ? Color.black : Color.clear)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(Color.black, lineWidth: 1)
+                    )
                 }
-                .zIndex(showCustomPicker ? 50 : 0)
+                .buttonStyle(.plain)
             }
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .contentShape(Rectangle())
+        .onTapGesture { customFieldFocused = false }
         .onAppear {
-            if !standardDurations.contains(vm.draft.durationMinutes) && vm.draft.durationMinutes > 0 {
+            if isCustom && vm.draft.durationMinutes > 0 {
                 showCustomPicker = true
+                customText = "\(vm.draft.durationMinutes)"
             }
         }
     }

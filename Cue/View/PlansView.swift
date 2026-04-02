@@ -13,7 +13,6 @@ struct PlansView: View {
     @State private var navigationPath = NavigationPath()
     @State private var isPresentingCreateChoice = false
     @State private var presentedCreationMode: PlanCreationMode? = nil
-    @State private var editingPlan: WorkoutPlan? = nil
     @State private var isShowingAlert = false
     @State private var alertMessage = ""
     @State private var selectedType: WorkoutType? = nil
@@ -100,35 +99,6 @@ struct PlansView: View {
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    Task { await vm.deletePlan(id: plan.id) }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    editingPlan = plan
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.black)
-                            }
-                            .contextMenu {
-                                Button("Start Workout") {
-                                    sessionVM.load(plan: plan)
-                                    selectedTab = .workout
-                                }
-                                Button("Edit") {
-                                    editingPlan = plan
-                                }
-                                Button(role: .destructive) {
-                                    Task { await vm.deletePlan(id: plan.id) }
-                                } label: {
-                                    Text("Delete")
-                                }
-                            }
                     }
                 }
                 .listStyle(.plain)
@@ -182,15 +152,6 @@ struct PlansView: View {
                     )
                 )
             }
-        }
-        .sheet(item: $editingPlan) { plan in
-            PlanFormView(
-                availableTypes: availableTypes,
-                mode: .edit(
-                    plan: plan,
-                    onSave: { updated in Task { await vm.updatePlan(id: plan.id, from: updated) } }
-                )
-            )
         }
         .overlay {
             if isShowingAlert {

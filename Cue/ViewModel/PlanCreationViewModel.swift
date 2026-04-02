@@ -11,7 +11,7 @@ enum PlanCreationStep: Hashable {
     case name, type, duration
     case musicApproachChoice
     case pickMusic
-    case warmUpMovements, mainSections, mainMovements
+    case warmUpMovements, mainSections
     case coolDownMovements, review
 
     var title: String {
@@ -21,10 +21,9 @@ enum PlanCreationStep: Hashable {
         case .duration:            return "Duration"
         case .musicApproachChoice: return "Music Approach"
         case .pickMusic:           return "Pick Your Music"
-        case .warmUpMovements:     return "Warm-Up Movements"
+        case .warmUpMovements:     return "Warm-Up"
         case .mainSections:        return "Main Workout"
-        case .mainMovements:       return "Main Movements"
-        case .coolDownMovements:   return "Cool-Down Movements"
+        case .coolDownMovements:   return "Cool-Down"
         case .review:              return "Review"
         }
     }
@@ -71,7 +70,7 @@ final class PlanCreationViewModel: ObservableObject {
         if resolvedMusicApproach == .musicFirst {
             s.append(.pickMusic)
         }
-        s += [.warmUpMovements, .mainSections, .mainMovements, .coolDownMovements, .review]
+        s += [.warmUpMovements, .mainSections, .coolDownMovements, .review]
         return s
     }
 
@@ -203,9 +202,10 @@ final class PlanCreationViewModel: ObservableObject {
             return !draft.warmUpMovements.isEmpty
         case .mainSections:
             return !draft.mainSections.isEmpty &&
-                draft.mainSections.allSatisfy { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        case .mainMovements:
-            return draft.mainSections.allSatisfy { !$0.movements.isEmpty }
+                draft.mainSections.allSatisfy {
+                    !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                    !$0.movements.isEmpty
+                }
         case .coolDownMovements:
             return !draft.coolDownMovements.isEmpty
         case .review:
