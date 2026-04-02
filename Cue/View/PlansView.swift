@@ -17,10 +17,12 @@ struct PlansView: View {
     @State private var alertMessage = ""
     @State private var selectedType: WorkoutType? = nil
     @State private var searchText: String = ""
+    @FocusState private var isSearchFocused: Bool
     @StateObject private var vm = CueViewModel()
     @StateObject private var profileVM = ProfileViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var mainTabChrome: MainTabChrome
 
     /// Class types to show in filter chips and plan creation. Falls back to all types if profile not loaded.
     private var availableTypes: [WorkoutType] {
@@ -69,6 +71,7 @@ struct PlansView: View {
                     TextField("Search plans", text: $searchText)
                         .font(.system(size: 15))
                         .autocorrectionDisabled()
+                        .focused($isSearchFocused)
                     if !searchText.isEmpty {
                         Button {
                             searchText = ""
@@ -147,9 +150,16 @@ struct PlansView: View {
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .contentMargins(.bottom, 70, for: .scrollContent)
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                mainTabChrome.hideBottomBar = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                mainTabChrome.hideBottomBar = false
+            }
             .navigationDestination(for: WorkoutPlan.self) { plan in
                 PlanDetailView(
                     plan: plan,

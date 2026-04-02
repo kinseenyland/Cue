@@ -10,22 +10,24 @@ struct ScheduleDetailView: View {
     let plans: [WorkoutPlan]
     let onUpdate: (ScheduleDraft) -> Void
     let onDelete: () -> Void
+    var onGoToPlan: ((WorkoutPlan) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var currentItem: ScheduleItem
     @State private var isShowingEdit = false
-    @State private var isShowingDeleteConfirmation = false
 
     init(
         item: ScheduleItem,
         plans: [WorkoutPlan],
         onUpdate: @escaping (ScheduleDraft) -> Void,
-        onDelete: @escaping () -> Void
+        onDelete: @escaping () -> Void,
+        onGoToPlan: ((WorkoutPlan) -> Void)? = nil
     ) {
         self.item = item
         self.plans = plans
         self.onUpdate = onUpdate
         self.onDelete = onDelete
+        self.onGoToPlan = onGoToPlan
         self._currentItem = State(initialValue: item)
     }
 
@@ -92,23 +94,6 @@ struct ScheduleDetailView: View {
                     .truncationMode(.tail)
 
                 Spacer()
-
-                Menu {
-                    Button { isShowingEdit = true } label: {
-                        Label("Edit Schedule", systemImage: "pencil")
-                    }
-                    Button(role: .destructive) {
-                        isShowingDeleteConfirmation = true
-                    } label: {
-                        Label("Delete", systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .rotationEffect(.degrees(90))
-                        .font(.system(size: 20))
-                        .foregroundStyle(.black)
-                        .frame(width: 24, height: 38)
-                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 8)
@@ -133,6 +118,37 @@ struct ScheduleDetailView: View {
             .padding(.top, 20)
 
             Spacer()
+
+            VStack(spacing: 12) {
+                Button { isShowingEdit = true } label: {
+                    Text("Edit Schedule")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+                .buttonStyle(.plain)
+
+                if let planId = currentItem.planId,
+                   let plan = plans.first(where: { $0.id == planId }),
+                   let goToPlan = onGoToPlan {
+                    Button { goToPlan(plan) } label: {
+                        Text("Go to Plan")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(Color.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
+
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 48)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.white)
@@ -158,25 +174,6 @@ struct ScheduleDetailView: View {
                         onDelete()
                         dismiss()
                     }
-                )
-            }
-        }
-        .overlay {
-            if isShowingDeleteConfirmation {
-                CustomAlertView(
-                    title: "Delete \"\(currentItem.title)\"?",
-                    message: "This action cannot be undone.",
-                    primaryLabel: "Cancel",
-                    primaryAction: { isShowingDeleteConfirmation = false },
-                    primaryStyle: .gray,
-                    secondaryLabel: "Delete",
-                    secondaryAction: {
-                        isShowingDeleteConfirmation = false
-                        onDelete()
-                        dismiss()
-                    },
-                    secondaryStyle: .destructive,
-                    onDismiss: { isShowingDeleteConfirmation = false }
                 )
             }
         }

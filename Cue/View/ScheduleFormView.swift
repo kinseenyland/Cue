@@ -24,7 +24,7 @@ struct ScheduleFormView: View {
     @State private var selectedHour: Int    // 1–12
     @State private var selectedMinute: Int  // 0, 15, 30, 45
     @State private var selectedPeriod: String // "AM" or "PM"
-    @State private var showDeleteConfirmation = false
+    @State private var deleteConfirmPending = false
     @State private var showExitConfirmation = false
 
     private static let hours = Array(1...12)
@@ -102,16 +102,26 @@ struct ScheduleFormView: View {
                 if isEditing {
                     Divider().padding(.horizontal)
 
-                    Button(role: .destructive) {
-                        showDeleteConfirmation = true
-                    } label: {
-                        HStack {
-                            Image(systemName: "trash")
-                            Text("Delete from Schedule")
+                    Button {
+                        if deleteConfirmPending {
+                            onDelete?()
+                            dismiss()
+                        } else {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                deleteConfirmPending = true
+                            }
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                    } label: {
+                        Text(deleteConfirmPending ? "Tap again to confirm delete" : "Delete from Schedule")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(deleteConfirmPending ? Color.red : Color.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .animation(.easeInOut(duration: 0.2), value: deleteConfirmPending)
                     }
+                    .buttonStyle(.plain)
                     .padding(.horizontal)
                 }
             }
@@ -133,23 +143,6 @@ struct ScheduleFormView: View {
             }
         }
         .overlay {
-            if showDeleteConfirmation {
-                CustomAlertView(
-                    title: "Delete this scheduled class?",
-                    message: "This action cannot be undone.",
-                    primaryLabel: "Cancel",
-                    primaryAction: { showDeleteConfirmation = false },
-                    primaryStyle: .gray,
-                    secondaryLabel: "Delete",
-                    secondaryAction: {
-                        showDeleteConfirmation = false
-                        onDelete?()
-                        dismiss()
-                    },
-                    secondaryStyle: .destructive,
-                    onDismiss: { showDeleteConfirmation = false }
-                )
-            }
             if showExitConfirmation {
                 Color.black.opacity(0.4)
                     .ignoresSafeArea()

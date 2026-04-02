@@ -141,7 +141,27 @@ struct ScheduleView: View {
                             await vm.deleteSchedule(id: item.id)
                             navigationPath.removeLast()
                         }
+                    },
+                    onGoToPlan: { plan in
+                        navigationPath.append(plan)
                     }
+                )
+            }
+            .navigationDestination(for: WorkoutPlan.self) { plan in
+                PlanDetailView(
+                    plan: plan,
+                    selectedTab: $selectedTab,
+                    onUpdate: { draft in Task { await plansVM.updatePlan(id: plan.id, from: draft) } },
+                    onDelete: {
+                        Task {
+                            await plansVM.deletePlan(id: plan.id)
+                            navigationPath.removeLast()
+                        }
+                    },
+                    onDuplicate: { name in
+                        Task { await plansVM.duplicatePlan(plan, newName: name) }
+                    },
+                    availableTypes: WorkoutType.allCases
                 )
             }
         }
