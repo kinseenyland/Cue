@@ -10,92 +10,102 @@ struct PlanReviewStepView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Looking good.")
-                        .font(.system(size: 30, weight: .bold))
-                        .foregroundStyle(.black)
-                    Text("Review your plan before saving.")
-                        .font(.system(size: 15))
-                        .foregroundStyle(.secondary)
-                }
+            PlanReviewContent()
+                .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
 
-                // Name, type, difficulty, duration chips
-                VStack(alignment: .leading, spacing: 12) {
-                    ReviewSectionHeader(title: "OVERVIEW")
+// MARK: - Shared review body (guided flow + Quick Create pre-save)
 
-                    Text(vm.draft.name.isEmpty ? "Unnamed Plan" : vm.draft.name)
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(.black)
+struct PlanReviewContent: View {
+    @EnvironmentObject var vm: PlanCreationViewModel
 
-                    HStack(spacing: 8) {
-                        if let type = vm.draft.type {
-                            ReviewChip(label: type.displayName)
-                        }
-                        if let difficulty = vm.draft.difficulty {
-                            ReviewChip(label: difficulty.rawValue.capitalized)
-                        }
-                        ReviewChip(label: "\(vm.draft.durationMinutes) min")
+    var body: some View {
+        VStack(alignment: .leading, spacing: 28) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Looking good.")
+                    .font(.system(size: 30, weight: .bold))
+                    .foregroundStyle(.black)
+                Text("Review your plan before saving.")
+                    .font(.system(size: 15))
+                    .foregroundStyle(.secondary)
+            }
+
+            // Name, type, difficulty, duration chips
+            VStack(alignment: .leading, spacing: 12) {
+                ReviewSectionHeader(title: "OVERVIEW")
+
+                Text(vm.draft.name.isEmpty ? "Unnamed Plan" : vm.draft.name)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.black)
+
+                HStack(spacing: 8) {
+                    if let type = vm.draft.type {
+                        ReviewChip(label: type.displayName)
                     }
+                    if let difficulty = vm.draft.difficulty {
+                        ReviewChip(label: difficulty.rawValue.capitalized)
+                    }
+                    ReviewChip(label: "\(vm.draft.durationMinutes) min")
                 }
+            }
 
+            Divider()
+
+            // Warm-up
+            if !vm.draft.warmUpMovements.isEmpty {
+                ReviewMovementSection(
+                    title: "WARM-UP",
+                    durationMinutes: vm.draft.warmUpDurationMinutes,
+                    movements: vm.draft.warmUpMovements,
+                    playlistName: vm.playlistName(for: vm.draft.warmUpPlaylistId)
+                )
                 Divider()
+            }
 
-                // Warm-up
-                if !vm.draft.warmUpMovements.isEmpty {
-                    ReviewMovementSection(
-                        title: "WARM-UP",
-                        durationMinutes: vm.draft.warmUpDurationMinutes,
-                        movements: vm.draft.warmUpMovements,
-                        playlistName: vm.playlistName(for: vm.draft.warmUpPlaylistId)
+            // Main sections
+            if !vm.draft.mainSections.isEmpty {
+                VStack(alignment: .leading, spacing: 16) {
+                    ReviewSectionHeader(
+                        title: "MAIN WORKOUT",
+                        durationMinutes: vm.totalMainMinutes
                     )
-                    Divider()
-                }
-
-                // Main sections
-                if !vm.draft.mainSections.isEmpty {
-                    VStack(alignment: .leading, spacing: 16) {
-                        ReviewSectionHeader(
-                            title: "MAIN WORKOUT",
-                            durationMinutes: vm.totalMainMinutes
-                        )
-                        if let name = vm.playlistName(for: vm.draft.mainPlaylistId) {
-                            ReviewPlaylistLabel(name: name)
-                        }
-                        ForEach(vm.draft.mainSections) { section in
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack(spacing: 6) {
-                                    Text(section.name.isEmpty ? "Unnamed Section" : section.name)
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(.secondary)
-                                    Text("· \(section.durationMinutes) min")
-                                        .font(.system(size: 12))
-                                        .foregroundStyle(.tertiary)
-                                }
-                                ForEach(section.movements) { movement in
-                                    ReviewMovementItem(movement: movement)
-                                }
+                    if let name = vm.playlistName(for: vm.draft.mainPlaylistId) {
+                        ReviewPlaylistLabel(name: name)
+                    }
+                    ForEach(vm.draft.mainSections) { section in
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Text(section.name.isEmpty ? "Unnamed Section" : section.name)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                Text("· \(section.durationMinutes) min")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            ForEach(section.movements) { movement in
+                                ReviewMovementItem(movement: movement)
                             }
                         }
                     }
-                    Divider()
                 }
-
-                // Cool-down
-                if !vm.draft.coolDownMovements.isEmpty {
-                    ReviewMovementSection(
-                        title: "COOL-DOWN",
-                        durationMinutes: vm.draft.coolDownDurationMinutes,
-                        movements: vm.draft.coolDownMovements,
-                        playlistName: vm.playlistName(for: vm.draft.coolDownPlaylistId)
-                    )
-                }
+                Divider()
             }
-            .padding(.horizontal, 24)
-            .padding(.top, 4)
-            .padding(.bottom, 40)
+
+            // Cool-down
+            if !vm.draft.coolDownMovements.isEmpty {
+                ReviewMovementSection(
+                    title: "COOL-DOWN",
+                    durationMinutes: vm.draft.coolDownDurationMinutes,
+                    movements: vm.draft.coolDownMovements,
+                    playlistName: vm.playlistName(for: vm.draft.coolDownPlaylistId)
+                )
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.bottom, 40)
     }
 }
 

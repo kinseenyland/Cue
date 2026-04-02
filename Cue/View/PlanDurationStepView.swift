@@ -7,10 +7,15 @@ import SwiftUI
 
 struct PlanDurationStepView: View {
     @EnvironmentObject var vm: PlanCreationViewModel
-    @State private var showCustomInput = false
+    @State private var showCustomPicker = false
     @State private var customText = ""
+    @FocusState private var customFieldFocused: Bool
 
     private let standardDurations = [45, 60, 75]
+
+    private var isCustom: Bool {
+        !standardDurations.contains(vm.draft.durationMinutes)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
@@ -22,28 +27,52 @@ struct PlanDurationStepView: View {
                 ForEach(standardDurations, id: \.self) { duration in
                     DurationCard(
                         duration: duration,
-                        isSelected: vm.draft.durationMinutes == duration && !showCustomInput
+                        isSelected: vm.draft.durationMinutes == duration && !showCustomPicker
                     ) {
                         vm.draft.durationMinutes = duration
-                        showCustomInput = false
+                        showCustomPicker = false
+                        customFieldFocused = false
                     }
                 }
 
+                // Custom card — shows a numeric text field when active
                 Button {
-                    showCustomInput = true
-                    vm.draft.durationMinutes = Int(customText) ?? 0
+                    if !showCustomPicker {
+                        customText = isCustom ? "\(vm.draft.durationMinutes)" : ""
+                        showCustomPicker = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                            customFieldFocused = true
+                        }
+                    }
                 } label: {
                     VStack(spacing: 4) {
-                        Text("Other")
-                            .font(.system(size: 32, weight: .bold))
-                        Text("custom")
+                        if showCustomPicker {
+                            TextField("90", text: $customText)
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundStyle(.white)
+                                .multilineTextAlignment(.center)
+                                .keyboardType(.numberPad)
+                                .focused($customFieldFocused)
+                                .frame(maxWidth: .infinity)
+                                .onChange(of: customText) { _, val in
+                                    let digits = val.filter { $0.isNumber }
+                                    if digits != val { customText = digits }
+                                    if let n = Int(digits), n > 0, n <= 300 {
+                                        vm.draft.durationMinutes = n
+                                    }
+                                }
+                        } else {
+                            Text(isCustom ? "\(vm.draft.durationMinutes)" : "Other")
+                                .font(.system(size: 32, weight: .bold))
+                        }
+                        Text(showCustomPicker || isCustom ? "minutes" : "custom")
                             .font(.system(size: 12))
-                            .foregroundStyle(showCustomInput ? .white.opacity(0.7) : .secondary)
+                            .foregroundStyle(showCustomPicker ? .white.opacity(0.7) : .secondary)
                     }
                     .frame(maxWidth: .infinity)
                     .frame(height: 90)
-                    .foregroundStyle(showCustomInput ? .white : .black)
-                    .background(showCustomInput ? Color.black : Color.clear)
+                    .foregroundStyle(showCustomPicker || isCustom ? .white : .black)
+                    .background(showCustomPicker || isCustom ? Color.black : Color.clear)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
@@ -52,24 +81,14 @@ struct PlanDurationStepView: View {
                 }
                 .buttonStyle(.plain)
             }
-
-            if showCustomInput {
-                TextField("Enter minutes...", text: $customText)
-                    .keyboardType(.numberPad)
-                    .font(.system(size: 16))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 14)
-                    .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
-                    .onChange(of: customText) { _, newValue in
-                        vm.draft.durationMinutes = Int(newValue) ?? 0
-                    }
-            }
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .contentShape(Rectangle())
+        .onTapGesture { customFieldFocused = false }
         .onAppear {
-            if !standardDurations.contains(vm.draft.durationMinutes) && vm.draft.durationMinutes > 0 {
-                showCustomInput = true
+            if isCustom && vm.draft.durationMinutes > 0 {
+                showCustomPicker = true
                 customText = "\(vm.draft.durationMinutes)"
             }
         }

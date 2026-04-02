@@ -11,7 +11,7 @@ struct Movement: Identifiable, Codable, Hashable {
     var id: String
     var name: String
     var notes: String?
-    var goalType: GoalType
+    var goalType: GoalType?
     var seconds: Int?
     var reps: Int?
     var section: WorkoutSection
@@ -22,7 +22,7 @@ struct Movement: Identifiable, Codable, Hashable {
         id: String = UUID().uuidString,
         name: String,
         notes: String? = nil,
-        goalType: GoalType,
+        goalType: GoalType? = nil,
         seconds: Int? = nil,
         reps: Int? = nil,
         section: WorkoutSection = .main,

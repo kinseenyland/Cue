@@ -168,9 +168,12 @@ final class WorkoutSessionViewModel: ObservableObject {
         sessionPlaylistResume = [:]
         resetSectionTimer()
         resetMoveTimer()
-        // Ensure App Remote is connected so UI receives live now-playing updates.
-        _ = SpotifyManager.shared.connectAppRemoteIfNeeded()
-        startPlaylistForCurrentSectionIfAny()
+        // Only connect to Spotify and start playback if the plan has music attached.
+        let hasMusic = [plan.warmUpPlaylistId, plan.mainPlaylistId, plan.coolDownPlaylistId].contains { $0?.isEmpty == false }
+        if hasMusic {
+            _ = SpotifyManager.shared.connectAppRemoteIfNeeded()
+            startPlaylistForCurrentSectionIfAny()
+        }
     }
 
     func toggleRunning() {

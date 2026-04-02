@@ -13,14 +13,16 @@ struct PlansView: View {
     @State private var navigationPath = NavigationPath()
     @State private var isPresentingCreateChoice = false
     @State private var presentedCreationMode: PlanCreationMode? = nil
-    @State private var editingPlan: WorkoutPlan? = nil
     @State private var isShowingAlert = false
     @State private var alertMessage = ""
     @State private var selectedType: WorkoutType? = nil
+    @State private var searchText: String = ""
+    @FocusState private var isSearchFocused: Bool
     @StateObject private var vm = CueViewModel()
     @StateObject private var profileVM = ProfileViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
     @EnvironmentObject private var authVM: AuthViewModel
+    @EnvironmentObject private var mainTabChrome: MainTabChrome
 
     /// Class types to show in filter chips and plan creation. Falls back to all types if profile not loaded.
     private var availableTypes: [WorkoutType] {
@@ -28,8 +30,14 @@ struct PlansView: View {
     }
 
     var filteredPlans: [WorkoutPlan] {
-        guard let type = selectedType else { return vm.plans }
-        return vm.plans.filter { $0.type == type }
+        var result = vm.plans
+        if let type = selectedType {
+            result = result.filter { $0.type == type }
+        }
+        if !searchText.isEmpty {
+            result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        }
+        return result
     }
 
     var body: some View {
@@ -56,6 +64,32 @@ struct PlansView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 8)
 
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                    TextField("Search plans", text: $searchText)
+                        .font(.system(size: 15))
+                        .autocorrectionDisabled()
+                        .focused($isSearchFocused)
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 4)
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         PlanFilterChip(label: "All", isSelected: selectedType == nil) {
@@ -77,15 +111,27 @@ struct PlansView: View {
                 if filteredPlans.isEmpty {
                     Spacer()
                     VStack(spacing: 12) {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.secondary)
-                        Text("No plans yet")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.black)
-                        Text("Tap + to create your first plan")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary)
+                        if vm.plans.isEmpty {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text("No plans yet")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.black)
+                            Text("Tap + to create your first plan")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text("No matching plans")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.black)
+                            Text("Try a different search or filter")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     Spacer()
@@ -100,42 +146,20 @@ struct PlansView: View {
                         .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
                             .listRowSeparator(.hidden)
                             .listRowBackground(Color.clear)
-                            .swipeActions(edge: .trailing) {
-                                Button(role: .destructive) {
-                                    Task { await vm.deletePlan(id: plan.id) }
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
-                            }
-                            .swipeActions(edge: .leading) {
-                                Button {
-                                    editingPlan = plan
-                                } label: {
-                                    Label("Edit", systemImage: "pencil")
-                                }
-                                .tint(.black)
-                            }
-                            .contextMenu {
-                                Button("Start Workout") {
-                                    sessionVM.load(plan: plan)
-                                    selectedTab = .workout
-                                }
-                                Button("Edit") {
-                                    editingPlan = plan
-                                }
-                                Button(role: .destructive) {
-                                    Task { await vm.deletePlan(id: plan.id) }
-                                } label: {
-                                    Text("Delete")
-                                }
-                            }
                     }
                 }
                 .listStyle(.plain)
                 .scrollContentBackground(.hidden)
+                .contentMargins(.bottom, 70, for: .scrollContent)
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
+                mainTabChrome.hideBottomBar = true
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+                mainTabChrome.hideBottomBar = false
+            }
             .navigationDestination(for: WorkoutPlan.self) { plan in
                 PlanDetailView(
                     plan: plan,
@@ -183,15 +207,6 @@ struct PlansView: View {
                 )
             }
         }
-        .sheet(item: $editingPlan) { plan in
-            PlanFormView(
-                availableTypes: availableTypes,
-                mode: .edit(
-                    plan: plan,
-                    onSave: { updated in Task { await vm.updatePlan(id: plan.id, from: updated) } }
-                )
-            )
-        }
         .overlay {
             if isShowingAlert {
                 CustomAlertView(
@@ -224,7 +239,7 @@ struct PlanFilterChip: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(red: 0.792, green: 0.769, blue: 0.816), lineWidth: 1)
+                        .strokeBorder(Color(red: 0.792, green: 0.769, blue: 0.816), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)

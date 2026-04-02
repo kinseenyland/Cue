@@ -26,6 +26,8 @@ struct PlanDetailView: View {
     @State private var duplicateName = ""
     @State private var playlists: [SpotifySearchService.SpotifyPlaylist] = []
     @State private var isLoadingPlaylists = false
+    @State private var exportedPDFURL: URL? = nil
+    @State private var isShowingShareSheet = false
 
     private var planHasPlaylist: Bool {
         currentPlan.warmUpPlaylistId != nil ||
@@ -138,6 +140,14 @@ struct PlanDetailView: View {
                         isShowingDuplicatePrompt = true
                     } label: {
                         Label("Duplicate Plan", systemImage: "doc.on.doc")
+                    }
+                    Button {
+                        if let url = PlanPDFRenderer.render(plan: currentPlan) {
+                            exportedPDFURL = url
+                            isShowingShareSheet = true
+                        }
+                    } label: {
+                        Label("Export as PDF", systemImage: "square.and.arrow.up")
                     }
                     Button(role: .destructive) {
                         isShowingDeleteConfirmation = true
@@ -279,6 +289,12 @@ struct PlanDetailView: View {
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: isShowingSpotifyHandoff)
+        .sheet(isPresented: $isShowingShareSheet) {
+            if let url = exportedPDFURL {
+                ActivityView(activityItems: [url])
+                    .presentationDetents([.medium, .large])
+            }
+        }
         .overlay {
             if isShowingDeleteConfirmation {
                 CustomAlertView(
@@ -445,9 +461,16 @@ struct PlanDetailView: View {
     // MARK: - Spotify Playlists (display-only)
 
     private func loadPlaylistsIfNeeded() async {
-        guard spotifyManager.isAuthenticated,
-              (currentPlan.warmUpPlaylistId != nil || currentPlan.mainPlaylistId != nil || currentPlan.coolDownPlaylistId != nil),
+        guard currentPlan.warmUpPlaylistId != nil || currentPlan.mainPlaylistId != nil || currentPlan.coolDownPlaylistId != nil,
               !isLoadingPlaylists else { return }
+
+        // Spotify tokens may not be loaded yet when .task fires — wait briefly.
+        for _ in 0..<10 {
+            if spotifyManager.isAuthenticated { break }
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+        guard spotifyManager.isAuthenticated else { return }
+
         isLoadingPlaylists = true
         defer { isLoadingPlaylists = false }
         playlists = (try? await SpotifySearchService.shared.getMyPlaylists(limit: 50)) ?? []
@@ -463,6 +486,7 @@ private struct MovementReadRow: View {
         switch movement.goalType {
         case .timed: return movement.seconds.map { "\($0) sec" } ?? "—"
         case .reps:  return movement.reps.map { "\($0) reps" } ?? "—"
+        case .none:  return "—"
         }
     }
 
@@ -498,7 +522,7 @@ private struct MovementReadRow: View {
 
 // MARK: - Plan Detail Card
 
-private struct PlanDetailCard: View {
+struct PlanDetailCard: View {
     let icon: String
     let label: String
     let value: String
@@ -533,6 +557,18 @@ private struct PlanDetailCard: View {
                 .stroke(Color.black, lineWidth: 1)
         )
     }
+}
+
+// MARK: - Share Sheet
+
+private struct ActivityView: UIViewControllerRepresentable {
+    let activityItems: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        UIActivityViewController(activityItems: activityItems, applicationActivities: nil)
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
 
 #Preview {

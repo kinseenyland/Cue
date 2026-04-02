@@ -267,7 +267,7 @@ class CueViewModel: ObservableObject {
         var data: [String: Any] = [
             "id": movement.id,
             "name": movement.name,
-            "goalType": movement.goalType.rawValue,
+            "goalType": movement.goalType?.rawValue ?? GoalType.reps.rawValue,
             "section": movement.section.rawValue
         ]
         if let seconds = movement.seconds {
@@ -289,24 +289,6 @@ class CueViewModel: ObservableObject {
     }
 
     private func movementFromDict(_ data: [String: Any]) -> Movement? {
-        guard
-            let name = data["name"] as? String,
-            let goalTypeRaw = data["goalType"] as? String,
-            let goalType = GoalType(rawValue: goalTypeRaw)
-        else { return nil }
-
-        let section = WorkoutSection(rawValue: data["section"] as? String ?? "") ?? .main
-
-        return Movement(
-            id: data["id"] as? String ?? UUID().uuidString,
-            name: name,
-            notes: data["notes"] as? String,
-            goalType: goalType,
-            seconds: data["seconds"] as? Int,
-            reps: data["reps"] as? Int,
-            section: section,
-            sectionName: data["sectionName"] as? String,
-            sectionDurationMinutes: data["sectionDurationMinutes"] as? Int
-        )
+        Movement(firestoreDictionary: data)
     }
 }

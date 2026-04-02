@@ -4,6 +4,7 @@
 //
 
 import FirebaseAuth
+import PhotosUI
 import SwiftUI
 
 struct ProfileView: View {
@@ -12,6 +13,14 @@ struct ProfileView: View {
     @State private var isShowingSpotifyPage = false
     @StateObject private var profileVM = ProfileViewModel()
     @State private var showEditSheet = false
+    @State private var showSavedSections = false
+
+    @State private var showPhotoOptions = false
+    @State private var showCamera = false
+    @State private var showPhotoPicker = false
+    @State private var selectedPhotoItem: PhotosPickerItem? = nil
+    @State private var cameraImage: UIImage? = nil
+    @State private var pendingImage: UIImage? = nil
 
     private var displayName: String {
         profileVM.displayName.isEmpty ? (authVM.user?.displayName ?? "") : profileVM.displayName
@@ -43,14 +52,11 @@ struct ProfileView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
 
                     HStack(spacing: 14) {
-                        ZStack {
-                            Circle()
-                                .fill(Color.black)
-                                .frame(width: 48, height: 48)
-                            Text(initials.isEmpty ? "?" : initials)
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.white)
+                        Button { showPhotoOptions = true } label: {
+                            profileAvatarView
                         }
+                        .buttonStyle(.plain)
+
                         VStack(alignment: .leading, spacing: 2) {
                             Text(displayName.isEmpty ? "Your Name" : displayName)
                                 .font(.system(size: 18, weight: .semibold))
@@ -89,6 +95,9 @@ struct ProfileView: View {
                         preferencesSection
                     }
 
+                    // MARK: Saved Sections
+                    savedSectionsRow
+
                     // MARK: Music
                     musicSection
 
@@ -101,6 +110,9 @@ struct ProfileView: View {
             .navigationDestination(isPresented: $isShowingSpotifyPage) {
                 SpotifySearchView(onTrackSelected: { _ in })
                     .environmentObject(spotifyManager)
+            }
+            .navigationDestination(isPresented: $showSavedSections) {
+                SavedSectionsListView()
             }
         }
         .onAppear {
@@ -115,6 +127,213 @@ struct ProfileView: View {
                 currentName: displayName
             )
         }
+        .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItem, matching: .images)
+        .fullScreenCover(isPresented: $showCamera) {
+            CameraImagePicker(image: $cameraImage)
+                .ignoresSafeArea()
+        }
+        .onChange(of: selectedPhotoItem) { newItem in
+            guard let newItem else { return }
+            Task {
+                if let data = try? await newItem.loadTransferable(type: Data.self),
+                   let img = UIImage(data: data) {
+                    pendingImage = img
+                }
+                selectedPhotoItem = nil
+            }
+        }
+        .onChange(of: cameraImage) { newImage in
+            if let img = newImage {
+                pendingImage = img
+                cameraImage = nil
+            }
+        }
+        .overlay {
+            if showPhotoOptions {
+                photoOptionsPopup
+            }
+            if pendingImage != nil {
+                photoConfirmationOverlay
+            }
+        }
+    }
+
+    // MARK: - Profile Avatar
+
+    private var profileAvatarView: some View {
+        ZStack(alignment: .bottomTrailing) {
+            if let img = profileVM.profileImage {
+                Image(uiImage: img)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 48, height: 48)
+                    .clipShape(Circle())
+            } else {
+                Circle()
+                    .fill(Color.black)
+                    .frame(width: 48, height: 48)
+                    .overlay(
+                        Text(initials.isEmpty ? "?" : initials)
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.white)
+                    )
+            }
+            Image(systemName: "camera.fill")
+                .font(.system(size: 10))
+                .foregroundColor(.white)
+                .padding(4)
+                .background(Color.black)
+                .clipShape(Circle())
+                .offset(x: 2, y: 2)
+        }
+    }
+
+    // MARK: - Photo Options Popup
+
+    private var photoOptionsPopup: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture { showPhotoOptions = false }
+
+            VStack(spacing: 16) {
+                HStack {
+                    Spacer()
+                    Button { showPhotoOptions = false } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, height: 30)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text("Change Profile Photo")
+                    .font(.system(size: 18, weight: .bold))
+
+                VStack(spacing: 10) {
+                    Button {
+                        showPhotoOptions = false
+                        showCamera = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "camera")
+                                .font(.system(size: 15, weight: .medium))
+                            Text("Take Photo")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(Color.black)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        showPhotoOptions = false
+                        showPhotoPicker = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "photo.on.rectangle")
+                                .font(.system(size: 15, weight: .medium))
+                            Text("Choose from Library")
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundStyle(.black)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(Color(.systemGray6))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(20)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+            .padding(.horizontal, 40)
+        }
+        .animation(.easeInOut(duration: 0.2), value: showPhotoOptions)
+    }
+
+    // MARK: - Photo Confirmation Overlay
+
+    private var photoConfirmationOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture { pendingImage = nil }
+
+            VStack(spacing: 20) {
+                HStack {
+                    Spacer()
+                    Button { pendingImage = nil } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 30, height: 30)
+                            .background(Color(.systemGray5))
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text("Use this photo?")
+                    .font(.system(size: 18, weight: .bold))
+
+                if let img = pendingImage {
+                    Image(uiImage: img)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 120, height: 120)
+                        .clipShape(Circle())
+                        .overlay(
+                            Circle().stroke(Color.black, lineWidth: 2)
+                        )
+                }
+
+                VStack(spacing: 10) {
+                    Button {
+                        if let img = pendingImage, let uid = authVM.user?.uid {
+                            profileVM.saveProfileImage(img, uid: uid)
+                        }
+                        pendingImage = nil
+                    } label: {
+                        Text("Save Photo")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Color.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        pendingImage = nil
+                    } label: {
+                        Text("Cancel")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 13)
+                            .background(Color(.systemGray6))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(20)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+            .padding(.horizontal, 40)
+        }
+        .animation(.easeInOut(duration: 0.2), value: pendingImage != nil)
     }
 
     // MARK: - Preferences Section
@@ -170,6 +389,48 @@ struct ProfileView: View {
             }
             .padding(12)
             .frame(maxWidth: .infinity, alignment: .leading)
+            .cornerRadius(10)
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .inset(by: 0.50)
+                    .stroke(.black, lineWidth: 0.50)
+            )
+        }
+    }
+
+    // MARK: - Saved Sections Row
+
+    private var savedSectionsRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Workout Sections")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            HStack(spacing: 12) {
+                Image(systemName: "bookmark.fill")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundStyle(.black)
+                Text("Saved Sections")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.black)
+                Spacer()
+                Button {
+                    showSavedSections = true
+                } label: {
+                    Text("View All")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(10)
+                        .frame(height: 38)
+                        .background(.black)
+                        .cornerRadius(10)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 72)
             .cornerRadius(10)
             .overlay(
                 RoundedRectangle(cornerRadius: 10)

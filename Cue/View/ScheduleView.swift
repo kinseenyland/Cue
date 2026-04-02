@@ -12,9 +12,8 @@ struct ScheduleView: View {
     @StateObject private var vm = ScheduleViewModel()
     @StateObject private var plansVM = CueViewModel()
     @State private var isPresentingCreateForm = false
-    @State private var editingItem: ScheduleItem? = nil
     @State private var navigationPath = NavigationPath()
-    @State private var selectedDate: Date? = nil
+    @State private var selectedDate: Date? = Date()
     @State private var displayedMonth: Date = Date()
 
     private let calendar = Calendar.current
@@ -88,13 +87,29 @@ struct ScheduleView: View {
 
                     if let items = itemsForSelectedDate {
                         if items.isEmpty {
-                            VStack(spacing: 12) {
+                            VStack(spacing: 16) {
                                 Image(systemName: "calendar")
                                     .font(.system(size: 36))
                                     .foregroundStyle(.secondary)
                                 Text("No classes on this day")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
+                                Button {
+                                    isPresentingCreateForm = true
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 13, weight: .semibold))
+                                        Text("Schedule a Class")
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.black)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                .buttonStyle(.plain)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.top, 48)
@@ -104,22 +119,7 @@ struct ScheduleView: View {
                                     ScheduleCard(item: item)
                                         .contentShape(Rectangle())
                                         .onTapGesture {
-                                            if let planId = item.planId,
-                                               let plan = plansVM.plans.first(where: { $0.id == planId }) {
-                                                navigationPath.append(plan)
-                                            }
-                                        }
-                                        .contextMenu {
-                                            Button {
-                                                editingItem = item
-                                            } label: {
-                                                Label("Edit Schedule", systemImage: "pencil")
-                                            }
-                                            Button(role: .destructive) {
-                                                Task { await vm.deleteSchedule(id: item.id) }
-                                            } label: {
-                                                Label("Delete", systemImage: "trash")
-                                            }
+                                            navigationPath.append(item)
                                         }
                                 }
                             }
@@ -129,19 +129,39 @@ struct ScheduleView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: ScheduleItem.self) { item in
+                ScheduleDetailView(
+                    item: item,
+                    plans: plansVM.plans,
+                    onUpdate: { draft in
+                        Task { await vm.updateSchedule(id: item.id, from: draft) }
+                    },
+                    onDelete: {
+                        Task {
+                            await vm.deleteSchedule(id: item.id)
+                            navigationPath.removeLast()
+                        }
+                    },
+                    onGoToPlan: { plan in
+                        navigationPath.append(plan)
+                    }
+                )
+            }
             .navigationDestination(for: WorkoutPlan.self) { plan in
                 PlanDetailView(
                     plan: plan,
                     selectedTab: $selectedTab,
-                    onUpdate: { draft in
-                        Task { await plansVM.updatePlan(id: plan.id, from: draft) }
-                    },
+                    onUpdate: { draft in Task { await plansVM.updatePlan(id: plan.id, from: draft) } },
                     onDelete: {
-                        Task { await plansVM.deletePlan(id: plan.id) }
+                        Task {
+                            await plansVM.deletePlan(id: plan.id)
+                            navigationPath.removeLast()
+                        }
                     },
                     onDuplicate: { name in
                         Task { await plansVM.duplicatePlan(plan, newName: name) }
-                    }
+                    },
+                    availableTypes: WorkoutType.allCases
                 )
             }
         }
@@ -151,23 +171,12 @@ struct ScheduleView: View {
         }
         .sheet(isPresented: $isPresentingCreateForm) {
             NavigationStack {
-                ScheduleFormView(plans: plansVM.plans) { draft in
-                    Task { await vm.createSchedule(from: draft) }
-                }
-            }
-        }
-        .sheet(item: $editingItem) { item in
-            NavigationStack {
                 ScheduleFormView(
                     plans: plansVM.plans,
-                    draft: draft(from: item),
-                    onSave: { updated in
-                        Task { await vm.updateSchedule(id: item.id, from: updated) }
-                    },
-                    onDelete: {
-                        Task { await vm.deleteSchedule(id: item.id) }
-                    }
-                )
+                    initialDate: selectedDate
+                ) { draft in
+                    Task { await vm.createSchedule(from: draft) }
+                }
             }
         }
     }
@@ -265,17 +274,6 @@ struct ScheduleView: View {
         .padding(.top, 4)
     }
 
-    private func draft(from item: ScheduleItem) -> ScheduleDraft {
-        ScheduleDraft(
-            title: item.title,
-            location: item.location,
-            workoutType: item.workoutType,
-            difficulty: item.difficulty,
-            startsAt: Date(timeIntervalSince1970: item.startsAt),
-            durationMinutes: item.durationMinutes,
-            planId: item.planId
-        )
-    }
 }
 
 // MARK: - Schedule Card
