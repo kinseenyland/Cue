@@ -12,8 +12,21 @@
 		A94F60842F2C51D6005167C1 /* AccountCreationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94F60832F2C51D6005167C1 /* AccountCreationViewModelTests.swift */; };
 		A94F60852F2C51D6005167C1 /* PlanCreationViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94F60822F2C51D6005167C1 /* PlanCreationViewModelTests.swift */; };
 		A94F60862F2C51D6005167C1 /* WorkoutTypeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94F60812F2C51D6005167C1 /* WorkoutTypeTests.swift */; };
+		A94F609B2F2C51D6005167C1 /* MovementFirestoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94F609A2F2C51D6005167C1 /* MovementFirestoreTests.swift */; };
+		A94F609C2F2C51D6005167C1 /* ScheduleViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94F60992F2C51D6005167C1 /* ScheduleViewModelTests.swift */; };
+		A94F609D2F2C51D6005167C1 /* WorkoutSessionViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A94F60982F2C51D6005167C1 /* WorkoutSessionViewModelTests.swift */; };
 		FC44B60E2F4532FB00ACBA1E /* SpotifyiOS in Frameworks */ = {isa = PBXBuildFile; productRef = FC44B60D2F4532FB00ACBA1E /* SpotifyiOS */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 944F60512F2C51D5005167C3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 944F60582F2C51D5005167C3;
+			remoteInfo = Cue;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		944F60592F2C51D5005167C3 /* Cue.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Cue.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -21,6 +34,9 @@
 		A94F60812F2C51D6005167C1 /* WorkoutTypeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutTypeTests.swift; sourceTree = "<group>"; };
 		A94F60822F2C51D6005167C1 /* PlanCreationViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanCreationViewModelTests.swift; sourceTree = "<group>"; };
 		A94F60832F2C51D6005167C1 /* AccountCreationViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccountCreationViewModelTests.swift; sourceTree = "<group>"; };
+		A94F60982F2C51D6005167C1 /* WorkoutSessionViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkoutSessionViewModelTests.swift; sourceTree = "<group>"; };
+		A94F60992F2C51D6005167C1 /* ScheduleViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScheduleViewModelTests.swift; sourceTree = "<group>"; };
+		A94F609A2F2C51D6005167C1 /* MovementFirestoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovementFirestoreTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -86,9 +102,12 @@
 		A94F60872F2C51D6005167C1 /* CueTests */ = {
 			isa = PBXGroup;
 			children = (
-				A94F60812F2C51D6005167C1 /* WorkoutTypeTests.swift */,
-				A94F60822F2C51D6005167C1 /* PlanCreationViewModelTests.swift */,
+				A94F609A2F2C51D6005167C1 /* MovementFirestoreTests.swift */,
 				A94F60832F2C51D6005167C1 /* AccountCreationViewModelTests.swift */,
+				A94F60822F2C51D6005167C1 /* PlanCreationViewModelTests.swift */,
+				A94F60992F2C51D6005167C1 /* ScheduleViewModelTests.swift */,
+				A94F60812F2C51D6005167C1 /* WorkoutTypeTests.swift */,
+				A94F60982F2C51D6005167C1 /* WorkoutSessionViewModelTests.swift */,
 			);
 			path = CueTests;
 			sourceTree = "<group>";
@@ -142,24 +161,6 @@
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
-
-/* Begin PBXContainerItemProxy section */
-		A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = 944F60512F2C51D5005167C3 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 944F60582F2C51D5005167C3 /* Cue */;
-			remoteInfo = Cue;
-		};
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXTargetDependency section */
-		A94F608C2F2C51D6005167C1 /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 944F60582F2C51D5005167C3 /* Cue */;
-			targetProxy = A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */;
-		};
-/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		944F60512F2C51D5005167C3 /* Project object */ = {
@@ -232,12 +233,23 @@
 			buildActionMask = 2147483647;
 			files = (
 				A94F60842F2C51D6005167C1 /* AccountCreationViewModelTests.swift in Sources */,
+				A94F609B2F2C51D6005167C1 /* MovementFirestoreTests.swift in Sources */,
 				A94F60852F2C51D6005167C1 /* PlanCreationViewModelTests.swift in Sources */,
+				A94F609C2F2C51D6005167C1 /* ScheduleViewModelTests.swift in Sources */,
 				A94F60862F2C51D6005167C1 /* WorkoutTypeTests.swift in Sources */,
+				A94F609D2F2C51D6005167C1 /* WorkoutSessionViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A94F608C2F2C51D6005167C1 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 944F60582F2C51D5005167C3 /* Cue */;
+			targetProxy = A94F608D2F2C51D6005167C1 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		944F60642F2C51D6005167C3 /* Debug */ = {
