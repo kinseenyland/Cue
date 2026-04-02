@@ -88,13 +88,29 @@ struct ScheduleView: View {
 
                     if let items = itemsForSelectedDate {
                         if items.isEmpty {
-                            VStack(spacing: 12) {
+                            VStack(spacing: 16) {
                                 Image(systemName: "calendar")
                                     .font(.system(size: 36))
                                     .foregroundStyle(.secondary)
                                 Text("No classes on this day")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
+                                Button {
+                                    isPresentingCreateForm = true
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "plus")
+                                            .font(.system(size: 13, weight: .semibold))
+                                        Text("Schedule a Class")
+                                            .font(.system(size: 14, weight: .semibold))
+                                    }
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 20)
+                                    .padding(.vertical, 10)
+                                    .background(Color.black)
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                .buttonStyle(.plain)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.top, 48)
@@ -151,7 +167,10 @@ struct ScheduleView: View {
         }
         .sheet(isPresented: $isPresentingCreateForm) {
             NavigationStack {
-                ScheduleFormView(plans: plansVM.plans) { draft in
+                ScheduleFormView(
+                    plans: plansVM.plans,
+                    initialDate: selectedDate
+                ) { draft in
                     Task { await vm.createSchedule(from: draft) }
                 }
             }
