@@ -14,6 +14,14 @@ struct HomeView: View {
     @StateObject private var profileVM = ProfileViewModel()
     @State private var navigationPath = NavigationPath()
 
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 4)
+    }
+
     private var availableTypes: [WorkoutType] {
         profileVM.preferredClassTypes.isEmpty ? WorkoutType.allCases : profileVM.preferredClassTypes
     }
@@ -35,8 +43,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack(path: $navigationPath) {
             ScrollView {
-                VStack(spacing: 8) {
-                    // Page header
+                VStack(spacing: 0) {
                     HStack {
                         Text("Home")
                             .font(.system(size: 24, weight: .semibold))
@@ -44,90 +51,86 @@ struct HomeView: View {
                         Spacer()
                     }
                     .padding(.top, 8)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 4)
 
-                    // Welcome message
                     Text("Welcome \(displayName)!")
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 8)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 12)
 
-                    // Upcoming Classes section
-                    Text("Upcoming Classes")
-                        .font(.system(size: 13, weight: .light))
-                        .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 24)
+                    // Upcoming Classes
+                    sectionHeader("Upcoming Classes")
                         .padding(.top, 8)
 
-                    if upcomingItems.isEmpty {
-                        Button {
-                            selectedTab = .schedule
-                        } label: {
-                            HStack(spacing: 12) {
-                                Image(systemName: "calendar.badge.plus")
-                                    .font(.system(size: 20))
-                                    .foregroundStyle(.black)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("You're free!")
-                                        .font(.system(size: 15, weight: .semibold))
-                                        .foregroundStyle(.black)
-                                    Text("Add a class to your schedule.")
-                                        .font(.system(size: 12, weight: .thin))
-                                        .foregroundStyle(.black)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 14, weight: .semibold))
-                                    .foregroundStyle(.black)
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 9)
-                            .frame(height: 76)
-                            .frame(maxWidth: .infinity)
-                            .background(Color.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.black, lineWidth: 1)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        ForEach(upcomingItems) { item in
+                    VStack(spacing: 8) {
+                        if upcomingItems.isEmpty {
                             Button {
-                                if let planId = item.planId,
-                                   let plan = plansVM.plans.first(where: { $0.id == planId }) {
-                                    navigationPath.append(plan)
-                                }
+                                selectedTab = .schedule
                             } label: {
-                                HomeScheduleCard(item: item)
+                                HStack(spacing: 12) {
+                                    Image(systemName: "calendar.badge.plus")
+                                        .font(.system(size: 20))
+                                        .foregroundStyle(.black)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("You're free!")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundStyle(.black)
+                                        Text("Add a class to your schedule.")
+                                            .font(.system(size: 12, weight: .thin))
+                                            .foregroundStyle(.black)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(.black)
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                                .frame(height: 76)
+                                .frame(maxWidth: .infinity)
+                                .background(Color.white)
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.black, lineWidth: 1)
+                                )
                             }
                             .buttonStyle(.plain)
-                            .disabled(item.planId == nil)
+                        } else {
+                            ForEach(upcomingItems) { item in
+                                Button {
+                                    if let planId = item.planId,
+                                       let plan = plansVM.plans.first(where: { $0.id == planId }) {
+                                        navigationPath.append(plan)
+                                    }
+                                } label: {
+                                    HomeScheduleCard(item: item)
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(item.planId == nil)
+                            }
                         }
                     }
+                    .padding(.top, 8)
 
-                    // Favorite Plans section
-                    Text("Favorite Plans")
-                        .font(.system(size: 13, weight: .light))
-                        .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 16)
+                    // Favorite Plans
+                    sectionHeader("Favorite Plans")
+                        .padding(.top, 28)
 
-                    ForEach(favoritePlans) { plan in
-                        Button {
-                            navigationPath.append(plan)
-                        } label: {
-                            HomePlanCard(plan: plan)
+                    VStack(spacing: 8) {
+                        ForEach(favoritePlans) { plan in
+                            Button {
+                                navigationPath.append(plan)
+                            } label: {
+                                HomePlanCard(plan: plan)
+                            }
+                            .buttonStyle(.plain)
                         }
-                        .buttonStyle(.plain)
                     }
+                    .padding(.top, 8)
 
-                    // Bottom spacer for nav bar
                     Color.clear
                         .frame(height: 45)
                 }
@@ -167,63 +170,66 @@ struct HomeView: View {
 private struct HomeScheduleCard: View {
     let item: ScheduleItem
 
-    private static let monthFormatter: DateFormatter = {
+    private static let dayNameFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "MMM"
+        f.dateFormat = "EEE"
         return f
     }()
 
-    private static let dayFormatter: DateFormatter = {
+    private static let dateLabelFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "dd"
+        f.dateFormat = "MMM d"
         return f
     }()
 
     private static let timeFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "ha"
-        f.amSymbol = "am"
-        f.pmSymbol = "pm"
+        f.dateFormat = "h:mm a"
+        f.amSymbol = "AM"
+        f.pmSymbol = "PM"
         return f
     }()
 
     var body: some View {
         HStack(spacing: 14) {
-            // Date
-            VStack(spacing: 5) {
-                Text(Self.monthFormatter.string(from: item.startDate).uppercased())
-                    .font(.system(size: 17, weight: .semibold))
+            VStack(spacing: 2) {
+                Text(Self.dayNameFormatter.string(from: item.startDate).uppercased())
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(.black)
-                Text(Self.dayFormatter.string(from: item.startDate))
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(.black)
+                Text(Self.dateLabelFormatter.string(from: item.startDate))
+                    .font(.system(size: 11, weight: .regular))
+                    .foregroundStyle(.secondary)
             }
-            .frame(width: 41)
+            .frame(width: 48)
             .multilineTextAlignment(.center)
 
-            // Vertical line
             Rectangle()
                 .fill(Color.black)
-                .frame(width: 1)
-                .frame(height: 40)
+                .frame(width: 1, height: 40)
 
-            // Class info
-            VStack(alignment: .leading, spacing: 2) {
+            VStack(alignment: .leading, spacing: 3) {
                 Text(item.title)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(.black)
-                if !item.location.isEmpty {
-                    Text(item.location)
-                        .font(.system(size: 10, weight: .thin))
-                        .foregroundStyle(.black)
+
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 11))
+                    Text(Self.timeFormatter.string(from: item.startDate))
+                        .font(.system(size: 12, weight: .regular))
+                    if !item.location.isEmpty {
+                        Text("·")
+                        Image(systemName: "mappin")
+                            .font(.system(size: 11))
+                        Text(item.location)
+                            .font(.system(size: 12, weight: .regular))
+                            .lineLimit(1)
+                    }
                 }
-                Text(Self.timeFormatter.string(from: item.startDate))
-                    .font(.system(size: 10, weight: .thin))
-                    .foregroundStyle(.black)
+                .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Chevron
             Image(systemName: "chevron.right")
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(.black)

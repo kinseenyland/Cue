@@ -16,6 +16,7 @@ struct PlansView: View {
     @State private var isShowingAlert = false
     @State private var alertMessage = ""
     @State private var selectedType: WorkoutType? = nil
+    @State private var searchText: String = ""
     @StateObject private var vm = CueViewModel()
     @StateObject private var profileVM = ProfileViewModel()
     @EnvironmentObject private var sessionVM: WorkoutSessionViewModel
@@ -27,8 +28,14 @@ struct PlansView: View {
     }
 
     var filteredPlans: [WorkoutPlan] {
-        guard let type = selectedType else { return vm.plans }
-        return vm.plans.filter { $0.type == type }
+        var result = vm.plans
+        if let type = selectedType {
+            result = result.filter { $0.type == type }
+        }
+        if !searchText.isEmpty {
+            result = result.filter { $0.title.localizedCaseInsensitiveContains(searchText) }
+        }
+        return result
     }
 
     var body: some View {
@@ -55,6 +62,31 @@ struct PlansView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 8)
 
+                HStack(spacing: 8) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.secondary)
+                    TextField("Search plans", text: $searchText)
+                        .font(.system(size: 15))
+                        .autocorrectionDisabled()
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(Color(.systemGray6))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .padding(.horizontal, 16)
+                .padding(.bottom, 4)
+
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         PlanFilterChip(label: "All", isSelected: selectedType == nil) {
@@ -76,15 +108,27 @@ struct PlansView: View {
                 if filteredPlans.isEmpty {
                     Spacer()
                     VStack(spacing: 12) {
-                        Image(systemName: "doc.text")
-                            .font(.system(size: 40))
-                            .foregroundStyle(.secondary)
-                        Text("No plans yet")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(.black)
-                        Text("Tap + to create your first plan")
-                            .font(.system(size: 14))
-                            .foregroundStyle(.secondary)
+                        if vm.plans.isEmpty {
+                            Image(systemName: "doc.text")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text("No plans yet")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.black)
+                            Text("Tap + to create your first plan")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 40))
+                                .foregroundStyle(.secondary)
+                            Text("No matching plans")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundStyle(.black)
+                            Text("Try a different search or filter")
+                                .font(.system(size: 14))
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     Spacer()

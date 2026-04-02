@@ -18,6 +18,7 @@ struct ScheduleFormView: View {
 
     @State private var searchText = ""
     @State private var selectedPlan: WorkoutPlan?
+    @State private var isPlanPickerExpanded: Bool
     @State private var location: String
     @State private var selectedDate: Date
     @State private var selectedHour: Int    // 1–12
@@ -58,7 +59,7 @@ struct ScheduleFormView: View {
         }
     }
 
-    init(plans: [WorkoutPlan], draft: ScheduleDraft? = nil, onSave: @escaping (ScheduleDraft) -> Void, onDelete: (() -> Void)? = nil) {
+    init(plans: [WorkoutPlan], draft: ScheduleDraft? = nil, initialDate: Date? = nil, onSave: @escaping (ScheduleDraft) -> Void, onDelete: (() -> Void)? = nil) {
         self.plans = plans
         self.onSave = onSave
         self.onDelete = onDelete
@@ -66,6 +67,7 @@ struct ScheduleFormView: View {
         if let draft {
             let comps = Self.componentsFromDate(draft.startsAt)
             _selectedPlan = State(initialValue: plans.first { $0.id == draft.planId })
+            _isPlanPickerExpanded = State(initialValue: false)
             _location = State(initialValue: draft.location)
             _selectedDate = State(initialValue: draft.startsAt)
             _selectedHour = State(initialValue: comps.hour)
@@ -73,8 +75,9 @@ struct ScheduleFormView: View {
             _selectedPeriod = State(initialValue: comps.period)
         } else {
             _selectedPlan = State(initialValue: nil)
+            _isPlanPickerExpanded = State(initialValue: false)
             _location = State(initialValue: "")
-            _selectedDate = State(initialValue: Date())
+            _selectedDate = State(initialValue: initialDate ?? Date())
             _selectedHour = State(initialValue: 6)
             _selectedMinute = State(initialValue: 0)
             _selectedPeriod = State(initialValue: "AM")
@@ -201,91 +204,128 @@ struct ScheduleFormView: View {
 
     private var planSelectionSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(.secondary)
-                TextField("Search plans...", text: $searchText)
-                    .font(.subheadline)
-                if !searchText.isEmpty {
-                    Button {
-                        searchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(Color.black, lineWidth: 1)
-            )
-            .padding(.horizontal)
-
-            if filteredPlans.isEmpty {
-                Text(plans.isEmpty ? "No plans yet — create one first." : "No matching plans.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal)
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(filteredPlans) { plan in
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                if selectedPlan?.id == plan.id {
-                                    selectedPlan = nil
-                                } else {
-                                    selectedPlan = plan
-                                }
-                                searchText = ""
-                            }
-                        } label: {
-                            PlanRow(plan: plan, isSelected: selectedPlan?.id == plan.id)
-                        }
-                        .buttonStyle(.plain)
-
-                        if plan.id != filteredPlans.last?.id {
-                            Divider().padding(.leading, 52)
-                        }
-                    }
-                }
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color(.systemGray4), lineWidth: 1)
-                )
+            Text("Plan")
+                .font(.headline)
                 .padding(.horizontal)
-            }
-        }
-    }
 
-    // MARK: - Selected Plan Card
+            if !isPlanPickerExpanded {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isPlanPickerExpanded = true
+                    }
+                } label: {
+                    if let plan = selectedPlan {
+                        HStack(spacing: 12) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.white, .black)
+                                .font(.title3)
 
-    private func selectedPlanCard(_ plan: WorkoutPlan) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.white, .black)
-                .font(.title3)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(plan.title)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                    .foregroundStyle(.primary)
+                                HStack(spacing: 4) {
+                                    Text(plan.type.displayName)
+                                    Text("·")
+                                    Text(plan.difficulty.rawValue.capitalized)
+                                    Text("·")
+                                    Text("\(plan.durationMinutes) min")
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            }
 
-            VStack(alignment: .leading, spacing: 2) {
-                Text(plan.title)
-                    .font(.subheadline)
-                    .fontWeight(.semibold)
-                HStack(spacing: 6) {
-                    InfoChip(label: plan.type.displayName)
-                    InfoChip(label: plan.difficulty.rawValue.capitalized)
-                    InfoChip(label: "\(plan.durationMinutes) min")
+                            Spacer()
+
+                            Text("Change")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color(.systemGray6))
+                        )
+                    } else {
+                        HStack {
+                            Text("Select a Plan")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 14)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color(.systemGray4), lineWidth: 1)
+                        )
+                    }
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal)
+            } else {
+                VStack(spacing: 8) {
+                    HStack {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                            .font(.system(size: 14))
+                        TextField("Search plans...", text: $searchText)
+                            .font(.subheadline)
+                        if !searchText.isEmpty {
+                            Button { searchText = "" } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(.horizontal)
+
+                    if filteredPlans.isEmpty {
+                        Text(plans.isEmpty ? "No plans yet — create one first." : "No matching plans.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal)
+                    } else {
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                ForEach(filteredPlans) { plan in
+                                    Button {
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            selectedPlan = plan
+                                            isPlanPickerExpanded = false
+                                            searchText = ""
+                                        }
+                                    } label: {
+                                        PlanRow(plan: plan, isSelected: selectedPlan?.id == plan.id)
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if plan.id != filteredPlans.last?.id {
+                                        Divider().padding(.leading, 52)
+                                    }
+                                }
+                            }
+                        }
+                        .frame(maxHeight: 250)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color(.systemGray4), lineWidth: 1)
+                        )
+                        .padding(.horizontal)
+                    }
                 }
             }
-
-            Spacer()
         }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color(.systemGray6))
-        )
-        .padding(.horizontal)
     }
 
     // MARK: - Time, Calendar, Location
