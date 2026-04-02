@@ -30,6 +30,9 @@ struct PlanFormView: View {
     @State private var isKeyboardVisible = false
     @State private var suppressCardTapUntil = Date.distantPast
     @State private var showPreSaveReview = false
+    @State private var warmUpExpanded = false
+    @State private var mainExpanded = false
+    @State private var coolDownExpanded = false
 
     // MARK: - Init
 
@@ -238,18 +241,21 @@ struct PlanFormView: View {
                     VStack(spacing: 12) {
                         sectionCard(
                             title: "WARM-UP",
-                            movementCount: vm.draft.warmUpMovements.count,
                             durationMinutes: vm.draft.warmUpDurationMinutes,
-                            playlistId: vm.draft.warmUpPlaylistId
+                            playlistId: vm.draft.warmUpPlaylistId,
+                            movements: vm.draft.warmUpMovements.map { $0.name },
+                            isExpanded: $warmUpExpanded
                         ) {
                             dismissKeyboardOrOpen { showWarmUpEditor = true }
                         }
 
                         sectionCard(
                             title: "MAIN",
-                            movementCount: vm.draft.mainSections.reduce(0) { $0 + $1.movements.count },
                             durationMinutes: vm.totalMainMinutes,
                             playlistId: vm.draft.mainPlaylistId,
+                            movements: vm.draft.mainSections.flatMap { $0.movements.map { $0.name } },
+                            isExpanded: $mainExpanded,
+                            subsections: vm.draft.mainSections.map { s in (name: s.name, movements: s.movements.map { $0.name }) },
                             subsectionSummary: mainSubsectionSummary
                         ) {
                             dismissKeyboardOrOpen { showMainEditor = true }
@@ -257,9 +263,10 @@ struct PlanFormView: View {
 
                         sectionCard(
                             title: "COOL-DOWN",
-                            movementCount: vm.draft.coolDownMovements.count,
                             durationMinutes: vm.draft.coolDownDurationMinutes,
-                            playlistId: vm.draft.coolDownPlaylistId
+                            playlistId: vm.draft.coolDownPlaylistId,
+                            movements: vm.draft.coolDownMovements.map { $0.name },
+                            isExpanded: $coolDownExpanded
                         ) {
                             dismissKeyboardOrOpen { showCoolDownEditor = true }
                         }
@@ -530,63 +537,140 @@ struct PlanFormView: View {
 
     private func sectionCard(
         title: String,
-        movementCount: Int,
         durationMinutes: Int,
         playlistId: String?,
+        movements: [String],
+        isExpanded: Binding<Bool>,
+        subsections: [(name: String, movements: [String])]? = nil,
         subsectionSummary: String? = nil,
         onTap: @escaping () -> Void
     ) -> some View {
-        Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(title)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(.secondary)
-                        .kerning(1.2)
-                    Spacer()
-                    Text("~\(durationMinutes) min")
-                        .font(.system(size: 13, weight: .semibold))
+        VStack(alignment: .leading, spacing: 0) {
+            // Header row
+            HStack(spacing: 6) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .kerning(1.2)
+
+                if !movements.isEmpty {
+                    ZStack {
+                        Circle()
+                            .fill(Color.black)
+                            .frame(width: 20, height: 20)
+                        Text("\(movements.count)")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.white)
+                    }
+
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isExpanded.wrappedValue.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                            .rotationEffect(.degrees(isExpanded.wrappedValue ? 180 : 0))
+                            .animation(.easeInOut(duration: 0.2), value: isExpanded.wrappedValue)
+                            .padding(10)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(-10)
+                }
+
+                Spacer()
+
+                Button(action: onTap) {
+                    Image(systemName: "pencil")
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
+                        .padding(.horizontal, 8)
                         .padding(.vertical, 4)
                         .background(Color.black)
                         .clipShape(RoundedRectangle(cornerRadius: 6))
                 }
+                .buttonStyle(.plain)
 
-                if movementCount > 0 {
-                    if let summary = subsectionSummary {
-                        Text(summary)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.black)
-                            .lineLimit(1)
-                    } else {
-                        Text("\(movementCount) movement\(movementCount == 1 ? "" : "s")")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(.black)
-                    }
-                } else {
-                    Text("Add movements")
-                        .font(.system(size: 13))
-                        .foregroundStyle(.secondary)
-                }
+                Text("~\(durationMinutes) min")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+            }
 
-                if let name = playlistDisplayName(for: playlistId) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "music.note.list")
-                            .font(.system(size: 11))
-                        Text(name)
-                            .font(.system(size: 12))
-                            .lineLimit(1)
-                    }
+            if movements.isEmpty {
+                Text("Add movements")
+                    .font(.system(size: 13))
                     .foregroundStyle(.secondary)
+                    .padding(.top, 6)
+            } else if isExpanded.wrappedValue {
+                if let subsections, subsections.contains(where: { !$0.movements.isEmpty }) {
+                    // Main section: show subsection headers with nested bullet lists
+                    VStack(alignment: .leading, spacing: 10) {
+                        ForEach(Array(subsections.enumerated()), id: \.offset) { _, sub in
+                            if !sub.movements.isEmpty {
+                                VStack(alignment: .leading, spacing: 5) {
+                                    if !sub.name.isEmpty {
+                                        Text(sub.name.uppercased())
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .foregroundStyle(.secondary)
+                                            .kerning(0.8)
+                                    }
+                                    ForEach(Array(sub.movements.enumerated()), id: \.offset) { _, name in
+                                        HStack(spacing: 7) {
+                                            Circle()
+                                                .fill(Color.primary)
+                                                .frame(width: 5, height: 5)
+                                            Text(name)
+                                                .font(.system(size: 13))
+                                                .foregroundStyle(.primary)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.top, 8)
+                } else {
+                    // Flat list for warm-up / cool-down
+                    VStack(alignment: .leading, spacing: 5) {
+                        ForEach(Array(movements.enumerated()), id: \.offset) { _, name in
+                            HStack(spacing: 7) {
+                                Circle()
+                                    .fill(Color.primary)
+                                    .frame(width: 5, height: 5)
+                                Text(name)
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.primary)
+                            }
+                        }
+                    }
+                    .padding(.top, 8)
                 }
             }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+
+            if let name = playlistDisplayName(for: playlistId) {
+                HStack(spacing: 5) {
+                    Image(systemName: "music.note.list")
+                        .font(.system(size: 11))
+                    Text(name)
+                        .font(.system(size: 12))
+                        .lineLimit(1)
+                }
+                .foregroundStyle(.secondary)
+                .padding(.top, 6)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .contentShape(Rectangle())
+        .onTapGesture { onTap() }
     }
 
     // MARK: - Save Button

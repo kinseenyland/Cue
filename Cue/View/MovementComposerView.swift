@@ -85,7 +85,7 @@ struct MovementComposerView: View {
                 .cueFormFieldOutline()
                 .focused($nameFieldFocused)
 
-            if showGoalOption {
+            if showGoalOption || editingMovementId != nil {
                 if showGoalInput {
                     HStack(alignment: .center, spacing: 10) {
                         WheelValueInput(
@@ -228,9 +228,9 @@ struct MovementComposerView: View {
             showGoalInput = true
             selectedGoalType = gt
             if gt == .reps {
-                repsValue = movement.reps.map(String.init) ?? "10"
+                repsValue = movement.reps.map(String.init) ?? ""
             } else {
-                secondsValue = movement.seconds.map(String.init) ?? "30"
+                secondsValue = movement.seconds.map(String.init) ?? ""
             }
         } else {
             showGoalInput = false
