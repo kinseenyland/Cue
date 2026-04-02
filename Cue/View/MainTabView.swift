@@ -24,6 +24,7 @@ enum MainTab: Hashable {
 struct MainTabView: View {
     @EnvironmentObject private var spotifyManager: SpotifyManager
     @State private var selection: MainTab = .home
+    @State private var scheduleViewId = UUID()
     @StateObject private var sessionVM = WorkoutSessionViewModel()
     @StateObject private var mainTabChrome = MainTabChrome()
 
@@ -34,6 +35,7 @@ struct MainTabView: View {
                 HomeView(selectedTab: $selection)
             case .schedule:
                 ScheduleView(selectedTab: $selection)
+                    .id(scheduleViewId)
             case .plans:
                 PlansView(selectedTab: $selection)
             case .profile:
@@ -68,6 +70,11 @@ struct MainTabView: View {
             }
         }
         .animation(.easeInOut(duration: 0.22), value: mainTabChrome.hideBottomBar)
+        .onChange(of: selection) { newSelection in
+            if newSelection == .schedule {
+                scheduleViewId = UUID()
+            }
+        }
         .environmentObject(sessionVM)
     }
 }
