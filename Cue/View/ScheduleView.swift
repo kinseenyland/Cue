@@ -14,7 +14,7 @@ struct ScheduleView: View {
     @State private var isPresentingCreateForm = false
     @State private var editingItem: ScheduleItem? = nil
     @State private var navigationPath = NavigationPath()
-    @State private var selectedDate: Date? = nil
+    @State private var selectedDate: Date? = Date()
     @State private var displayedMonth: Date = Date()
 
     private let calendar = Calendar.current
