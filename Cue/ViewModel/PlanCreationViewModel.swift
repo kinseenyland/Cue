@@ -59,7 +59,7 @@ final class PlanCreationViewModel: ObservableObject {
 
     /// Whether the composer should offer reps/time input at all.
     var showGoalOption: Bool {
-        workoutStructure != .freeform
+        workoutStructure != .freeform || draft.goalType != nil
     }
 
     var steps: [PlanCreationStep] {

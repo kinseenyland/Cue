@@ -27,9 +27,9 @@ struct HomeView: View {
     }
 
     private var displayName: String {
-        authVM.user?.displayName?.isEmpty == false
-            ? (authVM.user?.displayName ?? "there")
-            : "there"
+        if !profileVM.displayName.isEmpty { return profileVM.displayName }
+        if authVM.user?.displayName?.isEmpty == false { return authVM.user!.displayName! }
+        return "there"
     }
 
     private var upcomingItems: [ScheduleItem] {

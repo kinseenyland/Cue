@@ -239,7 +239,7 @@ struct PlanFilterChip: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color(red: 0.792, green: 0.769, blue: 0.816), lineWidth: 1)
+                        .strokeBorder(Color(red: 0.792, green: 0.769, blue: 0.816), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)
