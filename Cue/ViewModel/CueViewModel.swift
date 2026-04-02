@@ -267,7 +267,7 @@ class CueViewModel: ObservableObject {
         var data: [String: Any] = [
             "id": movement.id,
             "name": movement.name,
-            "goalType": movement.goalType.rawValue,
+            "goalType": movement.goalType?.rawValue ?? GoalType.reps.rawValue,
             "section": movement.section.rawValue
         ]
         if let seconds = movement.seconds {

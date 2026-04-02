@@ -38,6 +38,7 @@ struct PlanCreationView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 32)
         }
+        .ignoresSafeArea(.keyboard)
         .background(Color.white.ignoresSafeArea())
         .environmentObject(vm)
         .overlay {
@@ -106,11 +107,15 @@ struct PlanCreationView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: showExitConfirmation)
         .interactiveDismissDisabled(true)
-        .onChange(of: vm.draft.durationMinutes) { _, _ in vm.redistributeMainSectionTime() }
-        .onChange(of: vm.draft.warmUpDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
-        .onChange(of: vm.draft.coolDownDurationMinutes) { _, _ in vm.redistributeMainSectionTime() }
+        .onChange(of: vm.draft.durationMinutes) { oldValue, newValue in
+            if oldValue != newValue {
+                vm.applyDefaultWarmUpCoolDownForTotalDuration()
+            }
+        }
+        .onChange(of: vm.draft.warmUpDurationMinutes) { _, _ in vm.redistributeMainOnly() }
+        .onChange(of: vm.draft.coolDownDurationMinutes) { _, _ in vm.redistributeMainOnly() }
         .onChange(of: vm.draft.mainSections.count) { _, _ in vm.redistributeMainSectionTime() }
-        .onChange(of: vm.totalMainMinutes) { _, _ in vm.redistributeWarmUpCoolDown() }
+        .onChange(of: vm.totalMainMinutes) { _, _ in vm.redistributeWarmUpCoolDownFromMain() }
     }
 
     // MARK: - Header
@@ -180,56 +185,39 @@ struct PlanCreationView: View {
         case .pickMusic:
             PlanPickMusicStepView()
         case .warmUpMovements:
-            VStack(alignment: .leading, spacing: 12) {
-                MovementListStepView(
-                    headline: "Warm-Up Movements",
-                    defaultGoalType: vm.draft.goalType,
-                    durationMinutes: $vm.draft.warmUpDurationMinutes,
-                    movements: $vm.draft.warmUpMovements
-                )
-                if vm.showInlinePlaylistPickers {
-                    PlanSectionPlaylistPicker(
-                        title: "Warm-up playlist",
-                        selectedPlaylistId: $vm.draft.warmUpPlaylistId
-                    )
-                } else if let name = vm.playlistName(for: vm.draft.warmUpPlaylistId) {
-                    AssignedPlaylistLabel(name: name)
-                        .padding(.horizontal, 24)
-                }
-            }
+            SectionEditorView(
+                title: "Warm-Up",
+                sectionType: .warmUp,
+                movements: $vm.draft.warmUpMovements,
+                durationMinutes: vm.draft.warmUpDurationMinutes,
+                playlistId: $vm.draft.warmUpPlaylistId,
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption,
+                isEmbedded: true
+            )
+            .environmentObject(SpotifyManager.shared)
         case .mainSections:
-            VStack(alignment: .leading, spacing: 12) {
-                PlanMainSectionsStepView()
-                if vm.showInlinePlaylistPickers {
-                    PlanSectionPlaylistPicker(
-                        title: "Main workout playlist",
-                        selectedPlaylistId: $vm.draft.mainPlaylistId
-                    )
-                } else if let name = vm.playlistName(for: vm.draft.mainPlaylistId) {
-                    AssignedPlaylistLabel(name: name)
-                        .padding(.horizontal, 24)
-                }
-            }
-        case .mainMovements:
-            PlanMainMovementsStepView()
+            MainSectionEditorView(
+                sections: $vm.draft.mainSections,
+                playlistId: $vm.draft.mainPlaylistId,
+                totalDurationMinutes: vm.totalMainMinutes,
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption,
+                isEmbedded: true
+            )
+            .environmentObject(SpotifyManager.shared)
         case .coolDownMovements:
-            VStack(alignment: .leading, spacing: 12) {
-                MovementListStepView(
-                    headline: "Cool-Down Movements",
-                    defaultGoalType: vm.draft.goalType,
-                    durationMinutes: $vm.draft.coolDownDurationMinutes,
-                    movements: $vm.draft.coolDownMovements
-                )
-                if vm.showInlinePlaylistPickers {
-                    PlanSectionPlaylistPicker(
-                        title: "Cool-down playlist",
-                        selectedPlaylistId: $vm.draft.coolDownPlaylistId
-                    )
-                } else if let name = vm.playlistName(for: vm.draft.coolDownPlaylistId) {
-                    AssignedPlaylistLabel(name: name)
-                        .padding(.horizontal, 24)
-                }
-            }
+            SectionEditorView(
+                title: "Cool-Down",
+                sectionType: .coolDown,
+                movements: $vm.draft.coolDownMovements,
+                durationMinutes: vm.draft.coolDownDurationMinutes,
+                playlistId: $vm.draft.coolDownPlaylistId,
+                defaultGoalType: vm.draft.goalType,
+                showGoalOption: vm.showGoalOption,
+                isEmbedded: true
+            )
+            .environmentObject(SpotifyManager.shared)
         case .review:
             PlanReviewStepView()
         }

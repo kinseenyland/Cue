@@ -11,7 +11,7 @@ enum PlanCreationStep: Hashable {
     case name, type, duration
     case musicApproachChoice
     case pickMusic
-    case warmUpMovements, mainSections, mainMovements
+    case warmUpMovements, mainSections
     case coolDownMovements, review
 
     var title: String {
@@ -21,10 +21,9 @@ enum PlanCreationStep: Hashable {
         case .duration:            return "Duration"
         case .musicApproachChoice: return "Music Approach"
         case .pickMusic:           return "Pick Your Music"
-        case .warmUpMovements:     return "Warm-Up Movements"
+        case .warmUpMovements:     return "Warm-Up"
         case .mainSections:        return "Main Workout"
-        case .mainMovements:       return "Main Movements"
-        case .coolDownMovements:   return "Cool-Down Movements"
+        case .coolDownMovements:   return "Cool-Down"
         case .review:              return "Review"
         }
     }
@@ -58,6 +57,11 @@ final class PlanCreationViewModel: ObservableObject {
         resolvedMusicApproach != .musicFirst
     }
 
+    /// Whether the composer should offer reps/time input at all.
+    var showGoalOption: Bool {
+        workoutStructure != .freeform || draft.goalType != nil
+    }
+
     var steps: [PlanCreationStep] {
         var s: [PlanCreationStep] = [.name, .type, .duration]
         if musicApproach == .flexible {
@@ -66,7 +70,7 @@ final class PlanCreationViewModel: ObservableObject {
         if resolvedMusicApproach == .musicFirst {
             s.append(.pickMusic)
         }
-        s += [.warmUpMovements, .mainSections, .mainMovements, .coolDownMovements, .review]
+        s += [.warmUpMovements, .mainSections, .coolDownMovements, .review]
         return s
     }
 
@@ -135,12 +139,42 @@ final class PlanCreationViewModel: ObservableObject {
 
     /// Prevents onChange loops when one redistribution triggers another.
     private var isRedistributing = false
+    /// Set when main-driven redistribution changes warm-up/cool-down, so their onChange doesn't recurse.
+    private var skipWarmUpCoolDownReaction = false
 
     /// Redistributes remaining time (total − warm-up − cool-down) equally across all main sections.
     func redistributeMainSectionTime() {
         guard !isRedistributing else { return }
         isRedistributing = true
         defer { isRedistributing = false }
+        distributeMainEvenly()
+    }
+
+    /// When warm-up or cool-down changes, only recalculate main sections (don't touch the other).
+    func redistributeMainOnly() {
+        guard !isRedistributing, !skipWarmUpCoolDownReaction else {
+            skipWarmUpCoolDownReaction = false
+            return
+        }
+        isRedistributing = true
+        defer { isRedistributing = false }
+        distributeMainEvenly()
+    }
+
+    /// When main section time changes, split the difference evenly between warm-up and cool-down.
+    func redistributeWarmUpCoolDownFromMain() {
+        guard !isRedistributing else { return }
+        isRedistributing = true
+        defer { isRedistributing = false }
+        let remaining = max(0, draft.durationMinutes - totalMainMinutes)
+        let halfRemaining = remaining / 2
+        skipWarmUpCoolDownReaction = true
+        draft.warmUpDurationMinutes = halfRemaining
+        skipWarmUpCoolDownReaction = true
+        draft.coolDownDurationMinutes = remaining - halfRemaining
+    }
+
+    private func distributeMainEvenly() {
         let mainMinutes = max(0, draft.durationMinutes
             - draft.warmUpDurationMinutes
             - draft.coolDownDurationMinutes)
@@ -150,16 +184,6 @@ final class PlanCreationViewModel: ObservableObject {
         for i in draft.mainSections.indices {
             draft.mainSections[i].durationMinutes = perSection + (i == 0 ? remainder : 0)
         }
-    }
-
-    /// When main section time changes, split the remaining time evenly between warm-up and cool-down.
-    func redistributeWarmUpCoolDown() {
-        guard !isRedistributing else { return }
-        isRedistributing = true
-        defer { isRedistributing = false }
-        let remaining = max(0, draft.durationMinutes - totalMainMinutes)
-        draft.warmUpDurationMinutes = remaining / 2
-        draft.coolDownDurationMinutes = remaining - (remaining / 2)
     }
 
     var canAdvance: Bool {
@@ -178,9 +202,10 @@ final class PlanCreationViewModel: ObservableObject {
             return !draft.warmUpMovements.isEmpty
         case .mainSections:
             return !draft.mainSections.isEmpty &&
-                draft.mainSections.allSatisfy { !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        case .mainMovements:
-            return draft.mainSections.allSatisfy { !$0.movements.isEmpty }
+                draft.mainSections.allSatisfy {
+                    !$0.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                    !$0.movements.isEmpty
+                }
         case .coolDownMovements:
             return !draft.coolDownMovements.isEmpty
         case .review:
@@ -192,7 +217,40 @@ final class PlanCreationViewModel: ObservableObject {
     var isOnLastStep: Bool { currentStepIndex == steps.count - 1 }
     var progress: Double { Double(currentStepIndex + 1) / Double(steps.count) }
 
-    var suggestedMainMinutes: Int { max(0, draft.durationMinutes - 10) }
+    /// Minutes reserved for warm-up + cool-down at the default split (5+5 or 10+10).
+    private var defaultWarmCoolCombinedMinutes: Int {
+        draft.durationMinutes >= 80 ? 20 : 10
+    }
+
+    var suggestedMainMinutes: Int {
+        max(0, draft.durationMinutes - defaultWarmCoolCombinedMinutes)
+    }
+
+    /// Sets warm-up and cool-down from total duration: 5+5 when under 80 minutes, 10+10 when 80+.
+    /// If the total is too small for those defaults, splits time evenly between warm-up and cool-down.
+    /// Then redistributes main section minutes.
+    func applyDefaultWarmUpCoolDownForTotalDuration() {
+        let total = draft.durationMinutes
+        let defaultEach = total >= 80 ? 10 : 5
+        let defaultSum = defaultEach * 2
+
+        if total >= defaultSum {
+            skipWarmUpCoolDownReaction = true
+            draft.warmUpDurationMinutes = defaultEach
+            skipWarmUpCoolDownReaction = true
+            draft.coolDownDurationMinutes = defaultEach
+        } else if total > 0 {
+            let half = total / 2
+            skipWarmUpCoolDownReaction = true
+            draft.warmUpDurationMinutes = half
+            skipWarmUpCoolDownReaction = true
+            draft.coolDownDurationMinutes = total - half
+        } else {
+            draft.warmUpDurationMinutes = 0
+            draft.coolDownDurationMinutes = 0
+        }
+        redistributeMainSectionTime()
+    }
 
     func advance() {
         guard canAdvance, currentStepIndex < steps.count - 1 else { return }

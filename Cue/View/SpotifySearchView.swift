@@ -759,7 +759,9 @@ struct SpotifySearchView: View {
 
 struct TrackRowView: View {
     let track: SpotifySearchService.SpotifyTrack
-    
+    /// When false, duration is omitted so the parent can place it next to trailing actions (e.g. trash before reorder handle).
+    var showDuration: Bool = true
+
     var body: some View {
         HStack(spacing: 12) {
             // Album Art
@@ -770,7 +772,7 @@ struct TrackRowView: View {
             }
             .frame(width: 50, height: 50)
             .cornerRadius(6)
-            
+
             // Track Info
             VStack(alignment: .leading, spacing: 3) {
                 Text(track.name)
@@ -781,13 +783,14 @@ struct TrackRowView: View {
                     .foregroundColor(.gray)
                     .lineLimit(1)
             }
-            
+
             Spacer()
-            
-            // Duration
-            Text(track.durationFormatted)
-                .font(.caption)
-                .foregroundColor(.gray)
+
+            if showDuration {
+                Text(track.durationFormatted)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
         }
         .padding(.vertical, 4)
     }

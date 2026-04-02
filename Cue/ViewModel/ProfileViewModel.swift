@@ -14,13 +14,49 @@ final class ProfileViewModel: ObservableObject {
     @Published var preferredClassTypes: [WorkoutType] = []
     @Published var workoutStructure: WorkoutStructurePreference? = nil
     @Published var musicApproach: MusicApproach? = nil
+    @Published var profileImage: UIImage? = nil
     @Published var isLoading = false
     @Published var isSaving = false
 
     private let db = Firestore.firestore()
 
+    // MARK: - Local cache
+
+    private static func cacheURL(for uid: String) -> URL {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("profile_\(uid).jpg")
+    }
+
+    private func loadCachedImage(uid: String) {
+        let url = Self.cacheURL(for: uid)
+        if let data = try? Data(contentsOf: url) {
+            profileImage = UIImage(data: data)
+        }
+    }
+
+    private func cacheImage(_ image: UIImage, uid: String) {
+        guard let data = image.jpegData(compressionQuality: 0.8) else { return }
+        try? data.write(to: Self.cacheURL(for: uid))
+    }
+
+    private func compressedBase64(from image: UIImage) -> String? {
+        let maxDim: CGFloat = 200
+        let scale = min(maxDim / image.size.width, maxDim / image.size.height, 1)
+        let newSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        UIGraphicsBeginImageContextWithOptions(newSize, false, 1)
+        image.draw(in: CGRect(origin: .zero, size: newSize))
+        let resized = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        guard let jpeg = resized?.jpegData(compressionQuality: 0.7) else { return nil }
+        return jpeg.base64EncodedString()
+    }
+
+    // MARK: - Load
+
     func load(uid: String) {
         isLoading = true
+        loadCachedImage(uid: uid)
+
         db.collection("users").document(uid).getDocument { [weak self] snapshot, error in
             DispatchQueue.main.async {
                 guard let self else { return }
@@ -43,10 +79,41 @@ final class ProfileViewModel: ObservableObject {
                 self.musicApproach = MusicApproach(
                     rawValue: data["musicApproach"] as? String ?? ""
                 )
+
+                if let b64 = data["profileImageBase64"] as? String,
+                   let imgData = Data(base64Encoded: b64),
+                   let img = UIImage(data: imgData) {
+                    self.profileImage = img
+                    self.cacheImage(img, uid: uid)
+                }
+
                 self.isLoading = false
             }
         }
     }
+
+    // MARK: - Save profile image
+
+    func saveProfileImage(_ image: UIImage, uid: String) {
+        guard !uid.isEmpty else { return }
+        profileImage = image
+        cacheImage(image, uid: uid)
+
+        guard let b64 = compressedBase64(from: image) else { return }
+        isSaving = true
+        db.collection("users").document(uid).setData(
+            ["profileImageBase64": b64], merge: true
+        ) { [weak self] error in
+            DispatchQueue.main.async {
+                self?.isSaving = false
+                if let error {
+                    print("ProfileViewModel: Image save error — \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    // MARK: - Save preferences
 
     func save(
         uid: String,
