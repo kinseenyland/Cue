@@ -160,7 +160,7 @@ struct PlayerView: View {
                 }
             }
 
-            if sessionVM.warmUpPlaylistId != nil || sessionVM.mainPlaylistId != nil || sessionVM.coolDownPlaylistId != nil {
+            if [sessionVM.warmUpPlaylistId, sessionVM.mainPlaylistId, sessionVM.coolDownPlaylistId].contains(where: { $0?.isEmpty == false }) {
                 VStack(spacing: 6) {
                     spotifyBar
 
@@ -199,6 +199,8 @@ struct PlayerView: View {
             }
         }
         .onAppear {
+            let hasMusic = [sessionVM.warmUpPlaylistId, sessionVM.mainPlaylistId, sessionVM.coolDownPlaylistId].contains { $0?.isEmpty == false }
+            guard hasMusic else { return }
             #if !targetEnvironment(simulator)
             spotifyManager.connectAppRemoteIfNeeded()
             #endif

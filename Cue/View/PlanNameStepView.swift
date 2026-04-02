@@ -25,7 +25,7 @@ struct PlanNameStepView: View {
                 .autocorrectionDisabled()
                 .padding(.horizontal, 12)
                 .padding(.vertical, 14)
-                .overlay(Rectangle().stroke(Color.black, lineWidth: 1))
+                .cueFormFieldOutline()
         }
         .padding(.horizontal, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

@@ -28,7 +28,7 @@ final class PlanCreationViewModelTests: XCTestCase {
         }
     }
 
-    func testRedistributeWarmUpCoolDown_assignsOddRemainderToCoolDown() async {
+    func testRedistributeWarmUpCoolDownFromMain_assignsOddRemainderToCoolDown() async {
         await MainActor.run {
             let vm = PlanCreationViewModel()
             vm.draft.durationMinutes = 50
@@ -36,10 +36,53 @@ final class PlanCreationViewModelTests: XCTestCase {
                 WorkoutSubSection(name: "Only", durationMinutes: 35, movements: [sampleMovement()]),
             ]
 
-            vm.redistributeWarmUpCoolDown()
+            vm.redistributeWarmUpCoolDownFromMain()
 
             XCTAssertEqual(vm.draft.warmUpDurationMinutes, 7)
             XCTAssertEqual(vm.draft.coolDownDurationMinutes, 8)
+        }
+    }
+
+    func testApplyDefaultWarmUpCoolDown_90Minutes_usesTenAndTenAndMain70() async {
+        await MainActor.run {
+            let vm = PlanCreationViewModel()
+            vm.draft.durationMinutes = 90
+            vm.draft.mainSections = [
+                WorkoutSubSection(name: "A", durationMinutes: 0, movements: [sampleMovement()]),
+            ]
+
+            vm.applyDefaultWarmUpCoolDownForTotalDuration()
+
+            XCTAssertEqual(vm.draft.warmUpDurationMinutes, 10)
+            XCTAssertEqual(vm.draft.coolDownDurationMinutes, 10)
+            XCTAssertEqual(vm.totalMainMinutes, 70)
+        }
+    }
+
+    func testApplyDefaultWarmUpCoolDown_60Minutes_usesFiveAndFiveAndMain50() async {
+        await MainActor.run {
+            let vm = PlanCreationViewModel()
+            vm.draft.durationMinutes = 60
+            vm.draft.mainSections = [
+                WorkoutSubSection(name: "A", durationMinutes: 0, movements: [sampleMovement()]),
+            ]
+
+            vm.applyDefaultWarmUpCoolDownForTotalDuration()
+
+            XCTAssertEqual(vm.draft.warmUpDurationMinutes, 5)
+            XCTAssertEqual(vm.draft.coolDownDurationMinutes, 5)
+            XCTAssertEqual(vm.totalMainMinutes, 50)
+        }
+    }
+
+    func testSuggestedMainMinutes_matchesDefaultCushion() async {
+        await MainActor.run {
+            let vm = PlanCreationViewModel()
+            vm.draft.durationMinutes = 85
+            XCTAssertEqual(vm.suggestedMainMinutes, 65)
+
+            vm.draft.durationMinutes = 45
+            XCTAssertEqual(vm.suggestedMainMinutes, 35)
         }
     }
 

@@ -219,6 +219,8 @@ private struct PlanPDFPageView: View {
             return movement.seconds.map { "\($0) sec" } ?? ""
         case .reps:
             return movement.reps.map { "\($0) reps" } ?? ""
+        case nil:
+            return ""
         }
     }
 }

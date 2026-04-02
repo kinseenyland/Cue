@@ -27,9 +27,9 @@ struct HomeView: View {
     }
 
     private var displayName: String {
-        authVM.user?.displayName?.isEmpty == false
-            ? (authVM.user?.displayName ?? "there")
-            : "there"
+        if !profileVM.displayName.isEmpty { return profileVM.displayName }
+        if authVM.user?.displayName?.isEmpty == false { return authVM.user!.displayName! }
+        return "there"
     }
 
     private var upcomingItems: [ScheduleItem] {
@@ -53,7 +53,7 @@ struct HomeView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 4)
 
-                    Text("Welcome \(displayName)!")
+                    Text("Welcome, \(displayName)!")
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.black)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -101,15 +101,11 @@ struct HomeView: View {
                         } else {
                             ForEach(upcomingItems) { item in
                                 Button {
-                                    if let planId = item.planId,
-                                       let plan = plansVM.plans.first(where: { $0.id == planId }) {
-                                        navigationPath.append(plan)
-                                    }
+                                    navigationPath.append(item)
                                 } label: {
                                     HomeScheduleCard(item: item)
                                 }
                                 .buttonStyle(.plain)
-                                .disabled(item.planId == nil)
                             }
                         }
                     }
@@ -139,6 +135,24 @@ struct HomeView: View {
             }
             .background(Color.white)
             .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: ScheduleItem.self) { item in
+                ScheduleDetailView(
+                    item: item,
+                    plans: plansVM.plans,
+                    onUpdate: { draft in
+                        Task { await scheduleVM.updateSchedule(id: item.id, from: draft) }
+                    },
+                    onDelete: {
+                        Task {
+                            await scheduleVM.deleteSchedule(id: item.id)
+                            navigationPath.removeLast()
+                        }
+                    },
+                    onGoToPlan: { plan in
+                        navigationPath.append(plan)
+                    }
+                )
+            }
             .navigationDestination(for: WorkoutPlan.self) { plan in
                 PlanDetailView(
                     plan: plan,

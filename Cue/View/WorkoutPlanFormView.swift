@@ -256,6 +256,7 @@ struct FormDropdown<Content: View>: View {
     let placeholder: String
     let selected: String?
     var disabled: Bool = false
+    var onTap: (() -> Void)? = nil
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -279,6 +280,10 @@ struct FormDropdown<Content: View>: View {
                     .stroke(disabled ? Color(white: 0.8) : Color.black, lineWidth: 1)
             )
         }
+        .simultaneousGesture(TapGesture().onEnded {
+            onTap?()
+            UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+        })
         .disabled(disabled)
     }
 }
