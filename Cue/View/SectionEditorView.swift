@@ -880,25 +880,20 @@ struct ReorderableMovementList: View {
     @State private var resetTask: Task<Void, Never>?
 
     private var totalHeight: CGFloat {
-        // The fixed height is based on heuristics; add a small buffer so the last row
-        // doesn't get clipped by List's internal padding/layout.
-        let buffer: CGFloat = 12
-        let rows = movements.reduce(0) { total, movement in
-            let hasMetric = movement.reps != nil || movement.seconds != nil
-            let hasNote = movement.notes.map { !$0.isEmpty } ?? false
-            // Metric column (number + unit label stacked) ≈ 33pt, name alone ≈ 19pt, note ≈ 15pt.
-            // Row height = max(left col, right col) + 24pt vertical padding.
-            let h: CGFloat
-            if hasNote {
-                h = 61  // note side (19+3+15=37) > metric col (33); 37+24
-            } else if hasMetric {
-                h = 57  // metric col (33) > name alone (19); 33+24
-            } else {
-                h = 43  // no metric, no note: name only (19) + 24
-            }
-            return total + h
+        // Each row has a fixed height (see `MovementRow.rowHeight`), so the list can
+        // safely live inside the surrounding `ScrollView` without clipping the last row.
+        movements.reduce(0) { total, movement in
+            total + movementRowHeight(movement)
         }
-        return rows + buffer
+    }
+
+    private func movementRowHeight(_ movement: Movement) -> CGFloat {
+        let hasMetric = movement.reps != nil || movement.seconds != nil
+        let note = movement.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hasNote = !note.isEmpty
+        if hasNote { return 61 }
+        if hasMetric { return 57 }
+        return 43
     }
 
     var body: some View {
@@ -935,7 +930,7 @@ struct ReorderableMovementList: View {
                         }
                     }
                 )
-                .listRowInsets(EdgeInsets())
+                .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 .listRowBackground(
                     editingMovementId == movement.id ? Color.black : Color(.systemGray6)
                 )
@@ -965,71 +960,107 @@ struct MovementRow: View {
     let onDeleteTap: () -> Void
 
     var body: some View {
-        HStack(spacing: 10) {
-            // Metric column: number above unit, centered vertically
-            if let reps = movement.reps {
-                VStack(spacing: 1) {
-                    Text("\(reps)")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(isEditing ? Color.white : Color.black)
-                    Text("reps")
-                        .font(.system(size: 10))
-                        .foregroundStyle(isEditing ? Color.white.opacity(0.75) : Color.secondary)
-                }
-                .frame(width: 38, alignment: .center)
-            } else if let secs = movement.seconds {
-                VStack(spacing: 1) {
-                    Text("\(secs)")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(isEditing ? Color.white : Color.black)
-                    Text("sec")
-                        .font(.system(size: 10))
-                        .foregroundStyle(isEditing ? Color.white.opacity(0.75) : Color.secondary)
-                }
-                .frame(width: 38, alignment: .center)
-            } else {
-                Image(systemName: "infinity")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(isEditing ? Color.white.opacity(0.7) : Color(.systemGray3))
-                    .frame(width: 38, alignment: .center)
-            }
+        let metricStackWidth: CGFloat = 38
+        let metricToDividerGap: CGFloat = 9
+        let dividerSideInset: CGFloat = 10
+        let dividerToNameGap: CGFloat = 8
+        let metricContentOffsetX: CGFloat = 4
 
-            // Divider
+        HStack(spacing: 0) {
+            // Metric column (reps/time/infinity), centered between the card edge and the divider.
+            Group {
+                if let reps = movement.reps {
+                    VStack(spacing: 1) {
+                        Text("\(reps)")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(isEditing ? Color.white : Color.black)
+                        Text("reps")
+                            .font(.system(size: 10))
+                            .foregroundStyle(isEditing ? Color.white.opacity(0.75) : Color.secondary)
+                    }
+                    .frame(width: metricStackWidth, alignment: .center)
+                } else if let secs = movement.seconds {
+                    VStack(spacing: 1) {
+                        Text("\(secs)")
+                            .font(.system(size: 15, weight: .semibold))
+                            .foregroundStyle(isEditing ? Color.white : Color.black)
+                        Text("sec")
+                            .font(.system(size: 10))
+                            .foregroundStyle(isEditing ? Color.white.opacity(0.75) : Color.secondary)
+                    }
+                    .frame(width: metricStackWidth, alignment: .center)
+                } else {
+                    Image(systemName: "infinity")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(isEditing ? Color.white.opacity(0.7) : Color(.systemGray3))
+                        .frame(width: metricStackWidth, alignment: .center)
+                }
+            }
+            .offset(x: metricContentOffsetX)
+            .frame(width: metricStackWidth, alignment: .center)
+            .padding(.trailing, metricToDividerGap)
+
+            // Vertical divider: inset so it doesn't look continuous between stacked cards.
             Rectangle()
                 .fill(isEditing ? Color.white.opacity(0.28) : Color(.systemGray4))
                 .frame(width: 1)
                 .frame(maxHeight: .infinity)
-                .padding(.vertical, 6)
+                .padding(.vertical, dividerSideInset)
 
-            // Name + notes
-            VStack(alignment: .leading, spacing: 3) {
-                Text(movement.name)
-                    .font(.system(size: 15, weight: .medium))
-                    .foregroundStyle(isEditing ? Color.white : Color.black)
-                if let note = movement.notes, !note.isEmpty {
-                    Text(note)
-                        .font(.system(size: 12))
-                        .foregroundStyle(isEditing ? Color.white.opacity(0.85) : Color.secondary)
-                        .italic()
+            // Name + notes + trailing actions
+            // The trailing reorder "grip" is provided by SwiftUI's `List` when `onMove` is enabled,
+            // so we add a small right padding here to make the spacing around that grip feel even.
+            // Pencil/trash vs the reorder grip ("three lines") spacing are governed by
+            // SwiftUI's List reorder controls, so these constants are tuned to match
+            // the visual rhythm in the card.
+            let actionGap: CGFloat = 12
+            let trailingPaddingForReorderGrip: CGFloat = 14
+
+            HStack(spacing: 0) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(movement.name)
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundStyle(isEditing ? Color.white : Color.black)
+                    if let note = movement.notes, !note.isEmpty {
+                        Text(note)
+                            .font(.system(size: 12))
+                            .foregroundStyle(isEditing ? Color.white.opacity(0.85) : Color.secondary)
+                            .italic()
+                    }
                 }
-            }
+                .frame(maxWidth: .infinity, alignment: .leading)
 
-            .frame(maxWidth: .infinity, alignment: .leading)
+                HStack(spacing: actionGap) {
+                    Button(action: onEditTap) {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 13))
+                            .foregroundStyle(isEditing ? Color.white.opacity(0.9) : Color(.systemGray3))
+                            .frame(width: 28, height: 28, alignment: .center)
+                    }
+                    .buttonStyle(.plain)
 
-            Button(action: onEditTap) {
-                Image(systemName: "pencil")
-                    .font(.system(size: 13))
-                    .foregroundStyle(isEditing ? Color.white.opacity(0.9) : Color(.systemGray3))
+                    Button(action: onDeleteTap) {
+                        Image(systemName: isConfirmingDelete ? "trash.fill" : "trash")
+                            .font(.system(size: 13))
+                            .foregroundStyle(isConfirmingDelete ? Color.red : (isEditing ? Color.white.opacity(0.9) : Color(.systemGray3)))
+                            .frame(width: 28, height: 28, alignment: .center)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.trailing, trailingPaddingForReorderGrip)
             }
-            .buttonStyle(.plain)
-
-            Button(action: onDeleteTap) {
-                Image(systemName: isConfirmingDelete ? "trash.fill" : "trash")
-                    .font(.system(size: 13))
-                    .foregroundStyle(isConfirmingDelete ? Color.red : (isEditing ? Color.white.opacity(0.9) : Color(.systemGray3)))
-            }
-            .buttonStyle(.plain)
+            .padding(.leading, dividerToNameGap)
         }
-        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity)
+        .frame(height: rowHeight)
+    }
+
+    private var rowHeight: CGFloat {
+        let hasMetric = movement.reps != nil || movement.seconds != nil
+        let note = movement.notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let hasNote = !note.isEmpty
+        if hasNote { return 61 }
+        if hasMetric { return 57 }
+        return 43
     }
 }
