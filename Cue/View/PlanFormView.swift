@@ -239,7 +239,7 @@ struct PlanFormView: View {
             SectionEditorView(
                 title: "Warm-Up",
                 movements: $vm.draft.warmUpMovements,
-                durationMinutes: $vm.draft.warmUpDurationMinutes,
+                durationMinutes: vm.draft.warmUpDurationMinutes,
                 playlistId: $vm.draft.warmUpPlaylistId,
                 defaultGoalType: vm.draft.goalType,
                 showGoalOption: vm.showGoalOption
@@ -260,7 +260,7 @@ struct PlanFormView: View {
             SectionEditorView(
                 title: "Cool-Down",
                 movements: $vm.draft.coolDownMovements,
-                durationMinutes: $vm.draft.coolDownDurationMinutes,
+                durationMinutes: vm.draft.coolDownDurationMinutes,
                 playlistId: $vm.draft.coolDownPlaylistId,
                 defaultGoalType: vm.draft.goalType,
                 showGoalOption: vm.showGoalOption

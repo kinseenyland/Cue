@@ -185,7 +185,7 @@ struct PlanCreationView: View {
                     headline: "Warm-Up Movements",
                     defaultGoalType: vm.draft.goalType,
                     showGoalOption: vm.showGoalOption,
-                    durationMinutes: $vm.draft.warmUpDurationMinutes,
+                    durationMinutes: vm.draft.warmUpDurationMinutes,
                     movements: $vm.draft.warmUpMovements
                 )
                 if vm.showInlinePlaylistPickers {
@@ -219,7 +219,7 @@ struct PlanCreationView: View {
                     headline: "Cool-Down Movements",
                     defaultGoalType: vm.draft.goalType,
                     showGoalOption: vm.showGoalOption,
-                    durationMinutes: $vm.draft.coolDownDurationMinutes,
+                    durationMinutes: vm.draft.coolDownDurationMinutes,
                     movements: $vm.draft.coolDownMovements
                 )
                 if vm.showInlinePlaylistPickers {

@@ -45,7 +45,13 @@ struct SectionMovementBlock: View {
                     .kerning(1.0)
                     .textCase(.uppercase)
                 Spacer()
-                EditableDurationBadge(minutes: $section.durationMinutes)
+                Text("~\(section.durationMinutes) min")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             .padding(.horizontal, 24)
 

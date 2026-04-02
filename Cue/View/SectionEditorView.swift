@@ -10,7 +10,7 @@ import SwiftUI
 struct SectionEditorView: View {
     let title: String
     @Binding var movements: [Movement]
-    @Binding var durationMinutes: Int
+    let durationMinutes: Int
     @Binding var playlistId: String?
     let defaultGoalType: GoalType?
     var showGoalOption: Bool = true
@@ -18,8 +18,8 @@ struct SectionEditorView: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var showPlaylistEditor = false
-    @State private var playlistPreviewRefreshKey = 0
-    @State private var dismissDurationPickersTrigger = false
+    @State private var playlistRefreshKey = 0
+    @StateObject private var inlinePlaylistVM = SpotifySearchViewModel()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -40,22 +40,23 @@ struct SectionEditorView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    // Duration
+                    // Duration (read-only)
                     HStack {
                         Text("DURATION")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(.secondary)
                             .kerning(1.2)
                             .padding(.trailing, 8)
-                        EditableDurationBadge(
-                            minutes: $durationMinutes,
-                            dismissTrigger: dismissDurationPickersTrigger
-                        )
+                        Text("~\(durationMinutes) min")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(Color.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
                         Spacer()
                     }
                     .padding(.horizontal, 24)
-                    .compositingGroup()
-                    .zIndex(100)
 
                     // Movements
                     VStack(alignment: .leading, spacing: 12) {
@@ -83,8 +84,6 @@ struct SectionEditorView: View {
 
                     if showPlaylist {
                         Divider().padding(.horizontal, 24)
-
-                        // Playlist
                         playlistSection
                     }
                 }
@@ -92,10 +91,6 @@ struct SectionEditorView: View {
                 .padding(.bottom, 40)
             }
             .scrollDismissesKeyboard(.interactively)
-            .onTapGesture {
-                UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
-                dismissDurationPickersTrigger.toggle()
-            }
         }
         .background(Color.white.ignoresSafeArea())
         .toolbar {
@@ -119,8 +114,24 @@ struct SectionEditorView: View {
         }
         .onChange(of: showPlaylistEditor) { _, isShowing in
             if !isShowing {
-                playlistPreviewRefreshKey += 1
+                playlistRefreshKey += 1
             }
+        }
+        .task(id: "\(playlistId ?? "")-\(playlistRefreshKey)") {
+            await loadInlinePlaylist()
+        }
+    }
+
+    // MARK: - Playlist Loading
+
+    private func loadInlinePlaylist() async {
+        guard let id = playlistId else {
+            inlinePlaylistVM.closePlaylistEditor()
+            return
+        }
+        await inlinePlaylistVM.loadMyPlaylists()
+        if let playlist = inlinePlaylistVM.myPlaylists.first(where: { $0.uri == id }) {
+            await inlinePlaylistVM.selectPlaylistForEditing(playlist)
         }
     }
 
@@ -135,12 +146,64 @@ struct SectionEditorView: View {
                 .padding(.horizontal, 24)
 
             if playlistId != nil {
-                PlaylistPreviewCard(
-                    playlistId: playlistId!,
-                    refreshKey: playlistPreviewRefreshKey,
-                    onEdit: { showPlaylistEditor = true },
-                    onRemove: { playlistId = nil }
-                )
+                VStack(alignment: .leading, spacing: 8) {
+                    // Header row: name + Edit + Remove
+                    HStack {
+                        HStack(spacing: 6) {
+                            Image(systemName: "music.note.list")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                            Text(inlinePlaylistVM.selectedPlaylistForEditing?.name
+                                 ?? (inlinePlaylistVM.isLoadingPlaylists ? "Loading..." : "Playlist"))
+                                .font(.system(size: 14, weight: .medium))
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Button {
+                            showPlaylistEditor = true
+                        } label: {
+                            Text("Edit")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            playlistId = nil
+                            inlinePlaylistVM.closePlaylistEditor()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 24, height: 24)
+                                .background(Color(.systemGray5))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    // Track count + duration summary
+                    if !inlinePlaylistVM.isLoadingPlaylistTracks && !inlinePlaylistVM.playlistTracks.isEmpty {
+                        let totalSecs = inlinePlaylistVM.playlistTracks.reduce(0) { $0 + $1.track.durationSeconds }
+                        let h = totalSecs / 3600
+                        let m = (totalSecs % 3600) / 60
+                        Text("\(inlinePlaylistVM.playlistTracks.count) tracks · \(h > 0 ? "\(h)h \(m)m" : "\(m)m")")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    // Inline track list
+                    if inlinePlaylistVM.isLoadingPlaylistTracks {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                    } else if !inlinePlaylistVM.playlistTracks.isEmpty {
+                        InlineReorderableTrackList(viewModel: inlinePlaylistVM)
+                    }
+                }
                 .padding(.horizontal, 24)
             } else {
                 Button {
@@ -176,15 +239,9 @@ struct MainSectionEditorView: View {
     var showGoalOption: Bool = true
 
     @Environment(\.dismiss) private var dismiss
-    @State private var showPlaylistEditor = false
-    @State private var playlistPreviewRefreshKey = 0
-    @State private var editingSectionIndex: Int?
-
-    // Stable IDs for binding to sheets
-    private var editingSection: Binding<WorkoutSubSection>? {
-        guard let index = editingSectionIndex, sections.indices.contains(index) else { return nil }
-        return $sections[index]
-    }
+    @State private var activeSheet: MainSectionSheet?
+    @State private var playlistRefreshKey = 0
+    @StateObject private var inlinePlaylistVM = SpotifySearchViewModel()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -217,7 +274,7 @@ struct MainSectionEditorView: View {
                             MainSectionCard(
                                 section: sections[index],
                                 canDelete: sections.count > 1,
-                                onTap: { editingSectionIndex = index },
+                                onTap: { activeSheet = .editSection(index) },
                                 onDelete: {
                                     guard sections.indices.contains(index), sections.count > 1 else { return }
                                     withAnimation(.easeInOut(duration: 0.2)) {
@@ -260,80 +317,158 @@ struct MainSectionEditorView: View {
 
                     Divider().padding(.horizontal, 24)
 
-                    // Playlist
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("PLAYLIST")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                            .kerning(1.2)
-                            .padding(.horizontal, 24)
-
-                        if playlistId != nil {
-                            PlaylistPreviewCard(
-                                playlistId: playlistId!,
-                                refreshKey: playlistPreviewRefreshKey,
-                                onEdit: { showPlaylistEditor = true },
-                                onRemove: { playlistId = nil }
-                            )
-                            .padding(.horizontal, 24)
-                        } else {
-                            Button {
-                                showPlaylistEditor = true
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "music.note.list")
-                                        .font(.system(size: 14))
-                                    Text("Add a playlist")
-                                        .font(.system(size: 14, weight: .medium))
-                                }
-                                .foregroundStyle(.black)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 14)
-                                .background(Color(.systemGray6))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
-                            }
-                            .buttonStyle(.plain)
-                            .padding(.horizontal, 24)
-                        }
-                    }
+                    // Playlist section (inline editable)
+                    playlistSection
                 }
                 .padding(.top, 8)
                 .padding(.bottom, 40)
             }
         }
         .background(Color.white.ignoresSafeArea())
-        .sheet(item: Binding(
-            get: { editingSectionIndex.map { SectionSheetId(index: $0) } },
-            set: { editingSectionIndex = $0?.index }
-        )) { item in
-            if sections.indices.contains(item.index) {
-                SectionEditorView(
-                    title: sections[item.index].name.isEmpty ? "Section \(item.index + 1)" : sections[item.index].name,
-                    movements: $sections[item.index].movements,
-                    durationMinutes: $sections[item.index].durationMinutes,
-                    playlistId: .constant(nil),
-                    defaultGoalType: defaultGoalType,
-                    showGoalOption: showGoalOption,
-                    showPlaylist: false
-                )
+        .sheet(item: $activeSheet) { sheet in
+            switch sheet {
+            case .editSection(let index):
+                if sections.indices.contains(index) {
+                    SectionEditorView(
+                        title: sections[index].name.isEmpty ? "Section \(index + 1)" : sections[index].name,
+                        movements: $sections[index].movements,
+                        durationMinutes: sections[index].durationMinutes,
+                        playlistId: .constant(nil),
+                        defaultGoalType: defaultGoalType,
+                        showGoalOption: showGoalOption,
+                        showPlaylist: false
+                    )
+                }
+            case .editPlaylist:
+                SectionPlaylistEditor(selectedPlaylistId: $playlistId)
+                    .presentationDetents([.medium, .large])
             }
         }
-        .sheet(isPresented: $showPlaylistEditor) {
-            SectionPlaylistEditor(selectedPlaylistId: $playlistId)
-                .presentationDetents([.medium, .large])
+        .onChange(of: activeSheet) { old, new in
+            if let old, new == nil, case .editPlaylist = old {
+                playlistRefreshKey += 1
+            }
         }
-        .onChange(of: showPlaylistEditor) { _, isShowing in
-            if !isShowing {
-                playlistPreviewRefreshKey += 1
+        .task(id: "\(playlistId ?? "")-\(playlistRefreshKey)") {
+            await loadInlinePlaylist()
+        }
+    }
+
+    // MARK: - Playlist Loading
+
+    private func loadInlinePlaylist() async {
+        guard let id = playlistId else {
+            inlinePlaylistVM.closePlaylistEditor()
+            return
+        }
+        await inlinePlaylistVM.loadMyPlaylists()
+        if let playlist = inlinePlaylistVM.myPlaylists.first(where: { $0.uri == id }) {
+            await inlinePlaylistVM.selectPlaylistForEditing(playlist)
+        }
+    }
+
+    // MARK: - Playlist Section
+
+    private var playlistSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("PLAYLIST")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .kerning(1.2)
+                .padding(.horizontal, 24)
+
+            if playlistId != nil {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        HStack(spacing: 6) {
+                            Image(systemName: "music.note.list")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                            Text(inlinePlaylistVM.selectedPlaylistForEditing?.name
+                                 ?? (inlinePlaylistVM.isLoadingPlaylists ? "Loading..." : "Playlist"))
+                                .font(.system(size: 14, weight: .medium))
+                                .lineLimit(1)
+                        }
+                        Spacer()
+                        Button {
+                            activeSheet = .editPlaylist
+                        } label: {
+                            Text("Edit")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundStyle(.black)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .overlay(Capsule().stroke(Color.black, lineWidth: 1))
+                        }
+                        .buttonStyle(.plain)
+                        Button {
+                            playlistId = nil
+                            inlinePlaylistVM.closePlaylistEditor()
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 24, height: 24)
+                                .background(Color(.systemGray5))
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    if !inlinePlaylistVM.isLoadingPlaylistTracks && !inlinePlaylistVM.playlistTracks.isEmpty {
+                        let totalSecs = inlinePlaylistVM.playlistTracks.reduce(0) { $0 + $1.track.durationSeconds }
+                        let h = totalSecs / 3600
+                        let m = (totalSecs % 3600) / 60
+                        Text("\(inlinePlaylistVM.playlistTracks.count) tracks · \(h > 0 ? "\(h)h \(m)m" : "\(m)m")")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if inlinePlaylistVM.isLoadingPlaylistTracks {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 8)
+                    } else if !inlinePlaylistVM.playlistTracks.isEmpty {
+                        InlineReorderableTrackList(viewModel: inlinePlaylistVM)
+                    }
+                }
+                .padding(.horizontal, 24)
+            } else {
+                Button {
+                    activeSheet = .editPlaylist
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "music.note.list")
+                            .font(.system(size: 14))
+                        Text("Add a playlist")
+                            .font(.system(size: 14, weight: .medium))
+                    }
+                    .foregroundStyle(.black)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(.systemGray6))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                }
+                .buttonStyle(.plain)
+                .padding(.horizontal, 24)
             }
         }
     }
 }
 
-/// Identifiable wrapper for sheet presentation by index.
-private struct SectionSheetId: Identifiable {
-    let index: Int
-    var id: Int { index }
+// MARK: - Main Section Sheet Discriminator
+
+private enum MainSectionSheet: Identifiable, Equatable {
+    case editSection(Int)
+    case editPlaylist
+
+    var id: String {
+        switch self {
+        case .editSection(let i): return "section-\(i)"
+        case .editPlaylist: return "playlist"
+        }
+    }
 }
 
 // MARK: - Main Section Card
@@ -378,155 +513,94 @@ private struct MainSectionCard: View {
     }
 }
 
-// MARK: - Playlist Preview Card
+// MARK: - Inline Reorderable Track List
 
-struct PlaylistPreviewCard: View {
-    let playlistId: String
-    let refreshKey: Int
-    let onEdit: () -> Void
-    let onRemove: () -> Void
+private struct InlineReorderableTrackList: View {
+    @ObservedObject var viewModel: SpotifySearchViewModel
+    @State private var confirmingDeleteId: String?
+    @State private var resetTask: Task<Void, Never>?
 
-    @EnvironmentObject private var spotifyManager: SpotifyManager
-    @State private var playlistName: String?
-    @State private var tracks: [SpotifySearchService.PlaylistTrackItem] = []
-    @State private var isLoading = false
-    
-    private var totalDurationLabel: String {
-        let totalSeconds = tracks.reduce(0) { $0 + $1.track.durationSeconds }
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        if hours > 0 {
-            return "\(hours)h \(minutes)m"
-        }
-        return "\(minutes)m"
-    }
-
-    private var spotifyId: String {
-        // Convert URI (spotify:playlist:xxx) to plain ID
-        if playlistId.hasPrefix("spotify:playlist:") {
-            return String(playlistId.dropFirst("spotify:playlist:".count))
-        }
-        return playlistId
-    }
+    private let rowHeight: CGFloat = 50
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "music.note.list")
+        List {
+            ForEach(viewModel.playlistTracks) { item in
+                HStack(spacing: 10) {
+                    Button {
+                        handleDeleteTap(item: item)
+                    } label: {
+                        Image(systemName: confirmingDeleteId == item.id ? "trash.fill" : "trash")
                             .font(.system(size: 12))
+                            .foregroundStyle(confirmingDeleteId == item.id ? .red : Color(.systemGray3))
+                    }
+                    .buttonStyle(.plain)
+
+                    AsyncImage(url: item.track.albumArtURL) { img in
+                        img.resizable().aspectRatio(contentMode: .fill)
+                    } placeholder: {
+                        Color(.systemGray4)
+                    }
+                    .frame(width: 32, height: 32)
+                    .cornerRadius(4)
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(item.track.name)
+                            .font(.system(size: 13, weight: .medium))
+                            .lineLimit(1)
+                        Text(item.track.artistName)
+                            .font(.system(size: 11))
                             .foregroundStyle(.secondary)
-                        Text(playlistName ?? "Loading...")
-                            .font(.system(size: 14, weight: .medium))
                             .lineLimit(1)
                     }
-                    if !isLoading && !tracks.isEmpty {
-                        Text("\(tracks.count) tracks \u{00B7} \(totalDurationLabel)")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-                }
 
-                Spacer()
+                    Spacer()
 
-                Button {
-                    onEdit()
-                } label: {
-                    Text("Edit")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .overlay(Capsule().stroke(Color.black, lineWidth: 1))
-                }
-                .buttonStyle(.plain)
-
-                Button {
-                    onRemove()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
+                    Text(item.track.durationFormatted)
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .frame(width: 24, height: 24)
-                        .background(Color(.systemGray5))
-                        .clipShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .frame(height: rowHeight)
+                .listRowInsets(EdgeInsets(top: 0, leading: 8, bottom: 0, trailing: 8))
+                .listRowBackground(Color(.systemGray6))
+                .listRowSeparator(.hidden)
             }
-
-            if isLoading {
-                ProgressView()
-                    .scaleEffect(0.8)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 8)
-            } else if !tracks.isEmpty {
-                VStack(spacing: 0) {
-                    ForEach(tracks.prefix(3)) { item in
-                        HStack(spacing: 10) {
-                            AsyncImage(url: item.track.albumArtURL) { image in
-                                image.resizable().aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Color(UIColor.systemGray5)
-                            }
-                            .frame(width: 32, height: 32)
-                            .cornerRadius(4)
-
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(item.track.name)
-                                    .font(.system(size: 12, weight: .medium))
-                                    .lineLimit(1)
-                                Text(item.track.artistName)
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                            }
-
-                            Spacer()
-
-                            Text(item.track.durationFormatted)
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 6)
-
-                        if item.id != tracks.prefix(3).last?.id {
-                            Divider()
-                        }
-                    }
-
-                    if tracks.count > 3 {
-                        Text("+ \(tracks.count - 3) more")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .padding(.top, 6)
-                    }
-                }
-                .padding(10)
-                .background(Color(.systemGray6))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            .onMove { from, to in
+                guard let src = from.first else { return }
+                Task { await viewModel.moveTrack(from: src, to: to) }
             }
         }
-        .task(id: "\(playlistId)-\(refreshKey)") {
-            await loadPlaylistInfo()
-        }
+        .environment(\.editMode, .constant(.active))
+        .scrollDisabled(true)
+        .listStyle(.plain)
+        .frame(height: CGFloat(viewModel.playlistTracks.count) * rowHeight)
+        .background(Color(.systemGray6))
+        .clipShape(RoundedRectangle(cornerRadius: 10))
     }
 
-    private func loadPlaylistInfo() async {
-        guard spotifyManager.isAuthenticated else { return }
-        isLoading = true
-        defer { isLoading = false }
-
-        // Load playlist name
-        let playlists = (try? await SpotifySearchService.shared.getMyPlaylists(limit: 50)) ?? []
-        playlistName = playlists.first(where: { $0.uri == playlistId })?.name ?? "Playlist"
-
-        // Load tracks
-        tracks = (try? await SpotifySearchService.shared.getPlaylistTracks(playlistId: spotifyId)) ?? []
+    private func handleDeleteTap(item: SpotifySearchService.PlaylistTrackItem) {
+        if confirmingDeleteId == item.id {
+            resetTask?.cancel()
+            confirmingDeleteId = nil
+            Task { await viewModel.removeTrackFromPlaylist(item) }
+        } else {
+            resetTask?.cancel()
+            withAnimation(.easeInOut(duration: 0.15)) {
+                confirmingDeleteId = item.id
+            }
+            resetTask = Task {
+                try? await Task.sleep(nanoseconds: 2_500_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        confirmingDeleteId = nil
+                    }
+                }
+            }
+        }
     }
 }
 
-// MARK: - Reorderable Movement List (made internal for reuse)
+// MARK: - Reorderable Movement List (internal for reuse)
 
 struct ReorderableMovementList: View {
     @Binding var movements: [Movement]
@@ -535,9 +609,18 @@ struct ReorderableMovementList: View {
 
     private var totalHeight: CGFloat {
         movements.reduce(0) { total, movement in
-            var h: CGFloat = 39 // base: name + vertical padding
-            if movement.reps != nil || movement.seconds != nil { h += 16 }
-            if let notes = movement.notes, !notes.isEmpty { h += 16 }
+            let hasMetric = movement.reps != nil || movement.seconds != nil
+            let hasNote = movement.notes.map { !$0.isEmpty } ?? false
+            // Metric column (number + unit label stacked) ≈ 33pt, name alone ≈ 19pt, note ≈ 15pt.
+            // Row height = max(left col, right col) + 24pt vertical padding.
+            let h: CGFloat
+            if hasNote {
+                h = 61  // note side (19+3+15=37) > metric col (33); 37+24
+            } else if hasMetric {
+                h = 57  // metric col (33) > name alone (19); 33+24
+            } else {
+                h = 43  // no metric, no note: name only (19) + 24
+            }
             return total + h
         }
     }
